@@ -19,9 +19,9 @@ func main() {
 	var err error
 
 	switch cfg.DBType {
-	case "mongodb":
+	case config.Mongo:
 		kvStore, err = mongodb.NewMongoStore(cfg.MongoURI)
-	case "boltdb":
+	case config.Boltdb:
 		kvStore, err = boltdb.NewBoltStore(cfg.BoltPath)
 	default:
 		log.Fatal("unsupported store type")
@@ -33,5 +33,5 @@ func main() {
 	defer kvStore.Close()
 
 	router := api.SetupRouter(kvStore)
-	log.Fatal(router.Run(cfg.ListenAddr))
+	log.Fatal(router.Run(":" + cfg.Port))
 }
