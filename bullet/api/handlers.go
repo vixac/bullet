@@ -1,9 +1,10 @@
 package api
 
 import (
-	"bullet/model"
-	"bullet/store"
 	"net/http"
+
+	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/store"
 
 	"github.com/gin-gonic/gin"
 )

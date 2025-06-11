@@ -1,17 +1,20 @@
 package main
 
 import (
-	"bullet/api"
-	"bullet/config"
-	"bullet/store"
-	"bullet/store/boltdb"
-	"bullet/store/mongodb"
+	"fmt"
 	"log"
+
+	"github.com/vixac/bullet/config"
+	"github.com/vixac/bullet/store"
+	"github.com/vixac/bullet/store/boltdb"
+	mongodb "github.com/vixac/bullet/store/mongo"
+
+	"github.com/vixac/bullet/api"
 )
 
 func main() {
 	cfg := config.Load()
-
+	fmt.Printf("VX: config is %+v\n", cfg)
 	var kvStore store.Store
 	var err error
 
