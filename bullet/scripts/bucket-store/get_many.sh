@@ -1,4 +1,4 @@
-curl -X POST http://localhost:$1/get-many \
+curl -X POST http://localhost:$1/bucket-store/get-many \
   -H "Content-Type: application/json" \
   -d '{
     "appId": 1,

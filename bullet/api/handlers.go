@@ -9,16 +9,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var kvStore store.Store
+var kvStore store.BucketStore
 
-func SetupRouter(store store.Store) *gin.Engine {
+func SetupRouter(store store.BucketStore) *gin.Engine {
 	kvStore = store
 	r := gin.Default()
-	r.POST("/insert-one", putHandler)
-	r.POST("/insert-many", putManyHandler)
-	r.POST("/get-many", getManyHandler)
-	r.POST("/get-one", getHandler)
-	r.POST("/delete-one", deleteHandler)
+	bucket := "/bucket-store"
+	r.POST(bucket+"/insert-one", putHandler)
+	r.POST(bucket+"/insert-many", putManyHandler)
+	r.POST(bucket+"/get-many", getManyHandler)
+	r.POST(bucket+"/get-one", getHandler)
+	r.POST(bucket+"/delete-one", deleteHandler)
 	return r
 }
 

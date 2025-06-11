@@ -1,4 +1,4 @@
-curl -X POST http://localhost:$1/insert-many \
+curl -X POST http://localhost:$1/bucket-store/insert-many \
   -H "Content-Type: application/json" \
   -d '{
     "appId": 1,
