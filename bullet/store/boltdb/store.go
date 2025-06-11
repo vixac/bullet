@@ -2,8 +2,10 @@ package boltdb
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
+	"github.com/vixac/bullet/model"
 	"go.etcd.io/bbolt"
 )
 
@@ -64,4 +66,12 @@ func (b *BoltStore) Delete(appID, bucketID int32, key string) error {
 
 func (b *BoltStore) Close() error {
 	return b.db.Close()
+}
+
+func (b *BoltStore) PutMany(appID int32, items map[int32][]model.KeyValueItem) error {
+	return errors.New("put many not implmemented on bolt store")
+}
+func (b *BoltStore) GetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
+
+	return nil, nil, errors.New("get many not implmemented on bolt store")
 }
