@@ -34,6 +34,7 @@ func putHandler(c *gin.Context) {
 }
 
 func getHandler(c *gin.Context) {
+	print("VX: get called")
 	var req model.KVRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
