@@ -18,7 +18,7 @@ func SetupRouter(store store.Store) *gin.Engine {
 	r.POST("/insert-many", putManyHandler)
 	r.POST("/get-many", getManyHandler)
 	r.POST("/get-one", getHandler)
-	r.POST("/delete", deleteHandler)
+	r.POST("/delete-one", deleteHandler)
 	return r
 }
 
@@ -59,14 +59,23 @@ func getManyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	//VX:TODO hit store
-	/*
-		c.JSON(http.StatusOK, model.GetManyResponse{
-			Values:  values,
-			Missing: missing,
-		})
-	*/
+	keys := make(map[int32][]string)
+	for _, bucket := range req.Buckets {
+		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
+	}
+
+	values, missing, err := kvStore.GetMany(req.AppID, keys)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"values":  values,
+		"missing": missing,
+	})
 }
+
 func getHandler(c *gin.Context) {
 	print("VX: get called")
 	var req model.KVRequest
