@@ -12,15 +12,16 @@ type PutManyRequest struct {
 	Buckets []BucketPutItems `json:"buckets"`
 }
 
-type KeyValueItem struct {
+type BucketKeyValueItem struct {
 	Key   string `json:"key"`
 	Value int64  `json:"value"`
 }
 
 type BucketPutItems struct {
-	BucketID int32          `json:"bucketId"`
-	Items    []KeyValueItem `json:"items"`
+	BucketID int32                `json:"bucketId"`
+	Items    []BucketKeyValueItem `json:"items"`
 }
+
 type GetManyRequest struct {
 	AppID   int32           `json:"appId"`
 	Buckets []BucketGetKeys `json:"buckets"`

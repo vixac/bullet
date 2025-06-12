@@ -51,31 +51,31 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	return &store, nil
 }
 
-func (m *MongoStore) Put(appID, bucketID int32, key string, value int64) error {
+func (m *MongoStore) BucketPut(appID, bucketID int32, key string, value int64) error {
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
 	_, err := m.collection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
 	return err
 }
 
-func (m *MongoStore) Get(appID, bucketID int32, key string) (int64, error) {
+func (m *MongoStore) BucketGet(appID, bucketID int32, key string) (int64, error) {
 	var result struct{ Value int64 }
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
 	err := m.collection.FindOne(context.TODO(), filter).Decode(&result)
 	return result.Value, err
 }
 
-func (m *MongoStore) Delete(appID, bucketID int32, key string) error {
+func (m *MongoStore) BucketDelete(appID, bucketID int32, key string) error {
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
 	_, err := m.collection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
-func (m *MongoStore) Close() error {
+func (m *MongoStore) BucketClose() error {
 	return m.client.Disconnect(context.TODO())
 }
 
-func (m *MongoStore) PutMany(appID int32, items map[int32][]model.KeyValueItem) error {
+func (m *MongoStore) BucketPutMany(appID int32, items map[int32][]model.BucketKeyValueItem) error {
 	var docs []interface{}
 
 	for bucketID, kvItems := range items {
@@ -98,7 +98,7 @@ func (m *MongoStore) PutMany(appID int32, items map[int32][]model.KeyValueItem) 
 	return err
 }
 
-func (m *MongoStore) GetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
+func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
 	values := make(map[int32]map[string]int64)
 	missing := make(map[int32][]string)
 

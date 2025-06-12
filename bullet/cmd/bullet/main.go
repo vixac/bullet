@@ -29,7 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer kvStore.Close()
+	defer kvStore.BucketClose()
 
 	router := api.SetupRouter(kvStore)
 	log.Fatal(router.Run(":" + cfg.Port))
