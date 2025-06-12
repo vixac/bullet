@@ -10,16 +10,14 @@ import (
 
 var pigeonStore store.PigeonStore
 
-func SetupPigeonRouter(store store.PigeonStore) *gin.Engine {
+func SetupPigeonRouter(store store.PigeonStore, prefix string, engine *gin.Engine) *gin.Engine {
 	pigeonStore = store
-	r := gin.Default()
-	prefix := "/pigeon-store"
-	r.POST(prefix+"/insert-one", pigeonPutHandler)
-	r.POST(prefix+"/insert-many", pigeonPutManyHandler)
-	r.POST(prefix+"/get-many", pigeonGetManyHandler)
-	r.POST(prefix+"/get-one", pigeonGetHandler)
-	r.POST(prefix+"/delete-one", pigeonDeleteHandler)
-	return r
+	engine.POST(prefix+"/insert-one", pigeonPutHandler)
+	engine.POST(prefix+"/insert-many", pigeonPutManyHandler)
+	engine.POST(prefix+"/get-many", pigeonGetManyHandler)
+	engine.POST(prefix+"/get-one", pigeonGetHandler)
+	engine.POST(prefix+"/delete-one", pigeonDeleteHandler)
+	return engine
 }
 
 func pigeonPutHandler(c *gin.Context) {

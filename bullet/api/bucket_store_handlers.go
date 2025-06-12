@@ -11,16 +11,14 @@ import (
 
 var bucketStore store.BucketStore
 
-func SetupRouter(store store.BucketStore) *gin.Engine {
+func SetupBucketRouter(store store.BucketStore, prefix string, engine *gin.Engine) *gin.Engine {
 	bucketStore = store
-	r := gin.Default()
-	bucket := "/bucket-store"
-	r.POST(bucket+"/insert-one", bucketPutHandler)
-	r.POST(bucket+"/insert-many", bucketPutManyHandler)
-	r.POST(bucket+"/get-many", bucketGetManyHandler)
-	r.POST(bucket+"/get-one", bucketGetHandler)
-	r.POST(bucket+"/delete-one", bucketDeleteHandler)
-	return r
+	engine.POST(prefix+"/insert-one", bucketPutHandler)
+	engine.POST(prefix+"/insert-many", bucketPutManyHandler)
+	engine.POST(prefix+"/get-many", bucketGetManyHandler)
+	engine.POST(prefix+"/get-one", bucketGetHandler)
+	engine.POST(prefix+"/delete-one", bucketDeleteHandler)
+	return engine
 }
 
 func bucketPutHandler(c *gin.Context) {

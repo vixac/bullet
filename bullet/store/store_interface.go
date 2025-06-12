@@ -18,3 +18,8 @@ type PigeonStore interface {
 	PigeonPutMany(appID int32, items []model.PigeonKeyValueItem) error
 	PigeonGetMany(appID int32, keys []int64) (map[int64]string, []int64, error)
 }
+
+type Store interface {
+	BucketStore
+	PigeonStore
+}

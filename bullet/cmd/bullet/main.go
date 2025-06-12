@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/api"
 	"github.com/vixac/bullet/config"
 	"github.com/vixac/bullet/store"
@@ -14,7 +15,7 @@ import (
 func main() {
 	cfg := config.Load()
 	fmt.Printf("VX: config is %+v\n", cfg)
-	var kvStore store.BucketStore
+	var kvStore store.Store
 	var err error
 
 	switch cfg.DBType {
@@ -31,6 +32,8 @@ func main() {
 	}
 	defer kvStore.BucketClose()
 
-	router := api.SetupRouter(kvStore)
-	log.Fatal(router.Run(":" + cfg.Port))
+	engine := gin.Default()
+	engine = api.SetupBucketRouter(kvStore, "bucket/", engine)
+	engine = api.SetupPigeonRouter(kvStore, "pigeon/", engine)
+	log.Fatal(engine.Run(":" + cfg.Port))
 }
