@@ -75,3 +75,6 @@ func (b *BoltStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int
 
 	return nil, nil, errors.New("get many not implmemented on bolt store")
 }
+func (b *BoltStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error) {
+	return nil, errors.New("get many not implmemented on bolt store")
+}

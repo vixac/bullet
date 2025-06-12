@@ -1,5 +1,6 @@
 package model
 
+// this is bucket
 type KVRequest struct {
 	AppID    int32  `json:"appId"`
 	BucketID int32  `json:"bucketId"`
@@ -35,4 +36,10 @@ type BucketGetKeys struct {
 type GetManyResponse struct {
 	Values  map[string]map[string]int64 `json:"values"`  // bucketId -> (key -> value)
 	Missing map[string][]string         `json:"missing"` // bucketId -> list of missing keys
+}
+
+type GetItemsByPrefixRequest struct {
+	AppID    int32  `json:"appId"`
+	BucketID int32  `json:"bucketId"`
+	Prefix   string `json:"prefix"`
 }

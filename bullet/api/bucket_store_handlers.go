@@ -16,8 +16,10 @@ func SetupBucketRouter(store store.BucketStore, prefix string, engine *gin.Engin
 	engine.POST(prefix+"/insert-one", bucketPutHandler)
 	engine.POST(prefix+"/insert-many", bucketPutManyHandler)
 	engine.POST(prefix+"/get-many", bucketGetManyHandler)
+
 	engine.POST(prefix+"/get-one", bucketGetHandler)
 	engine.POST(prefix+"/delete-one", bucketDeleteHandler)
+	engine.POST(prefix+"/get-query", handleGetItemsByPrefix)
 	return engine
 }
 
@@ -33,6 +35,7 @@ func bucketPutHandler(c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 }
+
 func bucketPutManyHandler(c *gin.Context) {
 	var req model.PutManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -101,4 +104,26 @@ func bucketDeleteHandler(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+func handleGetItemsByPrefix(c *gin.Context) {
+	var req model.GetItemsByPrefixRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	items, err := bucketStore.GetItemsByKeyPrefix(
+		req.AppID,
+		req.BucketID,
+		req.Prefix,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "lookup failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+	})
 }

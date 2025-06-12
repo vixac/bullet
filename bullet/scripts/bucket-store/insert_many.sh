@@ -1,4 +1,4 @@
-curl -X POST http://localhost:$1/bucket-store/insert-many \
+curl -X POST http://localhost:$1/bucket/insert-many \
   -H "Content-Type: application/json" \
   -d '{
     "appId": 1,
@@ -6,8 +6,13 @@ curl -X POST http://localhost:$1/bucket-store/insert-many \
       {
         "bucketId": 42,
         "items": [
-          {"key":"foo","value":123},
-          {"key":"bar","value":456}
+          {"key":"bar:1","value":1},
+          {"key":"bar:1:a","value":10},
+          {"key":"bar:2","value":2},
+          {"key":"bar:2:a","value":20},
+          {"key":"bar:3:a","value":20},
+          {"key":"foo:1","value":1},
+          {"key":"foo:2","value":2}
         ]
       },
       {

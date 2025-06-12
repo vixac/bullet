@@ -9,6 +9,8 @@ type BucketStore interface {
 	BucketClose() error //VX:TODO whats this
 	BucketPutMany(appID int32, items map[int32][]model.BucketKeyValueItem) error
 	BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error)
+
+	GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error)
 }
 
 type PigeonStore interface {

@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/vixac/bullet/model"
 	"go.mongodb.org/mongo-driver/bson"
@@ -113,4 +114,50 @@ func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[in
 	}
 
 	return values, missing, nil
+}
+
+func nextLexicographicString(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+
+	// Convert string to byte slice
+	b := []byte(s)
+
+	// Walk backwards, looking for a byte we can increment
+	for i := len(b) - 1; i >= 0; i-- {
+		if b[i] < 0xFF {
+			b[i]++
+			return string(b[:i+1])
+		}
+	}
+
+	// If all bytes were 0xFF, append 0x00 (or pick a safe suffix char)
+	return s + "\x00"
+}
+func (m *MongoStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error) {
+	lower := prefix
+	upper := nextLexicographicString(prefix)
+
+	filter := bson.M{
+		"appId":    appID,
+		"bucketId": bucketID,
+		"key": bson.M{
+			"$gte": lower,
+			"$lt":  upper,
+		},
+	}
+	fmt.Printf("VX: filter is %+v\n", filter)
+	cursor, err := m.bucketCollection.Find(context.TODO(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.TODO())
+
+	var results []model.BucketKeyValueItem
+	if err := cursor.All(context.TODO(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
