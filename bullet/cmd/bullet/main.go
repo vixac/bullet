@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gin-gonic/gin"
+	"github.com/vixac/bullet/api"
 	"github.com/vixac/bullet/config"
 	"github.com/vixac/bullet/store"
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
-
-	"github.com/vixac/bullet/api"
 )
 
 func main() {
@@ -30,8 +30,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer kvStore.Close()
+	defer kvStore.BucketClose()
 
-	router := api.SetupRouter(kvStore)
-	log.Fatal(router.Run(":" + cfg.Port))
+	engine := gin.Default()
+	engine = api.SetupBucketRouter(kvStore, "bucket/", engine)
+	engine = api.SetupPigeonRouter(kvStore, "pigeon/", engine)
+	log.Fatal(engine.Run(":" + cfg.Port))
 }

@@ -3,68 +3,59 @@ package api
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store"
-
-	"github.com/gin-gonic/gin"
 )
 
-var kvStore store.Store
+var pigeonStore store.PigeonStore
 
-func SetupRouter(store store.Store) *gin.Engine {
-	kvStore = store
-	r := gin.Default()
-	r.POST("/insert-one", putHandler)
-	r.POST("/insert-many", putManyHandler)
-	r.POST("/get-many", getManyHandler)
-	r.POST("/get-one", getHandler)
-	r.POST("/delete-one", deleteHandler)
-	return r
+func SetupPigeonRouter(store store.PigeonStore, prefix string, engine *gin.Engine) *gin.Engine {
+	pigeonStore = store
+	engine.POST(prefix+"/insert-one", pigeonPutHandler)
+	engine.POST(prefix+"/insert-many", pigeonPutManyHandler)
+	engine.POST(prefix+"/get-many", pigeonGetManyHandler)
+	engine.POST(prefix+"/get-one", pigeonGetHandler)
+	engine.POST(prefix+"/delete-one", pigeonDeleteHandler)
+	return engine
 }
 
-func putHandler(c *gin.Context) {
-	var req model.KVRequest
+func pigeonPutHandler(c *gin.Context) {
+	var req model.PigeonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := kvStore.Put(req.AppID, req.BucketID, req.Key, req.Value); err != nil {
+	if err := pigeonStore.PigeonPut(req.AppID, req.Key, req.Value); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
 }
-func putManyHandler(c *gin.Context) {
-	var req model.PutManyRequest
+
+func pigeonPutManyHandler(c *gin.Context) {
+	var req model.PigeonPutManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	items := make(map[int32][]model.KeyValueItem)
-	for _, bucket := range req.Buckets {
-		items[bucket.BucketID] = append(items[bucket.BucketID], bucket.Items...)
-	}
-
-	if err := kvStore.PutMany(req.AppID, items); err != nil {
+	if err := pigeonStore.PigeonPutMany(req.AppID, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.Status(http.StatusOK)
 }
-func getManyHandler(c *gin.Context) {
-	var req model.GetManyRequest
+
+func pigeonGetManyHandler(c *gin.Context) {
+	var req model.PigeonGetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	keys := make(map[int32][]string)
-	for _, bucket := range req.Buckets {
-		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
-	}
 
-	values, missing, err := kvStore.GetMany(req.AppID, keys)
+	values, missing, err := pigeonStore.PigeonGetMany(req.AppID, req.Keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -76,14 +67,13 @@ func getManyHandler(c *gin.Context) {
 	})
 }
 
-func getHandler(c *gin.Context) {
-	print("VX: get called")
-	var req model.KVRequest
+func pigeonGetHandler(c *gin.Context) {
+	var req model.PigeonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	value, err := kvStore.Get(req.AppID, req.BucketID, req.Key)
+	value, err := pigeonStore.PigeonGet(req.AppID, req.Key)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -91,13 +81,13 @@ func getHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"value": value})
 }
 
-func deleteHandler(c *gin.Context) {
-	var req model.KVRequest
+func pigeonDeleteHandler(c *gin.Context) {
+	var req model.PigeonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := kvStore.Delete(req.AppID, req.BucketID, req.Key); err != nil {
+	if err := pigeonStore.PigeonDelete(req.AppID, req.Key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

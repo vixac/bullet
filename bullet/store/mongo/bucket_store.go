@@ -2,80 +2,38 @@ package mongodb
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/vixac/bullet/model"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type MongoStore struct {
-	client     *mongo.Client
-	collection *mongo.Collection
-}
-
-func NewMongoStore(uri string) (*MongoStore, error) {
-	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := client.Connect(ctx); err != nil {
-		return nil, err
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	store := MongoStore{
-		client:     client,
-		collection: client.Database("bullet").Collection("kv"),
-	}
-	model := mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "appId", Value: 1},
-			{Key: "bucketId", Value: 1},
-			{Key: "key", Value: 1},
-		},
-	}
-	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
-	_, err = store.collection.Indexes().CreateOne(context.TODO(), model, opts)
-	if err != nil {
-		return nil, err
-	}
-	return &store, nil
-}
-
-func (m *MongoStore) Put(appID, bucketID int32, key string, value int64) error {
+func (m *MongoStore) BucketPut(appID, bucketID int32, key string, value int64) error {
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
-	_, err := m.collection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
+	_, err := m.bucketCollection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
 	return err
 }
 
-func (m *MongoStore) Get(appID, bucketID int32, key string) (int64, error) {
+func (m *MongoStore) BucketGet(appID, bucketID int32, key string) (int64, error) {
 	var result struct{ Value int64 }
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
-	err := m.collection.FindOne(context.TODO(), filter).Decode(&result)
+	err := m.bucketCollection.FindOne(context.TODO(), filter).Decode(&result)
 	return result.Value, err
 }
 
-func (m *MongoStore) Delete(appID, bucketID int32, key string) error {
+func (m *MongoStore) BucketDelete(appID, bucketID int32, key string) error {
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
-	_, err := m.collection.DeleteOne(context.TODO(), filter)
+	_, err := m.bucketCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
-func (m *MongoStore) Close() error {
+func (m *MongoStore) BucketClose() error {
 	return m.client.Disconnect(context.TODO())
 }
 
-func (m *MongoStore) PutMany(appID int32, items map[int32][]model.KeyValueItem) error {
+func (m *MongoStore) BucketPutMany(appID int32, items map[int32][]model.BucketKeyValueItem) error {
 	var docs []interface{}
 
 	for bucketID, kvItems := range items {
@@ -94,11 +52,11 @@ func (m *MongoStore) PutMany(appID int32, items map[int32][]model.KeyValueItem) 
 		return nil
 	}
 
-	_, err := m.collection.InsertMany(context.TODO(), docs, options.InsertMany().SetOrdered(false))
+	_, err := m.bucketCollection.InsertMany(context.TODO(), docs, options.InsertMany().SetOrdered(false))
 	return err
 }
 
-func (m *MongoStore) GetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
+func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
 	values := make(map[int32]map[string]int64)
 	missing := make(map[int32][]string)
 
@@ -117,7 +75,7 @@ func (m *MongoStore) GetMany(appID int32, keys map[int32][]string) (map[int32]ma
 		return values, missing, nil
 	}
 
-	cur, err := m.collection.Find(context.TODO(), bson.M{"$or": orFilters})
+	cur, err := m.bucketCollection.Find(context.TODO(), bson.M{"$or": orFilters})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -156,4 +114,50 @@ func (m *MongoStore) GetMany(appID int32, keys map[int32][]string) (map[int32]ma
 	}
 
 	return values, missing, nil
+}
+
+func nextLexicographicString(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+
+	// Convert string to byte slice
+	b := []byte(s)
+
+	// Walk backwards, looking for a byte we can increment
+	for i := len(b) - 1; i >= 0; i-- {
+		if b[i] < 0xFF {
+			b[i]++
+			return string(b[:i+1])
+		}
+	}
+
+	// If all bytes were 0xFF, append 0x00 (or pick a safe suffix char)
+	return s + "\x00"
+}
+func (m *MongoStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error) {
+	lower := prefix
+	upper := nextLexicographicString(prefix)
+
+	filter := bson.M{
+		"appId":    appID,
+		"bucketId": bucketID,
+		"key": bson.M{
+			"$gte": lower,
+			"$lt":  upper,
+		},
+	}
+	fmt.Printf("VX: filter is %+v\n", filter)
+	cursor, err := m.bucketCollection.Find(context.TODO(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.TODO())
+
+	var results []model.BucketKeyValueItem
+	if err := cursor.All(context.TODO(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
