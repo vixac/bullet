@@ -12,7 +12,6 @@ type BucketStore interface {
 
 	GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error)
 }
-
 type PigeonStore interface {
 	PigeonPut(appID int32, key int64, value string) error
 	PigeonGet(appID int32, key int64) (string, error)
