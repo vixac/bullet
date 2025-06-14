@@ -9,4 +9,4 @@ fi
 
 cd bullet
 #yea the binary needs to be build on the top level or whatever.
-go build -o ../$1 ./cmd/bullet
+go build -buildvcs=false -o $1 ./cmd/bullet
