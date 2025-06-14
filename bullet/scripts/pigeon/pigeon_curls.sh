@@ -5,8 +5,8 @@ PORT=$1
 # Insert One
 curl -X POST http://localhost:$PORT/pigeon/insert-one \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d '{
-    "appId": 1,
     "key": 123456,
     "value": "hello world"
   }'
@@ -16,8 +16,8 @@ echo -e "\n"
 # Insert Many
 curl -X POST http://localhost:$PORT/pigeon/insert-many \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d '{
-    "appId": 1,
     "items": [
       {"key": 100, "value": "alpha"},
       {"key": 200, "value": "beta"},
@@ -30,8 +30,8 @@ echo -e "\n"
 # Get One
 curl -X POST http://localhost:$PORT/pigeon/get-one \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d '{
-    "appId": 1,
     "key": 123456
   }'
 
@@ -40,8 +40,8 @@ echo -e "\n"
 # Get Many
 curl -X POST http://localhost:$PORT/pigeon/get-many \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d '{
-    "appId": 1,
     "keys": [100, 200, 400]
   }'
 
@@ -50,8 +50,8 @@ echo -e "\n"
 # Delete One
 curl -X POST http://localhost:$PORT/pigeon/delete-one \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d '{
-    "appId": 1,
     "key": 123456
   }'
 

@@ -1,7 +1,7 @@
 curl -X POST http://localhost:$1/bucket/insert-many \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d '{
-    "appId": 1,
     "buckets": [
       {
         "bucketId": 42,

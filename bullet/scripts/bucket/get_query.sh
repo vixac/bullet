@@ -12,7 +12,6 @@ PORT=$1
 # Sample JSON payload
 JSON_PAYLOAD=$(cat <<EOF
 {
-  "appId": 1,
   "bucketId": 42,
   "prefix": "bar:1"
 }
@@ -22,6 +21,7 @@ EOF
 # Execute the POST request
 curl -X POST "http://localhost:$PORT/bucket/get-query" \
   -H "Content-Type: application/json" \
+    -H "X-App-ID: 1" \
   -d "$JSON_PAYLOAD" \
   -w "\nHTTP status: %{http_code}\n" \
   --silent --show-error

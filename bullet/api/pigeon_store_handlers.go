@@ -21,12 +21,18 @@ func SetupPigeonRouter(store store.PigeonStore, prefix string, engine *gin.Engin
 }
 
 func pigeonPutHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
+
 	var req model.PigeonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := pigeonStore.PigeonPut(req.AppID, req.Key, req.Value); err != nil {
+	if err := pigeonStore.PigeonPut(appId, req.Key, req.Value); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -34,13 +40,18 @@ func pigeonPutHandler(c *gin.Context) {
 }
 
 func pigeonPutManyHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.PigeonPutManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := pigeonStore.PigeonPutMany(req.AppID, req.Items); err != nil {
+	if err := pigeonStore.PigeonPutMany(appId, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -49,13 +60,18 @@ func pigeonPutManyHandler(c *gin.Context) {
 }
 
 func pigeonGetManyHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.PigeonGetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	values, missing, err := pigeonStore.PigeonGetMany(req.AppID, req.Keys)
+	values, missing, err := pigeonStore.PigeonGetMany(appId, req.Keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -68,12 +84,17 @@ func pigeonGetManyHandler(c *gin.Context) {
 }
 
 func pigeonGetHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.PigeonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	value, err := pigeonStore.PigeonGet(req.AppID, req.Key)
+	value, err := pigeonStore.PigeonGet(appId, req.Key)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -82,12 +103,17 @@ func pigeonGetHandler(c *gin.Context) {
 }
 
 func pigeonDeleteHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.PigeonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := pigeonStore.PigeonDelete(req.AppID, req.Key); err != nil {
+	if err := pigeonStore.PigeonDelete(appId, req.Key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

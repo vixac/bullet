@@ -1,7 +1,10 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store"
@@ -10,6 +13,21 @@ import (
 )
 
 var bucketStore store.BucketStore
+
+// used by pigeon too
+func extractAppIDFromHeader(c *gin.Context) (int32, error) {
+	appIDStr := c.GetHeader("X-App-ID")
+	if appIDStr == "" {
+		return 0, errors.New("X-App-ID header missing")
+	}
+
+	appID64, err := strconv.ParseInt(appIDStr, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid X-App-ID header: %w", err)
+	}
+
+	return int32(appID64), nil
+}
 
 func SetupBucketRouter(store store.BucketStore, prefix string, engine *gin.Engine) *gin.Engine {
 	bucketStore = store
@@ -24,12 +42,17 @@ func SetupBucketRouter(store store.BucketStore, prefix string, engine *gin.Engin
 }
 
 func bucketPutHandler(c *gin.Context) {
-	var req model.KVRequest
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
+	var req model.BucketRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := bucketStore.BucketPut(req.AppID, req.BucketID, req.Key, req.Value); err != nil {
+	if err := bucketStore.BucketPut(appId, req.BucketID, req.Key, req.Value); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -37,6 +60,11 @@ func bucketPutHandler(c *gin.Context) {
 }
 
 func bucketPutManyHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.PutManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -48,7 +76,7 @@ func bucketPutManyHandler(c *gin.Context) {
 		items[bucket.BucketID] = append(items[bucket.BucketID], bucket.Items...)
 	}
 
-	if err := bucketStore.BucketPutMany(req.AppID, items); err != nil {
+	if err := bucketStore.BucketPutMany(appId, items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -56,6 +84,11 @@ func bucketPutManyHandler(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 func bucketGetManyHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.GetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -66,7 +99,7 @@ func bucketGetManyHandler(c *gin.Context) {
 		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
 	}
 
-	values, missing, err := bucketStore.BucketGetMany(req.AppID, keys)
+	values, missing, err := bucketStore.BucketGetMany(appId, keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -79,13 +112,17 @@ func bucketGetManyHandler(c *gin.Context) {
 }
 
 func bucketGetHandler(c *gin.Context) {
-	print("VX: get called")
-	var req model.KVRequest
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
+	var req model.BucketRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	value, err := bucketStore.BucketGet(req.AppID, req.BucketID, req.Key)
+	value, err := bucketStore.BucketGet(appId, req.BucketID, req.Key)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -94,12 +131,17 @@ func bucketGetHandler(c *gin.Context) {
 }
 
 func bucketDeleteHandler(c *gin.Context) {
-	var req model.KVRequest
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
+	var req model.BucketRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := bucketStore.BucketDelete(req.AppID, req.BucketID, req.Key); err != nil {
+	if err := bucketStore.BucketDelete(appId, req.BucketID, req.Key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -107,6 +149,11 @@ func bucketDeleteHandler(c *gin.Context) {
 }
 
 func handleGetItemsByPrefix(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
 	var req model.GetItemsByPrefixRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -114,7 +161,7 @@ func handleGetItemsByPrefix(c *gin.Context) {
 	}
 
 	items, err := bucketStore.GetItemsByKeyPrefix(
-		req.AppID,
+		appId,
 		req.BucketID,
 		req.Prefix,
 	)
