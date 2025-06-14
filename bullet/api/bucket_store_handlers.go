@@ -14,17 +14,7 @@ import (
 
 var bucketStore store.BucketStore
 
-func SetupBucketRouter(store store.BucketStore, prefix string, engine *gin.Engine) *gin.Engine {
-	bucketStore = store
-	engine.POST(prefix+"/insert-one", bucketPutHandler)
-	engine.POST(prefix+"/insert-many", bucketPutManyHandler)
-	engine.POST(prefix+"/get-many", bucketGetManyHandler)
-
-	engine.POST(prefix+"/get-one", bucketGetHandler)
-	engine.POST(prefix+"/delete-one", bucketDeleteHandler)
-	engine.POST(prefix+"/get-query", handleGetItemsByPrefix)
-	return engine
-}
+// used by pigeon too
 func extractAppIDFromHeader(c *gin.Context) (int32, error) {
 	appIDStr := c.GetHeader("X-App-ID")
 	if appIDStr == "" {
@@ -37,6 +27,18 @@ func extractAppIDFromHeader(c *gin.Context) (int32, error) {
 	}
 
 	return int32(appID64), nil
+}
+
+func SetupBucketRouter(store store.BucketStore, prefix string, engine *gin.Engine) *gin.Engine {
+	bucketStore = store
+	engine.POST(prefix+"/insert-one", bucketPutHandler)
+	engine.POST(prefix+"/insert-many", bucketPutManyHandler)
+	engine.POST(prefix+"/get-many", bucketGetManyHandler)
+
+	engine.POST(prefix+"/get-one", bucketGetHandler)
+	engine.POST(prefix+"/delete-one", bucketDeleteHandler)
+	engine.POST(prefix+"/get-query", handleGetItemsByPrefix)
+	return engine
 }
 
 func bucketPutHandler(c *gin.Context) {
