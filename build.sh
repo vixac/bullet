@@ -8,5 +8,7 @@ if [ -z "$1" ]
 fi
 
 cd bullet
+echo "BULLET BUILD GOT $1 and we are in $(eval pwd)"
 #yea the binary needs to be build on the top level or whatever.
-go build -buildvcs=false -o $1 ./cmd/bullet
+go build -buildvcs=false -o ../$1 ./cmd/bullet
+
