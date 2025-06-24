@@ -32,6 +32,7 @@ func main() {
 	}
 	defer kvStore.BucketClose()
 
+	println("Creating gin routers..")
 	engine := gin.Default()
 	engine = api.SetupBucketRouter(kvStore, "bucket/", engine)
 	engine = api.SetupPigeonRouter(kvStore, "pigeon/", engine)

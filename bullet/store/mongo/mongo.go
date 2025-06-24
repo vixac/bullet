@@ -18,6 +18,7 @@ type MongoStore struct {
 func NewMongoStore(uri string) (*MongoStore, error) {
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
+		println("Mongo client failed.")
 		return nil, err
 	}
 
@@ -25,10 +26,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	defer cancel()
 
 	if err := client.Connect(ctx); err != nil {
-		return nil, err
-	}
-
-	if err != nil {
+		println("Mongo connection failed.")
 		return nil, err
 	}
 
@@ -50,6 +48,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
 	_, err = store.bucketCollection.Indexes().CreateOne(context.TODO(), model, opts)
 	if err != nil {
+		print("Creating bucket indexes failed.")
 		return nil, err
 	}
 
@@ -62,6 +61,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	}
 	_, err = store.pigeonCollection.Indexes().CreateOne(context.TODO(), pigeonModel, opts)
 	if err != nil {
+		println("Creating pigeon indexes failed.")
 		return nil, err
 	}
 
