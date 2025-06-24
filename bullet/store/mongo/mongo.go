@@ -16,6 +16,7 @@ type MongoStore struct {
 }
 
 func NewMongoStore(uri string) (*MongoStore, error) {
+	println("Attempting to create mongo client")
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		println("Mongo client failed.")
@@ -25,6 +26,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	println("Attempting to connect...")
 	if err := client.Connect(ctx); err != nil {
 		println("Mongo connection failed.")
 		return nil, err
@@ -45,6 +47,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		},
 		Options: options.Index().SetUnique(true),
 	}
+	println("Attempting to create databses and indexes...")
 	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
 	_, err = store.bucketCollection.Indexes().CreateOne(context.TODO(), model, opts)
 	if err != nil {
@@ -65,5 +68,6 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		return nil, err
 	}
 
+	println("Mongo connection complete")
 	return &store, nil
 }
