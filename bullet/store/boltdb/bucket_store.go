@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/vixac/bullet/model"
 	"go.etcd.io/bbolt"
@@ -25,7 +26,8 @@ func bucketName(appID, bucketID int32) string {
 	return fmt.Sprintf("app_%d_bucket_%d", appID, bucketID)
 }
 
-func (b *BoltStore) BucketPut(appID, bucketID int32, key string, value int64) error {
+func (b *BoltStore) BucketPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+	log.Fatal("Dev error. tag and metric aren't used.")
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		bkt, err := tx.CreateBucketIfNotExists([]byte(bucketName(appID, bucketID)))
 		if err != nil {
@@ -71,10 +73,16 @@ func (b *BoltStore) BucketClose() error {
 func (b *BoltStore) BucketPutMany(appID int32, items map[int32][]model.BucketKeyValueItem) error {
 	return errors.New("put many not implmemented on bolt store")
 }
-func (b *BoltStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
+func (b *BoltStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.BucketValue, map[int32][]string, error) {
 
 	return nil, nil, errors.New("get many not implmemented on bolt store")
 }
-func (b *BoltStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error) {
+func (b *BoltStore) GetItemsByKeyPrefix(
+	appID, bucketID int32,
+	prefix string,
+	tags []int64, // optional slice of tags
+	metricValue *float64, // optional metric value
+	metricIsGt bool, // "gt" or "lt"
+) ([]model.BucketKeyValueItem, error) {
 	return nil, errors.New("get many not implmemented on bolt store")
 }

@@ -9,9 +9,30 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (m *MongoStore) BucketPut(appID, bucketID int32, key string, value int64) error {
-	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
-	update := bson.M{"$set": bson.M{"value": value}}
+func (m *MongoStore) BucketPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+	filter := bson.M{
+		"appId":    appID,
+		"bucketId": bucketID,
+		"key":      key,
+	}
+
+	// Build the update document
+	updateFields := bson.M{
+		"value": value,
+	}
+
+	if tag != nil {
+		updateFields["tag"] = *tag
+	}
+
+	if metric != nil {
+		updateFields["metric"] = *metric
+	}
+
+	update := bson.M{
+		"$set": updateFields,
+	}
+
 	_, err := m.bucketCollection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
 	return err
 }
@@ -56,8 +77,8 @@ func (m *MongoStore) BucketPutMany(appID int32, items map[int32][]model.BucketKe
 	return err
 }
 
-func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]int64, map[int32][]string, error) {
-	values := make(map[int32]map[string]int64)
+func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.BucketValue, map[int32][]string, error) {
+	values := make(map[int32]map[string]model.BucketValue)
 	missing := make(map[int32][]string)
 
 	var orFilters []bson.M
@@ -85,20 +106,26 @@ func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[in
 
 	for cur.Next(context.TODO()) {
 		var result struct {
-			BucketID int32  `bson:"bucketId"`
-			Key      string `bson:"key"`
-			Value    int64  `bson:"value"`
+			BucketID int32    `bson:"bucketId"`
+			Key      string   `bson:"key"`
+			Value    int64    `bson:"value"`
+			Tag      *int64   `bson:"tag,omitempty"`
+			Metric   *float64 `bson:"metric,omitempty"`
 		}
 		if err := cur.Decode(&result); err != nil {
 			return nil, nil, err
 		}
 
 		if _, ok := values[result.BucketID]; !ok {
-			values[result.BucketID] = make(map[string]int64)
+			values[result.BucketID] = make(map[string]model.BucketValue)
 			foundKeys[result.BucketID] = make(map[string]bool)
 		}
 
-		values[result.BucketID][result.Key] = result.Value
+		values[result.BucketID][result.Key] = model.BucketValue{
+			Value:  result.Value,
+			Tag:    result.Tag,
+			Metric: result.Metric,
+		}
 		foundKeys[result.BucketID][result.Key] = true
 	}
 
@@ -135,7 +162,15 @@ func nextLexicographicString(s string) string {
 	// If all bytes were 0xFF, append 0x00 (or pick a safe suffix char)
 	return s + "\x00"
 }
-func (m *MongoStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string) ([]model.BucketKeyValueItem, error) {
+
+func (m *MongoStore) GetItemsByKeyPrefix(
+	appID, bucketID int32,
+	prefix string,
+	tags []int64, // optional slice of tags
+	metricValue *float64, // optional metric value
+	metricIsGt bool, // "gt" or "lt"
+) ([]model.BucketKeyValueItem, error) {
+
 	lower := prefix
 	upper := nextLexicographicString(prefix)
 
@@ -147,7 +182,28 @@ func (m *MongoStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string) (
 			"$lt":  upper,
 		},
 	}
+
+	// Add tag filter if tags provided
+	if len(tags) > 0 {
+		filter["tag"] = bson.M{"$in": tags}
+	}
+
+	// Add metric filter if value and operator are provided
+	if metricValue != nil {
+		metricFilter := bson.M{}
+		switch metricIsGt {
+		case true:
+			metricFilter["$gt"] = *metricValue
+		case false:
+			metricFilter["$lt"] = *metricValue
+		default:
+			return nil, fmt.Errorf("invalid metricOperator: must be 'gt' or 'lt'")
+		}
+		filter["metric"] = metricFilter
+	}
+
 	fmt.Printf("VX: filter is %+v\n", filter)
+
 	cursor, err := m.bucketCollection.Find(context.TODO(), filter)
 	if err != nil {
 		return nil, err

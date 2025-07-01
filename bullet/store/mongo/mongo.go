@@ -68,6 +68,6 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		return nil, err
 	}
 
-	println("Mongo connection complete")
+	println("Mongo connection complete.")
 	return &store, nil
 }

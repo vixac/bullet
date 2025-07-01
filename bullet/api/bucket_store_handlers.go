@@ -52,7 +52,7 @@ func bucketPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := bucketStore.BucketPut(appId, req.BucketID, req.Key, req.Value); err != nil {
+	if err := bucketStore.BucketPut(appId, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -160,10 +160,21 @@ func handleGetItemsByPrefix(c *gin.Context) {
 		return
 	}
 
+	//Metric is the optional part, so we need to extract it.
+	var metricValue *float64 = nil
+	var isGt = false
+
+	if req.Metric != nil {
+		metricValue = &req.Metric.Value
+		isGt = req.Metric.Operator == "gt"
+	}
 	items, err := bucketStore.GetItemsByKeyPrefix(
 		appId,
 		req.BucketID,
 		req.Prefix,
+		req.Tags,
+		metricValue,
+		isGt,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "lookup failed"})
