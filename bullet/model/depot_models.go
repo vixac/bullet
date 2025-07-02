@@ -1,8 +1,8 @@
 package model
 
 type DepotRequest struct {
-	Key   int64  `json:"key"`
-	Value string `json:"value,omitempty"`
+	Key   int64  `json:"key,string"`
+	Value string `json:"value,string"`
 }
 
 type DepotKeyValueItem struct {
@@ -15,5 +15,10 @@ type DepotPutManyRequest struct {
 }
 
 type DepotGetManyRequest struct {
-	Keys []int64 `json:"keys"`
+	Keys []string `json:"keys"`
+}
+
+type DepotGetManyResponse struct {
+	Values  map[int64]string `json:"values"`
+	Missing []int64          `json:"missing"`
 }

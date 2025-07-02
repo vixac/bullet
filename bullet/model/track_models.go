@@ -1,28 +1,18 @@
 package model
 
-/*
-*
-VX:TODO list
-  - rename bucket requset and pigeon
-  - the entire project needs renaming.
-
-- if we keep it bullet. then we need to remove bucket. too similar.
-- so app is bullet. maybe i should call it something db?
-- quickdb
-*/
 type TrackRequest struct {
 	BucketID int32    `json:"bucketId"`
 	Key      string   `json:"key"`
-	Value    int64    `json:"value"`
+	Value    int64    `json:"value,string"`
 	Tag      *int64   `json:"tag,omitempty"`
 	Metric   *float64 `json:"metric,omitempty"`
 }
 
-type PutManyRequest struct {
+type TrackPutManyRequest struct {
 	Buckets []TrackPutItems `json:"buckets"`
 }
 
-type GetManyRequest struct {
+type TrackGetManyRequest struct {
 	Buckets []TrackGetKeys `json:"buckets"`
 }
 
@@ -30,7 +20,7 @@ type MetricFilter struct {
 	Operator string  `json:"operator"` // "gt", "lt", etc.
 	Value    float64 `json:"value"`
 }
-type GetItemsByPrefixRequest struct {
+type TrackGetItemsByPrefixRequest struct {
 	BucketID int32         `json:"bucketId"`
 	Prefix   string        `json:"prefix"`
 	Tags     []int64       `json:"tags,omitempty"`   // optional IN clause
@@ -52,7 +42,7 @@ type TrackGetKeys struct {
 	Keys     []string `json:"keys"`
 }
 
-type GetManyResponse struct {
+type TrackGetManyResponse struct {
 	Values  map[string]map[string]TrackValue `json:"values"`  // bucketId -> (key -> value)
 	Missing map[string][]string              `json:"missing"` // bucketId -> list of missing keys
 }

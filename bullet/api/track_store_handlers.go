@@ -65,7 +65,7 @@ func trackPutManyHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
 		return
 	}
-	var req model.PutManyRequest
+	var req model.TrackPutManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -90,7 +90,7 @@ func trackGetManyHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
 		return
 	}
-	var req model.GetManyRequest
+	var req model.TrackGetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -155,7 +155,7 @@ func handleGetItemsByPrefix(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
 		return
 	}
-	var req model.GetItemsByPrefixRequest
+	var req model.TrackGetItemsByPrefixRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
