@@ -40,5 +40,4 @@ func TestDepot(t *testing.T) {
 	assert.Equal(t, len(result.Missing), 1)
 	missing := result.Missing[0]
 	assert.Equal(t, missing, int64(234))
-
 }
