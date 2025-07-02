@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
@@ -59,6 +60,18 @@ func depotPutManyHandler(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+func stringsToInt64s(strs []string) ([]int64, error) {
+	var result []int64
+	for _, s := range strs {
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, n)
+	}
+	return result, nil
+}
+
 func depotGetManyHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
@@ -71,7 +84,12 @@ func depotGetManyHandler(c *gin.Context) {
 		return
 	}
 
-	values, missing, err := depotStore.DepotGetMany(appId, req.Keys)
+	ints, err := stringsToInt64s(req.Keys)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	values, missing, err := depotStore.DepotGetMany(appId, ints)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
