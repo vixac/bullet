@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var bucketStore store.TrackStore
+var trackStore store.TrackStore
 
 // used by pigeon too
 func extractAppIDFromHeader(c *gin.Context) (int32, error) {
@@ -30,18 +30,18 @@ func extractAppIDFromHeader(c *gin.Context) (int32, error) {
 }
 
 func SetupTrackRouter(store store.TrackStore, prefix string, engine *gin.Engine) *gin.Engine {
-	bucketStore = store
-	engine.POST(prefix+"/insert-one", bucketPutHandler)
-	engine.POST(prefix+"/insert-many", bucketPutManyHandler)
-	engine.POST(prefix+"/get-many", bucketGetManyHandler)
+	trackStore = store
+	engine.POST(prefix+"/insert-one", trackPutHandler)
+	engine.POST(prefix+"/insert-many", trackPutManyHandler)
+	engine.POST(prefix+"/get-many", trackGetManyHandler)
 
-	engine.POST(prefix+"/get-one", bucketGetHandler)
-	engine.POST(prefix+"/delete-one", bucketDeleteHandler)
+	engine.POST(prefix+"/get-one", trackGetHandler)
+	engine.POST(prefix+"/delete-one", trackDeleteHandler)
 	engine.POST(prefix+"/get-query", handleGetItemsByPrefix)
 	return engine
 }
 
-func bucketPutHandler(c *gin.Context) {
+func trackPutHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
@@ -52,14 +52,14 @@ func bucketPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := bucketStore.TrackPut(appId, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
+	if err := trackStore.TrackPut(appId, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
 }
 
-func bucketPutManyHandler(c *gin.Context) {
+func trackPutManyHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
@@ -76,14 +76,15 @@ func bucketPutManyHandler(c *gin.Context) {
 		items[bucket.BucketID] = append(items[bucket.BucketID], bucket.Items...)
 	}
 
-	if err := bucketStore.TrackPutMany(appId, items); err != nil {
+	if err := trackStore.TrackPutMany(appId, items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.Status(http.StatusOK)
 }
-func bucketGetManyHandler(c *gin.Context) {
+
+func trackGetManyHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
@@ -99,7 +100,7 @@ func bucketGetManyHandler(c *gin.Context) {
 		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
 	}
 
-	values, missing, err := bucketStore.TrackGetMany(appId, keys)
+	values, missing, err := trackStore.TrackGetMany(appId, keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -111,7 +112,7 @@ func bucketGetManyHandler(c *gin.Context) {
 	})
 }
 
-func bucketGetHandler(c *gin.Context) {
+func trackGetHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
@@ -122,7 +123,7 @@ func bucketGetHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	value, err := bucketStore.TrackGet(appId, req.BucketID, req.Key)
+	value, err := trackStore.TrackGet(appId, req.BucketID, req.Key)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -130,7 +131,7 @@ func bucketGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"value": value})
 }
 
-func bucketDeleteHandler(c *gin.Context) {
+func trackDeleteHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
@@ -141,7 +142,7 @@ func bucketDeleteHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := bucketStore.TrackDelete(appId, req.BucketID, req.Key); err != nil {
+	if err := trackStore.TrackDelete(appId, req.BucketID, req.Key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -168,7 +169,7 @@ func handleGetItemsByPrefix(c *gin.Context) {
 		metricValue = &req.Metric.Value
 		isGt = req.Metric.Operator == "gt"
 	}
-	items, err := bucketStore.GetItemsByKeyPrefix(
+	items, err := trackStore.GetItemsByKeyPrefix(
 		appId,
 		req.BucketID,
 		req.Prefix,
