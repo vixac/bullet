@@ -34,7 +34,7 @@ func main() {
 
 	println("Creating gin routers..?")
 	engine := gin.Default()
-	engine = api.SetupTrackRouter(kvStore, "bucket/", engine)
-	engine = api.SetupPigeonRouter(kvStore, "pigeon/", engine)
+	engine = api.SetupTrackRouter(kvStore, "track/", engine)
+	engine = api.SetupDepotRouter(kvStore, "depot/", engine)
 	log.Fatal(engine.Run(":" + cfg.Port))
 }

@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (m *MongoStore) PigeonPut(appID int32, key int64, value string) error {
+func (m *MongoStore) DepotPut(appID int32, key int64, value string) error {
 	filter := bson.M{"appId": appID, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
 	opts := options.Update().SetUpsert(true)
@@ -19,7 +19,7 @@ func (m *MongoStore) PigeonPut(appID int32, key int64, value string) error {
 	return err
 }
 
-func (m *MongoStore) PigeonGet(appID int32, key int64) (string, error) {
+func (m *MongoStore) DepotGet(appID int32, key int64) (string, error) {
 	filter := bson.M{"appId": appID, "key": key}
 
 	var result struct {
@@ -33,13 +33,13 @@ func (m *MongoStore) PigeonGet(appID int32, key int64) (string, error) {
 	return result.Value, err
 }
 
-func (m *MongoStore) PigeonDelete(appID int32, key int64) error {
+func (m *MongoStore) DepotDelete(appID int32, key int64) error {
 	filter := bson.M{"appId": appID, "key": key}
 	_, err := m.pigeonCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
-func (m *MongoStore) PigeonPutMany(appID int32, items []model.PigeonKeyValueItem) error {
+func (m *MongoStore) DepotPutMany(appID int32, items []model.DepotKeyValueItem) error {
 	var ops []mongo.WriteModel
 
 	for _, item := range items {
@@ -56,7 +56,7 @@ func (m *MongoStore) PigeonPutMany(appID int32, items []model.PigeonKeyValueItem
 	return err
 }
 
-func (m *MongoStore) PigeonGetMany(appID int32, keys []int64) (map[int64]string, []int64, error) {
+func (m *MongoStore) DepotGetMany(appID int32, keys []int64) (map[int64]string, []int64, error) {
 	filter := bson.M{
 		"appId": appID,
 		"key":   bson.M{"$in": keys},

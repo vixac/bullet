@@ -1,19 +1,19 @@
 package model
 
-type PigeonRequest struct {
+type DepotRequest struct {
 	Key   int64  `json:"key"`
 	Value string `json:"value,omitempty"`
 }
 
-type PigeonKeyValueItem struct {
+type DepotKeyValueItem struct {
 	Key   int64  `json:"key"`
 	Value string `json:"value"`
 }
 
-type PigeonPutManyRequest struct {
-	Items []PigeonKeyValueItem `json:"items"`
+type DepotPutManyRequest struct {
+	Items []DepotKeyValueItem `json:"items"`
 }
 
-type PigeonGetManyRequest struct {
+type DepotGetManyRequest struct {
 	Keys []int64 `json:"keys"`
 }

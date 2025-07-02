@@ -17,15 +17,15 @@ type TrackStore interface {
 		metricIsGt bool, // "gt" or "lt"
 	) ([]model.TrackKeyValueItem, error)
 }
-type PigeonStore interface {
-	PigeonPut(appID int32, key int64, value string) error
-	PigeonGet(appID int32, key int64) (string, error)
-	PigeonDelete(appID int32, key int64) error
-	PigeonPutMany(appID int32, items []model.PigeonKeyValueItem) error
-	PigeonGetMany(appID int32, keys []int64) (map[int64]string, []int64, error)
+type DepotStore interface {
+	DepotPut(appID int32, key int64, value string) error
+	DepotGet(appID int32, key int64) (string, error)
+	DepotDelete(appID int32, key int64) error
+	DepotPutMany(appID int32, items []model.DepotKeyValueItem) error
+	DepotGetMany(appID int32, keys []int64) (map[int64]string, []int64, error)
 }
 
 type Store interface {
 	TrackStore
-	PigeonStore
+	DepotStore
 }
