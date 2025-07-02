@@ -1,4 +1,4 @@
-curl -X POST http://localhost:$1/bullet/track/insert-many \
+curl -X POST http://localhost:$1/track/insert-many \
   -H "Content-Type: application/json" \
   -H "X-App-ID: 1" \
   -d '{

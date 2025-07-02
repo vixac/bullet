@@ -19,7 +19,7 @@ EOF
 )
 
 # Execute the POST request
-curl -X POST "http://localhost:$PORT/bullet/track/get-query" \
+curl -X POST "http://localhost:$PORT/track/get-query" \
   -H "Content-Type: application/json" \
     -H "X-App-ID: 1" \
   -d "$JSON_PAYLOAD" \

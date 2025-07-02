@@ -3,7 +3,7 @@
 PORT=$1
 
 # Insert One
-curl -X POST http://localhost:$PORT/pigeon/insert-one \
+curl -X POST http://localhost:$PORT/depot/insert-one \
   -H "Content-Type: application/json" \
     -H "X-App-ID: 1" \
   -d '{
@@ -14,7 +14,7 @@ curl -X POST http://localhost:$PORT/pigeon/insert-one \
 echo -e "\n"
 
 # Insert Many
-curl -X POST http://localhost:$PORT/pigeon/insert-many \
+curl -X POST http://localhost:$PORT/depot/insert-many \
   -H "Content-Type: application/json" \
     -H "X-App-ID: 1" \
   -d '{
@@ -28,7 +28,7 @@ curl -X POST http://localhost:$PORT/pigeon/insert-many \
 echo -e "\n"
 
 # Get One
-curl -X POST http://localhost:$PORT/pigeon/get-one \
+curl -X POST http://localhost:$PORT/depot/get-one \
   -H "Content-Type: application/json" \
     -H "X-App-ID: 1" \
   -d '{
@@ -38,7 +38,7 @@ curl -X POST http://localhost:$PORT/pigeon/get-one \
 echo -e "\n"
 
 # Get Many
-curl -X POST http://localhost:$PORT/pigeon/get-many \
+curl -X POST http://localhost:$PORT/depot/get-many \
   -H "Content-Type: application/json" \
     -H "X-App-ID: 1" \
   -d '{
@@ -48,7 +48,7 @@ curl -X POST http://localhost:$PORT/pigeon/get-many \
 echo -e "\n"
 
 # Delete One
-curl -X POST http://localhost:$PORT/pigeon/delete-one \
+curl -X POST http://localhost:$PORT/depot/delete-one \
   -H "Content-Type: application/json" \
     -H "X-App-ID: 1" \
   -d '{
