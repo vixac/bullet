@@ -10,7 +10,7 @@ VX:TODO list
 - so app is bullet. maybe i should call it something db?
 - quickdb
 */
-type BucketRequest struct {
+type TrackRequest struct {
 	BucketID int32    `json:"bucketId"`
 	Key      string   `json:"key"`
 	Value    int64    `json:"value"`
@@ -19,11 +19,11 @@ type BucketRequest struct {
 }
 
 type PutManyRequest struct {
-	Buckets []BucketPutItems `json:"buckets"`
+	Buckets []TrackPutItems `json:"buckets"`
 }
 
 type GetManyRequest struct {
-	Buckets []BucketGetKeys `json:"buckets"`
+	Buckets []TrackGetKeys `json:"buckets"`
 }
 
 type MetricFilter struct {
@@ -37,27 +37,27 @@ type GetItemsByPrefixRequest struct {
 	Metric   *MetricFilter `json:"metric,omitempty"` // optional metric filter
 }
 
-type BucketKeyValueItem struct {
+type TrackKeyValueItem struct {
 	Key   string `json:"key"`
 	Value int64  `json:"value"`
 }
 
-type BucketPutItems struct {
-	BucketID int32                `json:"bucketId"`
-	Items    []BucketKeyValueItem `json:"items"`
+type TrackPutItems struct {
+	BucketID int32               `json:"bucketId"`
+	Items    []TrackKeyValueItem `json:"items"`
 }
 
-type BucketGetKeys struct {
+type TrackGetKeys struct {
 	BucketID int32    `json:"bucketId"`
 	Keys     []string `json:"keys"`
 }
 
 type GetManyResponse struct {
-	Values  map[string]map[string]BucketValue `json:"values"`  // bucketId -> (key -> value)
-	Missing map[string][]string               `json:"missing"` // bucketId -> list of missing keys
+	Values  map[string]map[string]TrackValue `json:"values"`  // bucketId -> (key -> value)
+	Missing map[string][]string              `json:"missing"` // bucketId -> list of missing keys
 }
 
-type BucketValue struct {
+type TrackValue struct {
 	Value  int64    `bson:"value"`
 	Tag    *int64   `bson:"tag,omitempty"`
 	Metric *float64 `bson:"metric,omitempty"`

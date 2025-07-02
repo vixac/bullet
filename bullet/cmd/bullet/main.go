@@ -30,11 +30,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer kvStore.BucketClose()
+	defer kvStore.TrackClose()
 
 	println("Creating gin routers..?")
 	engine := gin.Default()
-	engine = api.SetupBucketRouter(kvStore, "bucket/", engine)
+	engine = api.SetupTrackRouter(kvStore, "bucket/", engine)
 	engine = api.SetupPigeonRouter(kvStore, "pigeon/", engine)
 	log.Fatal(engine.Run(":" + cfg.Port))
 }
