@@ -12,7 +12,7 @@ import (
 
 type MongoStore struct {
 	client           *mongo.Client
-	bucketCollection *mongo.Collection
+	trackCollection  *mongo.Collection
 	pigeonCollection *mongo.Collection
 }
 
@@ -36,7 +36,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	database := client.Database("bullet")
 	store := MongoStore{
 		client:           client,
-		bucketCollection: database.Collection("bucket"),
+		trackCollection:  database.Collection("bucket"),
 		pigeonCollection: database.Collection("pigeon"),
 	}
 
@@ -53,7 +53,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	}
 	println("Attempting to create databses and indexes...")
 	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
-	_, err = store.bucketCollection.Indexes().CreateOne(context.TODO(), model, opts)
+	_, err = store.trackCollection.Indexes().CreateOne(context.TODO(), model, opts)
 	if err != nil {
 		print("Creating bucket indexes failed.")
 		return nil, err
@@ -67,7 +67,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		Options: options.Index().SetUnique(true),
 	}
 
-	_, err = store.bucketCollection.Indexes().CreateOne(context.TODO(), uniqueIndex, opts)
+	_, err = store.trackCollection.Indexes().CreateOne(context.TODO(), uniqueIndex, opts)
 	if err != nil {
 		log.Fatalf("Failed to create unique index: %v", err)
 	}

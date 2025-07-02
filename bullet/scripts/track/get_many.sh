@@ -1,4 +1,4 @@
-curl -X POST http://localhost:$1/bucket/get-many \
+curl -X POST http://localhost:$1/bullet/track/get-many \
   -H "Content-Type: application/json" \
   -H "X-App-ID: 1" \
   -d '{

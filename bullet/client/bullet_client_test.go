@@ -64,7 +64,7 @@ func TestInsertOneAndGetOne(t *testing.T) {
 
 	println("Starting test...")
 	engine := gin.Default()
-	engine = api.SetupBucketRouter(g_mongoStore, "test-bucket", engine)
+	engine = api.SetupTrackRouter(g_mongoStore, "test-bucket", engine)
 	server := httptest.NewServer(engine.Handler())
 	defer server.Close()
 
@@ -77,7 +77,7 @@ func TestInsertOneAndGetOne(t *testing.T) {
 	}
 	//get many
 	req := model.GetManyRequest{
-		Buckets: []model.BucketGetKeys{
+		Buckets: []model.TrackGetKeys{
 			{
 				BucketID: 42,
 				Keys:     []string{"foo:1", "foo:2"},

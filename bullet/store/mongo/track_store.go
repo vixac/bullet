@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (m *MongoStore) BucketPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (m *MongoStore) TrackPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	filter := bson.M{
 		"appId":    appID,
 		"bucketId": bucketID,
@@ -33,28 +33,28 @@ func (m *MongoStore) BucketPut(appID int32, bucketID int32, key string, value in
 		"$set": updateFields,
 	}
 
-	_, err := m.bucketCollection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
+	_, err := m.trackCollection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
 	return err
 }
 
-func (m *MongoStore) BucketGet(appID, bucketID int32, key string) (int64, error) {
+func (m *MongoStore) TrackGet(appID, bucketID int32, key string) (int64, error) {
 	var result struct{ Value int64 }
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
-	err := m.bucketCollection.FindOne(context.TODO(), filter).Decode(&result)
+	err := m.trackCollection.FindOne(context.TODO(), filter).Decode(&result)
 	return result.Value, err
 }
 
-func (m *MongoStore) BucketDelete(appID, bucketID int32, key string) error {
+func (m *MongoStore) TrackDelete(appID, bucketID int32, key string) error {
 	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
-	_, err := m.bucketCollection.DeleteOne(context.TODO(), filter)
+	_, err := m.trackCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
-func (m *MongoStore) BucketClose() error {
+func (m *MongoStore) TrackClose() error {
 	return m.client.Disconnect(context.TODO())
 }
 
-func (m *MongoStore) BucketPutMany(appID int32, items map[int32][]model.BucketKeyValueItem) error {
+func (m *MongoStore) TrackPutMany(appID int32, items map[int32][]model.TrackKeyValueItem) error {
 	var docs []interface{}
 
 	for bucketID, kvItems := range items {
@@ -73,12 +73,12 @@ func (m *MongoStore) BucketPutMany(appID int32, items map[int32][]model.BucketKe
 		return nil
 	}
 
-	_, err := m.bucketCollection.InsertMany(context.TODO(), docs, options.InsertMany().SetOrdered(false))
+	_, err := m.trackCollection.InsertMany(context.TODO(), docs, options.InsertMany().SetOrdered(false))
 	return err
 }
 
-func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.BucketValue, map[int32][]string, error) {
-	values := make(map[int32]map[string]model.BucketValue)
+func (m *MongoStore) TrackGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
 	var orFilters []bson.M
@@ -96,7 +96,7 @@ func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[in
 		return values, missing, nil
 	}
 
-	cur, err := m.bucketCollection.Find(context.TODO(), bson.M{"$or": orFilters})
+	cur, err := m.trackCollection.Find(context.TODO(), bson.M{"$or": orFilters})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,11 +117,11 @@ func (m *MongoStore) BucketGetMany(appID int32, keys map[int32][]string) (map[in
 		}
 
 		if _, ok := values[result.BucketID]; !ok {
-			values[result.BucketID] = make(map[string]model.BucketValue)
+			values[result.BucketID] = make(map[string]model.TrackValue)
 			foundKeys[result.BucketID] = make(map[string]bool)
 		}
 
-		values[result.BucketID][result.Key] = model.BucketValue{
+		values[result.BucketID][result.Key] = model.TrackValue{
 			Value:  result.Value,
 			Tag:    result.Tag,
 			Metric: result.Metric,
@@ -169,7 +169,7 @@ func (m *MongoStore) GetItemsByKeyPrefix(
 	tags []int64, // optional slice of tags
 	metricValue *float64, // optional metric value
 	metricIsGt bool, // "gt" or "lt"
-) ([]model.BucketKeyValueItem, error) {
+) ([]model.TrackKeyValueItem, error) {
 
 	lower := prefix
 	upper := nextLexicographicString(prefix)
@@ -204,13 +204,13 @@ func (m *MongoStore) GetItemsByKeyPrefix(
 
 	fmt.Printf("VX: filter is %+v\n", filter)
 
-	cursor, err := m.bucketCollection.Find(context.TODO(), filter)
+	cursor, err := m.trackCollection.Find(context.TODO(), filter)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(context.TODO())
 
-	var results []model.BucketKeyValueItem
+	var results []model.TrackKeyValueItem
 	if err := cursor.All(context.TODO(), &results); err != nil {
 		return nil, err
 	}
