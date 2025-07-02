@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -38,12 +39,15 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		bucketCollection: database.Collection("bucket"),
 		pigeonCollection: database.Collection("pigeon"),
 	}
+
 	//bucket index
 	model := mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "appId", Value: 1},
 			{Key: "bucketId", Value: 1},
 			{Key: "key", Value: 1},
+			{Key: "tag", Value: 1},    // equality filters should come before range filters
+			{Key: "metric", Value: 1}, // range queries at the end
 		},
 		Options: options.Index().SetUnique(true),
 	}
@@ -53,6 +57,19 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	if err != nil {
 		print("Creating bucket indexes failed.")
 		return nil, err
+	}
+	uniqueIndex := mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "appId", Value: 1},
+			{Key: "bucketId", Value: 1},
+			{Key: "key", Value: 1},
+		},
+		Options: options.Index().SetUnique(true),
+	}
+
+	_, err = store.bucketCollection.Indexes().CreateOne(context.TODO(), uniqueIndex, opts)
+	if err != nil {
+		log.Fatalf("Failed to create unique index: %v", err)
 	}
 
 	pigeonModel := mongo.IndexModel{

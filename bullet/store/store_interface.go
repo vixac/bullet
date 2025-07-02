@@ -6,7 +6,7 @@ type BucketStore interface {
 	BucketPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error
 	BucketGet(appID int32, bucketID int32, key string) (int64, error)
 	BucketDelete(appID int32, bucketID int32, key string) error
-	BucketClose() error //VX:TODO whats this
+	BucketClose() error
 	BucketPutMany(appID int32, items map[int32][]model.BucketKeyValueItem) error
 	BucketGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.BucketValue, map[int32][]string, error)
 	GetItemsByKeyPrefix(

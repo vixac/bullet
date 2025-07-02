@@ -53,8 +53,8 @@ type BucketGetKeys struct {
 }
 
 type GetManyResponse struct {
-	Values  map[string]map[string]int64 `json:"values"`  // bucketId -> (key -> value)
-	Missing map[string][]string         `json:"missing"` // bucketId -> list of missing keys
+	Values  map[string]map[string]BucketValue `json:"values"`  // bucketId -> (key -> value)
+	Missing map[string][]string               `json:"missing"` // bucketId -> list of missing keys
 }
 
 type BucketValue struct {
