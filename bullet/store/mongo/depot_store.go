@@ -15,7 +15,7 @@ func (m *MongoStore) DepotPut(appID int32, key int64, value string) error {
 	update := bson.M{"$set": bson.M{"value": value}}
 	opts := options.Update().SetUpsert(true)
 
-	_, err := m.pigeonCollection.UpdateOne(context.TODO(), filter, update, opts)
+	_, err := m.depotCollection.UpdateOne(context.TODO(), filter, update, opts)
 	return err
 }
 
@@ -26,7 +26,7 @@ func (m *MongoStore) DepotGet(appID int32, key int64) (string, error) {
 		Value string `bson:"value"`
 	}
 
-	err := m.pigeonCollection.FindOne(context.TODO(), filter).Decode(&result)
+	err := m.depotCollection.FindOne(context.TODO(), filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return "", fmt.Errorf("not found")
 	}
@@ -35,7 +35,7 @@ func (m *MongoStore) DepotGet(appID int32, key int64) (string, error) {
 
 func (m *MongoStore) DepotDelete(appID int32, key int64) error {
 	filter := bson.M{"appId": appID, "key": key}
-	_, err := m.pigeonCollection.DeleteOne(context.TODO(), filter)
+	_, err := m.depotCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
@@ -52,7 +52,7 @@ func (m *MongoStore) DepotPutMany(appID int32, items []model.DepotKeyValueItem) 
 		return nil
 	}
 
-	_, err := m.pigeonCollection.BulkWrite(context.TODO(), ops, options.BulkWrite().SetOrdered(false))
+	_, err := m.depotCollection.BulkWrite(context.TODO(), ops, options.BulkWrite().SetOrdered(false))
 	return err
 }
 
@@ -62,7 +62,7 @@ func (m *MongoStore) DepotGetMany(appID int32, keys []int64) (map[int64]string, 
 		"key":   bson.M{"$in": keys},
 	}
 
-	cur, err := m.pigeonCollection.Find(context.TODO(), filter)
+	cur, err := m.depotCollection.Find(context.TODO(), filter)
 	if err != nil {
 		return nil, nil, err
 	}

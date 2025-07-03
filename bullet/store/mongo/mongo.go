@@ -11,9 +11,9 @@ import (
 )
 
 type MongoStore struct {
-	client           *mongo.Client
-	trackCollection  *mongo.Collection
-	pigeonCollection *mongo.Collection
+	client          *mongo.Client
+	trackCollection *mongo.Collection
+	depotCollection *mongo.Collection
 }
 
 func NewMongoStore(uri string) (*MongoStore, error) {
@@ -35,9 +35,9 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 
 	database := client.Database("bullet")
 	store := MongoStore{
-		client:           client,
-		trackCollection:  database.Collection("bucket"),
-		pigeonCollection: database.Collection("pigeon"),
+		client:          client,
+		trackCollection: database.Collection("bucket"),
+		depotCollection: database.Collection("depot"),
 	}
 
 	//bucket index
@@ -72,16 +72,16 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		log.Fatalf("Failed to create unique index: %v", err)
 	}
 
-	pigeonModel := mongo.IndexModel{
+	depotModel := mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "appId", Value: 1},
 			{Key: "key", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	}
-	_, err = store.pigeonCollection.Indexes().CreateOne(context.TODO(), pigeonModel, opts)
+	_, err = store.depotCollection.Indexes().CreateOne(context.TODO(), depotModel, opts)
 	if err != nil {
-		println("Creating pigeon indexes failed.")
+		println("Creating depot indexes failed.")
 		return nil, err
 	}
 

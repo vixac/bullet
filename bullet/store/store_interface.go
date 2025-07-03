@@ -1,6 +1,8 @@
 package store
 
-import "github.com/vixac/bullet/model"
+import (
+	"github.com/vixac/bullet/model"
+)
 
 type TrackStore interface {
 	TrackPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error
@@ -17,6 +19,7 @@ type TrackStore interface {
 		metricIsGt bool, // "gt" or "lt"
 	) ([]model.TrackKeyValueItem, error)
 }
+
 type DepotStore interface {
 	DepotPut(appID int32, key int64, value string) error
 	DepotGet(appID int32, key int64) (string, error)
@@ -25,7 +28,19 @@ type DepotStore interface {
 	DepotGetMany(appID int32, keys []int64) (map[int64]string, []int64, error)
 }
 
+// using its own ids, wayfinder uses track and depot to provide a query to payload interface.
+type WayFinderStore interface {
+	WayFinderPut(appID int32, bucketID int32, key string, payload string, tag *int64, metric *float64) (int64, error)
+	WayFinderGetByPrefix(appID int32, bucketID int32,
+		prefix string,
+		tags []int64, // optional slice of tags
+		metricValue *float64, // optional metric value
+		metricIsGt bool, // "gt" or "lt"
+	) ([]model.WayFinderQueryItem, error)
+}
+
 type Store interface {
 	TrackStore
 	DepotStore
+	WayFinderStore
 }

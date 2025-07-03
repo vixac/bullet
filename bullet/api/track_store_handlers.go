@@ -14,7 +14,7 @@ import (
 
 var trackStore store.TrackStore
 
-// used by pigeon too
+// used by depot too
 func extractAppIDFromHeader(c *gin.Context) (int32, error) {
 	appIDStr := c.GetHeader("X-App-ID")
 	if appIDStr == "" {

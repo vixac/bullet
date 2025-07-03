@@ -202,8 +202,6 @@ func (m *MongoStore) GetItemsByKeyPrefix(
 		filter["metric"] = metricFilter
 	}
 
-	fmt.Printf("VX: filter is %+v\n", filter)
-
 	cursor, err := m.trackCollection.Find(context.TODO(), filter)
 	if err != nil {
 		return nil, err
