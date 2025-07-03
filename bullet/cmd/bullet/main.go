@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -14,7 +13,6 @@ import (
 
 func main() {
 	cfg := config.Load()
-	fmt.Printf("VX: config is %+v\n", cfg)
 	var kvStore store.Store
 	var err error
 

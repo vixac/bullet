@@ -10,7 +10,7 @@ import (
 	"github.com/vixac/bullet/model"
 )
 
-// VX:TODO This is the beginning of what will end up being the bullet spec.
+// VX:Note This is the beginning of what will end up being the bullet spec.
 func TestTrackInsertOneAndGetOne(t *testing.T) {
 
 	println("Starting Track test...")
@@ -39,7 +39,6 @@ func TestTrackInsertOneAndGetOne(t *testing.T) {
 
 	result, err := client.TrackGetMany(req)
 	if err != nil {
-		print("VX: what caused it though...")
 		t.Fatal(err)
 	}
 
