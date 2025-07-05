@@ -54,7 +54,7 @@ func wayFinderQueryByPrefixHandler(c *gin.Context) {
 	}
 
 	items, err := wayFinderStore.WayFinderGetByPrefix(
-		appId, req.BucketId, req.Prefix, req.Tags, req.MetricValue, req.MetricIsGt,
+		appId, req.BucketId, req.Prefix, req.Tags, req.Metric, req.MetricIsGt,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
