@@ -23,3 +23,14 @@ type WayFinderPrefixQueryRequest struct {
 	MetricValue *float64 `json:"metricValue,omitempty"`
 	MetricIsGt  bool     `json:"metricIsGt"`
 }
+
+type WayFinderGetResponse struct {
+	Payload string   `json:"payload"`
+	Tag     *int64   `json:"tag,omitempty"`
+	Metric  *float64 `json:"metricValue,omitempty"`
+}
+
+type WayFinderGetOneRequest struct {
+	BucketId int32  `json:"bucketId"`
+	Key      string `json:"key"`
+}

@@ -37,6 +37,8 @@ type WayFinderStore interface {
 		metricValue *float64, // optional metric value
 		metricIsGt bool, // "gt" or "lt"
 	) ([]model.WayFinderQueryItem, error)
+
+	WayFinderGetOne(appID int32, bucketID int32, key string) (*model.WayFinderGetResponse, error)
 }
 
 type Store interface {

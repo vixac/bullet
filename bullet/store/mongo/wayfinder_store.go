@@ -32,7 +32,70 @@ func (s *MongoStore) WayFinderPut(appID int32, bucketID int32, key string, paylo
 	return int64(id), nil
 }
 
-//VX:TODO she wants a t shirt that says not today santa.
+func (s *MongoStore) WayFinderGetOne(
+	appID int32,
+	bucketID int32,
+	key string,
+) (*model.WayFinderGetResponse, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Build aggregation pipeline
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "appId", Value: appID},
+			{Key: "bucketId", Value: bucketID},
+			{Key: "key", Value: key},
+		}}},
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "depot"},
+			{Key: "localField", Value: "value"},
+			{Key: "foreignField", Value: "key"},
+			{Key: "as", Value: "depotPayload"},
+		}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$depotPayload"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "tag", Value: 1},
+			{Key: "metric", Value: 1},
+			{Key: "payload", Value: "$depotPayload.value"},
+		}}},
+		{{Key: "$limit", Value: 1}},
+	}
+
+	cur, err := s.trackCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("aggregation error: %w", err)
+	}
+	defer cur.Close(ctx)
+
+	if cur.Next(ctx) {
+		var doc struct {
+			Tag     *int64   `bson:"tag,omitempty"`
+			Metric  *float64 `bson:"metric,omitempty"`
+			Payload string   `bson:"payload"`
+		}
+		if err := cur.Decode(&doc); err != nil {
+			return nil, fmt.Errorf("decode error: %w", err)
+		}
+
+		return &model.WayFinderGetResponse{
+			Payload: doc.Payload,
+			Tag:     doc.Tag,
+			Metric:  doc.Metric,
+		}, nil
+	}
+
+	if err := cur.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %w", err)
+	}
+
+	// Not found
+	return nil, nil
+}
 
 func (s *MongoStore) WayFinderGetByPrefix(
 	appID int32,

@@ -17,3 +17,11 @@ func (b *BoltStore) WayFinderGetByPrefix(appID int32, bucketID int32,
 ) ([]model.WayFinderQueryItem, error) {
 	return nil, errors.New("get many not implmemented on bolt store")
 }
+
+func (s *BoltStore) WayFinderGetOne(
+	appID int32,
+	bucketID int32,
+	key string,
+) (*model.WayFinderGetResponse, error) {
+	return nil, errors.New("get many not implmemented on bolt store")
+}
