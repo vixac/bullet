@@ -57,11 +57,11 @@ func TestWayFinder(t *testing.T) {
 
 	// Query by prefix (positive match)
 	queryReq := model.WayFinderPrefixQueryRequest{
-		BucketId:    42,
-		Prefix:      "foo:",
-		Tags:        nil,
-		MetricValue: nil,
-		MetricIsGt:  true,
+		BucketId:   42,
+		Prefix:     "foo:",
+		Tags:       nil,
+		Metric:     nil,
+		MetricIsGt: true,
 	}
 	queryBody, _ := json.Marshal(queryReq)
 	queryHttpReq, _ := http.NewRequest("POST", baseURL+"/query-by-prefix", bytes.NewBuffer(queryBody))
