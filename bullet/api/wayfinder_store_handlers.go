@@ -14,6 +14,7 @@ func SetupWayFinderRouter(store store.WayFinderStore, prefix string, engine *gin
 	wayFinderStore = store
 	engine.POST(prefix+"/insert-one", wayFinderPutHandler)
 	engine.POST(prefix+"/query-by-prefix", wayFinderQueryByPrefixHandler)
+	engine.POST(prefix+"/get-one", wayFinderGetOneHandler)
 	return engine
 }
 
@@ -38,6 +39,7 @@ func wayFinderPutHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"itemId": itemId})
 }
+
 func wayFinderQueryByPrefixHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
@@ -60,4 +62,31 @@ func wayFinderQueryByPrefixHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func wayFinderGetOneHandler(c *gin.Context) {
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
+
+	var req model.WayFinderGetOneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	item, err := wayFinderStore.WayFinderGetOne(appId, req.BucketId, req.Key)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if item == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"item": item})
 }
