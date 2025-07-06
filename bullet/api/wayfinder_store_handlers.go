@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -65,7 +66,9 @@ func wayFinderQueryByPrefixHandler(c *gin.Context) {
 }
 
 func wayFinderGetOneHandler(c *gin.Context) {
+
 	appId, err := extractAppIDFromHeader(c)
+	fmt.Println("VX: wayfidner get one! appId: ", appId)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
 		return
@@ -76,13 +79,13 @@ func wayFinderGetOneHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
+	fmt.Println("request is ", req)
 	item, err := wayFinderStore.WayFinderGetOne(appId, req.BucketId, req.Key)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
+	fmt.Printf("Wayfound found %+v \n", item)
 	if item == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
 		return

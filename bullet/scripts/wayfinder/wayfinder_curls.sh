@@ -7,7 +7,7 @@ BASE_URL=http://localhost:$PORT/wayfinder
 echo "Insert One"
 curl -X POST $BASE_URL/insert-one \
   -H "Content-Type: application/json" \
-  -H "X-App-ID: 123" \
+  -H "X-Api-Key: vx-test" \
   -d '{
     "bucketId": 42,
     "key": "foo:123",
@@ -19,7 +19,7 @@ echo -e "\n"
 echo "Get One"
 curl -X POST $BASE_URL/get-one \
   -H "Content-Type: application/json" \
-  -H "X-App-ID: 123" \
+  -H "X-Api-Key: vx-test" \
   -d '{
     "bucketId": 42,
     "key": "foo:123"
@@ -30,7 +30,7 @@ echo -e "\n"
 echo "Query by Prefix (match)"
 curl -X POST $BASE_URL/query-by-prefix \
   -H "Content-Type: application/json" \
-  -H "X-App-ID: 123" \
+  -H "X-Api-Key: vx-test" \
   -d '{
     "bucketId": 42,
     "prefix": "foo:",
@@ -42,7 +42,7 @@ echo -e "\n"
 echo "Query by Prefix (no match)"
 curl -X POST $BASE_URL/query-by-prefix \
   -H "Content-Type: application/json" \
-  -H "X-App-ID: 123" \
+  -H "X-Api-Key: vx-test" \
   -d '{
     "bucketId": 42,
     "prefix": "bar:",
@@ -54,7 +54,7 @@ echo -e "\n"
 echo "Get One (missing)"
 curl -X POST $BASE_URL/get-one \
   -H "Content-Type: application/json" \
-  -H "X-App-ID: 123" \
+  -H "X-Api-Key: vx-test" \
   -d '{
     "bucketId": 42,
     "key": "nonexistent-key"
