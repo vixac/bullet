@@ -61,6 +61,7 @@ func (s *MongoStore) WayFinderGetOne(
 		{{Key: "$project", Value: bson.D{
 			{Key: "tag", Value: 1},
 			{Key: "metric", Value: 1},
+			{Key: "value", Value: 1},
 			{Key: "payload", Value: "$depotPayload.value"},
 		}}},
 		{{Key: "$limit", Value: 1}},
@@ -77,12 +78,14 @@ func (s *MongoStore) WayFinderGetOne(
 			Tag     *int64   `bson:"tag,omitempty"`
 			Metric  *float64 `bson:"metric,omitempty"`
 			Payload string   `bson:"payload"`
+			ItemId  int64    `bson:"value"`
 		}
 		if err := cur.Decode(&doc); err != nil {
 			return nil, fmt.Errorf("decode error: %w", err)
 		}
 
 		return &model.WayFinderGetResponse{
+			ItemId:  doc.ItemId,
 			Payload: doc.Payload,
 			Tag:     doc.Tag,
 			Metric:  doc.Metric,

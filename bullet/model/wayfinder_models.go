@@ -25,6 +25,7 @@ type WayFinderPrefixQueryRequest struct {
 }
 
 type WayFinderGetResponse struct {
+	ItemId  int64    `json:"itemId"`
 	Payload string   `json:"payload"`
 	Tag     *int64   `json:"tag,omitempty"`
 	Metric  *float64 `json:"metric,omitempty"`

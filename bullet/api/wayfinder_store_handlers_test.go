@@ -113,6 +113,7 @@ func TestWayFinder(t *testing.T) {
 	assert.True(t, noMatchRespBody.Items == nil || len(noMatchRespBody.Items) == 0)
 }
 
+// VX:TODO test getbyprefix
 func TestWayFinderGetOne(t *testing.T) {
 	println("Starting WayFinder GetOne test...")
 
@@ -186,6 +187,7 @@ func TestWayFinderGetOne(t *testing.T) {
 	assert.Equal(t, "this-is-the-payload", getRespBody.Item.Payload)
 	assert.Equal(t, *getRespBody.Item.Tag, int64(32))
 	assert.Equal(t, *getRespBody.Item.Metric, 1.23)
+	assert.NotNil(t, getRespBody.Item.ItemId)
 
 	// Negative case: try to get a non-existent item
 	missingGetReq := model.WayFinderGetOneRequest{
