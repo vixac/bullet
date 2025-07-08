@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -183,7 +182,6 @@ func TestWayFinderGetOne(t *testing.T) {
 		t.Fatalf("Failed to decode get-one response: %v", err)
 	}
 
-	fmt.Printf("get resp %+v", getRespBody)
 	assert.Equal(t, "this-is-the-payload", getRespBody.Item.Payload)
 	assert.Equal(t, *getRespBody.Item.Tag, int64(32))
 	assert.Equal(t, *getRespBody.Item.Metric, 1.23)
