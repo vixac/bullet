@@ -21,7 +21,7 @@ EOF
 # Execute the POST request
 curl -X POST "http://localhost:$PORT/track/get-query" \
   -H "Content-Type: application/json" \
-    -H "X-App-ID: 1" \
+    -H "X-App-Id: 1" \
   -d "$JSON_PAYLOAD" \
   -w "\nHTTP status: %{http_code}\n" \
   --silent --show-error

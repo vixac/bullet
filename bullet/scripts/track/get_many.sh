@@ -1,6 +1,6 @@
 curl -X POST http://localhost:$1/track/get-many \
   -H "Content-Type: application/json" \
-  -H "X-App-ID: 1" \
+  -H "X-App-Id: 1" \
   -d '{
     "buckets": [
       {

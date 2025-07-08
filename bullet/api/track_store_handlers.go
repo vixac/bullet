@@ -16,15 +16,16 @@ var trackStore store.TrackStore
 
 // used by depot too
 func extractAppIDFromHeader(c *gin.Context) (int32, error) {
-	appIDStr := c.GetHeader("X-App-ID")
+	appIDStr := c.GetHeader("X-App-Id")
 	if appIDStr == "" {
-		return 0, errors.New("X-App-ID header missing")
+		return 0, errors.New("X-App-Id header missing")
 	}
 
-	appID64, err := strconv.ParseInt(appIDStr, 10, 32)
+	appID64, err := strconv.ParseInt(appIDStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid X-App-ID header: %w", err)
+		return 0, fmt.Errorf("invalid X-App-Id header: %w", err)
 	}
+	fmt.Println("extracted appId is ", appID64)
 
 	return int32(appID64), nil
 }

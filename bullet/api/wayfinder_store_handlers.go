@@ -31,7 +31,6 @@ func wayFinderPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	itemId, err := wayFinderStore.WayFinderPut(appId, req.BucketId, req.Key, req.Payload, req.Tag, req.Metric)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -68,7 +67,6 @@ func wayFinderQueryByPrefixHandler(c *gin.Context) {
 func wayFinderGetOneHandler(c *gin.Context) {
 
 	appId, err := extractAppIDFromHeader(c)
-	fmt.Println("VX: wayfidner get one! appId: ", appId)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
 		return
