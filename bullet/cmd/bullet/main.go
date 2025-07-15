@@ -30,7 +30,7 @@ func main() {
 	}
 	defer kvStore.TrackClose()
 
-	println("Creating gin routers..?")
+	println("Creating gin routers.. on port: ", cfg.Port)
 	engine := gin.Default()
 	engine = api.SetupTrackRouter(kvStore, "track/", engine)
 	engine = api.SetupDepotRouter(kvStore, "depot/", engine)
