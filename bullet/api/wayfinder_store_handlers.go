@@ -31,11 +31,14 @@ func wayFinderPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("insert one called with appId", appId)
+	fmt.Println("with request request is", req)
 	itemId, err := wayFinderStore.WayFinderPut(appId, req.BucketId, req.Key, req.Payload, req.Tag, req.Metric)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("created item ", itemId)
 
 	c.JSON(http.StatusOK, gin.H{"itemId": itemId})
 }
@@ -77,7 +80,9 @@ func wayFinderGetOneHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("request is ", req)
+	fmt.Println("get one called with appId", appId)
+	fmt.Println("with request request is", req)
+
 	item, err := wayFinderStore.WayFinderGetOne(appId, req.BucketId, req.Key)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
