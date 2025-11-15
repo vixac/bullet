@@ -22,8 +22,6 @@ func TestDepot(t *testing.T) {
 func testDepot(client store_interface.Store, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 
-		println("Starting Depot test...")
-
 		engine := gin.Default()
 		engine = SetupDepotRouter(client, "test-depot", engine)
 		server := httptest.NewServer(engine.Handler())

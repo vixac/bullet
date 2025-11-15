@@ -22,7 +22,6 @@ func TestWayFinder(t *testing.T) {
 func testGetOneForClient(client store_interface.Store, name string, t *testing.T) {
 
 	t.Run(name, func(t *testing.T) {
-		println("Starting WayFinder test...")
 
 		// setup server
 		engine := gin.Default()
