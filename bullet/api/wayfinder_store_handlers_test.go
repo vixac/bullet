@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestWayFinder(t *testing.T) {
@@ -19,10 +19,9 @@ func TestWayFinder(t *testing.T) {
 	}
 }
 
-func testGetOneForClient(client store.Store, name string, t *testing.T) {
+func testGetOneForClient(client store_interface.Store, name string, t *testing.T) {
 
 	t.Run(name, func(t *testing.T) {
-		println("Starting WayFinder test...")
 
 		// setup server
 		engine := gin.Default()
@@ -132,9 +131,8 @@ func TestWayFinderGetOne(t *testing.T) {
 	}
 }
 
-func testWayFinderGetOne(client store.Store, name string, t *testing.T) {
+func testWayFinderGetOne(client store_interface.Store, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		println("Starting WayFinder GetOne test...")
 
 		engine := gin.Default()
 		engine = SetupWayFinderRouter(client, "test-wayfinder", engine)

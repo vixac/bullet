@@ -1,4 +1,4 @@
-package store
+package store_interface
 
 import (
 	"github.com/vixac/bullet/model"

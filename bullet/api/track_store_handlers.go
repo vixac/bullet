@@ -7,12 +7,12 @@ import (
 	"strconv"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 
 	"github.com/gin-gonic/gin"
 )
 
-var trackStore store.TrackStore
+var trackStore store_interface.TrackStore
 
 // used by depot too
 func extractAppIDFromHeader(c *gin.Context) (int32, error) {
@@ -30,7 +30,7 @@ func extractAppIDFromHeader(c *gin.Context) (int32, error) {
 	return int32(appID64), nil
 }
 
-func SetupTrackRouter(store store.TrackStore, prefix string, engine *gin.Engine) *gin.Engine {
+func SetupTrackRouter(store store_interface.TrackStore, prefix string, engine *gin.Engine) *gin.Engine {
 	trackStore = store
 	engine.POST(prefix+"/insert-one", trackPutHandler)
 	engine.POST(prefix+"/insert-many", trackPutManyHandler)

@@ -58,6 +58,7 @@ func (b *BoltStore) WayFinderPut(
 
 	return itemId, nil
 }
+
 func (b *BoltStore) WayFinderGetByPrefix(
 	appID int32,
 	bucketID int32,
