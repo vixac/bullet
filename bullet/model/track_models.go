@@ -28,8 +28,8 @@ type TrackGetItemsByPrefixRequest struct {
 }
 
 type TrackKeyValueItem struct {
-	Key   string `json:"key"`
-	Value int64  `json:"value"`
+	Key   string     `json:"key"`
+	Value TrackValue `json:"value"`
 }
 
 type TrackPutItems struct {
