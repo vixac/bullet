@@ -7,7 +7,6 @@ if [ -z "$1" ]
         exit 1
 fi
 
-cd bullet
 echo "Building bullet binary: '$1'"
 #yea the binary needs to be build on the top level or whatever.
 go build -buildvcs=false -o ../$1 ./cmd/bullet
