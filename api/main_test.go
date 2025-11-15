@@ -12,6 +12,7 @@ import (
 
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
+	"github.com/vixac/bullet/store/ram"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
@@ -56,6 +57,11 @@ func TestMain(m *testing.M) {
 	}
 
 	clients["bolt_store"] = boltStore
+
+	//making ramstore now
+
+	ramStore := ram.NewRamStore()
+	clients["ram_store"] = ramStore
 
 	code := m.Run() //run entire test suite
 	os.Exit(code)
