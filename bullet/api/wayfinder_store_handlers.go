@@ -6,12 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
-var wayFinderStore store.WayFinderStore
+var wayFinderStore store_interface.WayFinderStore
 
-func SetupWayFinderRouter(store store.WayFinderStore, prefix string, engine *gin.Engine) *gin.Engine {
+func SetupWayFinderRouter(store store_interface.WayFinderStore, prefix string, engine *gin.Engine) *gin.Engine {
 	wayFinderStore = store
 	engine.POST(prefix+"/insert-one", wayFinderPutHandler)
 	engine.POST(prefix+"/query-by-prefix", wayFinderQueryByPrefixHandler)
@@ -31,7 +31,6 @@ func wayFinderPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("insert one called with appId", appId)
 	fmt.Println("with request request is", req)
 	itemId, err := wayFinderStore.WayFinderPut(appId, req.BucketId, req.Key, req.Payload, req.Tag, req.Metric)
 	if err != nil {

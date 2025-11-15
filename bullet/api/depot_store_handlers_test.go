@@ -10,7 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store"
+
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestDepot(t *testing.T) {
@@ -18,7 +19,7 @@ func TestDepot(t *testing.T) {
 		testDepot(client, name, t)
 	}
 }
-func testDepot(client store.Store, name string, t *testing.T) {
+func testDepot(client store_interface.Store, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 
 		println("Starting Depot test...")

@@ -9,17 +9,17 @@ import (
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"github.com/vixac/bullet/store"
+
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
 var (
-	clients map[string]store.Store
+	clients map[string]store_interface.Store
 )
 
 func TestMain(m *testing.M) {
-	println("Start main launched..")
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
@@ -39,14 +39,13 @@ func TestMain(m *testing.M) {
 
 	uri, _ := mongoC.Endpoint(ctx, "")
 	mongoURI := "mongodb://" + uri
-	println("Mongo url is " + mongoURI)
 
 	mongoStore, err := mongodb.NewMongoStore(mongoURI)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	clients = make(map[string]store.Store)
+	clients = make(map[string]store_interface.Store)
 	clients["mongo_store"] = mongoStore
 
 	//making bolt now.
@@ -57,13 +56,11 @@ func TestMain(m *testing.M) {
 	}
 
 	clients["bolt_store"] = boltStore
-	println("Starting test suite")
 
 	code := m.Run() //run entire test suite
 	os.Exit(code)
 	// Teardown
 	//_ = mongoClient.Disconnect(ctx)
-	println("Terminating.")
 	_ = mongoC.Terminate(ctx)
 
 }

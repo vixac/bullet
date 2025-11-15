@@ -7,14 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/api"
 	"github.com/vixac/bullet/config"
-	"github.com/vixac/bullet/store"
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
 func main() {
 	cfg := config.Load()
-	var kvStore store.Store
+	var kvStore store_interface.Store
 	var err error
 
 	switch cfg.DBType {

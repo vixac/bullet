@@ -6,12 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
-var depotStore store.DepotStore
+var depotStore store_interface.DepotStore
 
-func SetupDepotRouter(store store.DepotStore, prefix string, engine *gin.Engine) *gin.Engine {
+func SetupDepotRouter(store store_interface.DepotStore, prefix string, engine *gin.Engine) *gin.Engine {
 	depotStore = store
 	engine.POST(prefix+"/insert-one", depotPutHandler)
 	engine.POST(prefix+"/insert-many", depotPutManyHandler)

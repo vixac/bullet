@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store"
+	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestTrackInsertOneAndGetOne(t *testing.T) {
@@ -21,9 +21,8 @@ func TestTrackInsertOneAndGetOne(t *testing.T) {
 
 //VX:Note this test suite doesnt test all of track,yet, but wayfinder tests will cover alot of the functionality.
 
-func testTrackInsertOneAndGetOne(client store.Store, name string, t *testing.T) {
+func testTrackInsertOneAndGetOne(client store_interface.Store, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		println("Starting Track test...")
 
 		engine := gin.Default()
 		engine = SetupTrackRouter(client, "test-track", engine)
