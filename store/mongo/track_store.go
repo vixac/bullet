@@ -9,6 +9,31 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+func (m *MongoStore) TrackDeleteMany(appID int32, items []model.TrackBucketKeyPair) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	// Build a massive OR filter in a single DeleteMany
+	// (MongoDB handles this efficiently using index intersections).
+	orFilters := make([]bson.M, 0, len(items))
+
+	for _, item := range items {
+		orFilters = append(orFilters, bson.M{
+			"appId":    appID,
+			"bucketId": item.BucketID,
+			"key":      item.Key,
+		})
+	}
+
+	filter := bson.M{
+		"$or": orFilters,
+	}
+
+	_, err := m.trackCollection.DeleteMany(context.TODO(), filter)
+	return err
+}
+
 func (m *MongoStore) TrackPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	filter := bson.M{
 		"appId":    appID,

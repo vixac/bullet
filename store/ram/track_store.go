@@ -7,6 +7,27 @@ import (
 	"github.com/vixac/bullet/model"
 )
 
+func (r *RamStore) TrackDeleteMany(appID int32, items []model.TrackBucketKeyPair) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	appBuckets, ok := r.tracks[appID]
+	if !ok {
+		// No buckets at all — treat all deletes as no-ops, just like single delete
+		return nil
+	}
+
+	for _, item := range items {
+		bucket, ok := appBuckets[item.BucketID]
+		if !ok {
+			// Bucket missing — consistent with TrackDelete (silent no-op)
+			continue
+		}
+		delete(bucket, item.Key)
+	}
+
+	return nil
+}
 func (r *RamStore) TrackPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

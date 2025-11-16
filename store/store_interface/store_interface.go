@@ -7,7 +7,8 @@ import (
 type TrackStore interface {
 	TrackPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error
 	TrackGet(appID int32, bucketID int32, key string) (int64, error)
-	TrackDelete(appID int32, bucketID int32, key string) error
+
+	TrackDeleteMany(appID int32, items []model.TrackBucketKeyPair) error
 	TrackClose() error
 	TrackPutMany(appID int32, items map[int32][]model.TrackKeyValueItem) error
 	TrackGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error)
