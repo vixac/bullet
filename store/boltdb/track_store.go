@@ -90,6 +90,7 @@ func (b *BoltStore) TrackPut(appID int32, bucketID int32, key string, value int6
 	})
 }
 
+// VX:Note should return int64 and nil onNotFound
 func (b *BoltStore) TrackGet(appID, bucketID int32, key string) (int64, error) {
 	var value int64
 	err := b.db.View(func(tx *bbolt.Tx) error {
@@ -107,13 +108,27 @@ func (b *BoltStore) TrackGet(appID, bucketID int32, key string) (int64, error) {
 	return value, err
 }
 
-func (b *BoltStore) TrackDelete(appID, bucketID int32, key string) error {
+func (b *BoltStore) TrackDeleteMany(appID int32, items []model.TrackBucketKeyPair) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bkt := tx.Bucket([]byte(bucketName(appID, bucketID)))
-		if bkt == nil {
-			return bbolt.ErrBucketNotFound
+		// Group deletions by bucket to avoid repeated lookups
+		buckets := make(map[int32]*bbolt.Bucket)
+
+		for _, item := range items {
+			bkt, ok := buckets[item.BucketID]
+			if !ok {
+				bkt = tx.Bucket([]byte(bucketName(appID, item.BucketID)))
+				if bkt == nil {
+					return bbolt.ErrBucketNotFound
+				}
+				buckets[item.BucketID] = bkt
+			}
+
+			if err := bkt.Delete([]byte(item.Key)); err != nil {
+				return err
+			}
 		}
-		return bkt.Delete([]byte(key))
+
+		return nil
 	})
 }
 

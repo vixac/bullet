@@ -37,7 +37,7 @@ func SetupTrackRouter(store store_interface.TrackStore, prefix string, engine *g
 	engine.POST(prefix+"/get-many", trackGetManyHandler)
 
 	engine.POST(prefix+"/get-one", trackGetHandler)
-	engine.POST(prefix+"/delete-one", trackDeleteHandler)
+	engine.POST(prefix+"/delete-many", trackDeleteManyHandler)
 	engine.POST(prefix+"/get-query", handleGetItemsByPrefix)
 	return engine
 }
@@ -132,18 +132,20 @@ func trackGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"value": value})
 }
 
-func trackDeleteHandler(c *gin.Context) {
+// VX:TODO test
+func trackDeleteManyHandler(c *gin.Context) {
 	appId, err := extractAppIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
 		return
 	}
-	var req model.TrackRequest
+	var req model.TrackDeleteManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := trackStore.TrackDelete(appId, req.BucketID, req.Key); err != nil {
+
+	if err := trackStore.TrackDeleteMany(appId, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

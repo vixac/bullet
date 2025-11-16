@@ -7,6 +7,9 @@ type TrackRequest struct {
 	Tag      *int64   `json:"tag,omitempty"`
 	Metric   *float64 `json:"metric,omitempty"`
 }
+type TrackDeleteManyRequest struct {
+	Items []TrackBucketKeyPair `json:"items"`
+}
 
 type TrackPutManyRequest struct {
 	Buckets []TrackPutItems `json:"buckets"`
@@ -27,6 +30,10 @@ type TrackGetItemsByPrefixRequest struct {
 	Metric   *MetricFilter `json:"metric,omitempty"` // optional metric filter
 }
 
+type TrackBucketKeyPair struct {
+	BucketID int32  `json:"bucketId"`
+	Key      string `json:"key"`
+}
 type TrackKeyValueItem struct {
 	Key   string     `json:"key"`
 	Value TrackValue `json:"value"`

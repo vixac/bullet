@@ -16,6 +16,7 @@ func SetupWayFinderRouter(store store_interface.WayFinderStore, prefix string, e
 	engine.POST(prefix+"/insert-one", wayFinderPutHandler)
 	engine.POST(prefix+"/query-by-prefix", wayFinderQueryByPrefixHandler)
 	engine.POST(prefix+"/get-one", wayFinderGetOneHandler)
+	engine.POST(prefix+"/delete-many", wayFinderDeleteManyHandler)
 	return engine
 }
 
@@ -64,6 +65,36 @@ func wayFinderQueryByPrefixHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func wayFinderDeleteManyHandler(c *gin.Context) {
+
+	appId, err := extractAppIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		return
+	}
+	//VX:TODO get this working for delete
+	var req model.WayFinderGetOneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Println("get one called with appId", appId)
+	fmt.Println("with request request is", req)
+
+	item, err := wayFinderStore.WayFinderGetOne(appId, req.BucketId, req.Key)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Printf("Wayfound found %+v \n", item)
+	if item == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"item": item})
 }
 
 func wayFinderGetOneHandler(c *gin.Context) {
