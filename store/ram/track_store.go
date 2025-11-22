@@ -53,7 +53,7 @@ func (r *RamStore) TrackGet(appID int32, bucketID int32, key string) (int64, err
 
 	bucket, ok := r.tracks[appID][bucketID]
 	if !ok {
-		return 0, errors.New("bucket not found")
+		return 0, errors.New("bucket not found in ram Store.")
 	}
 	val, ok := bucket[key]
 	if !ok {

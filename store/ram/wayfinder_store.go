@@ -83,7 +83,7 @@ func (r *RamStore) WayFinderGetOne(appID int32, bucketID int32, key string) (*mo
 
 	bucket := r.wayfind[appID][bucketID]
 	if bucket == nil {
-		return nil, errors.New("bucket not found")
+		return nil, errors.New("bucket not found in wayfinder get one ramstore")
 	}
 
 	item, ok := bucket[key]
