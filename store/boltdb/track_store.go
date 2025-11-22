@@ -92,6 +92,7 @@ func (b *BoltStore) TrackPut(appID int32, bucketID int32, key string, value int6
 
 // VX:Note should return int64 and nil onNotFound
 func (b *BoltStore) TrackGet(appID, bucketID int32, key string) (int64, error) {
+	fmt.Printf("VX: BoltStore track get called with %d bucket and key %s \n", bucketID, key)
 	var value int64
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		bkt := tx.Bucket([]byte(bucketName(appID, bucketID)))
@@ -100,7 +101,7 @@ func (b *BoltStore) TrackGet(appID, bucketID int32, key string) (int64, error) {
 		}
 		val := bkt.Get([]byte(key))
 		if val == nil {
-			return fmt.Errorf("key not found")
+			return fmt.Errorf("Track get boltstore key not found")
 		}
 		value = int64(binary.BigEndian.Uint64(val))
 		return nil
@@ -161,6 +162,8 @@ func (b *BoltStore) TrackGetMany(appID int32, keys map[int32][]string) (
 	error,
 ) {
 
+	fmt.Printf("VX: BoltStore track get many called")
+
 	found := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
@@ -182,6 +185,7 @@ func (b *BoltStore) TrackGetMany(appID int32, keys map[int32][]string) (
 
 				v, tag, metric, err := decodeTrackValue(val)
 				if err != nil {
+					fmt.Printf("VX: err in boltstore: %s\n", err.Error())
 					return err
 				}
 
