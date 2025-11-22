@@ -247,9 +247,10 @@ func (b *BoltStore) GetItemsByKeyPrefix(
 	}
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
+
 		bkt := tx.Bucket([]byte(bucketName(appID, bucketID)))
 		if bkt == nil {
-			return bbolt.ErrBucketNotFound
+			return nil
 		}
 
 		c := bkt.Cursor()
