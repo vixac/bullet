@@ -102,6 +102,16 @@ func (m *MongoStore) TrackPutMany(appID int32, items map[int32][]model.TrackKeyV
 	return err
 }
 
+func (b *MongoStore) GetItemsByKeyPrefix(
+	appID, bucketID int32,
+	prefix string,
+	tags []int64,
+	metricValue *float64,
+	metricIsGt bool,
+) ([]model.TrackKeyValueItem, error) {
+	return b.GetItemsByKeyPrefixes(appID, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
+}
+
 func (m *MongoStore) TrackGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
@@ -187,44 +197,60 @@ func nextLexicographicString(s string) string {
 	// If all bytes were 0xFF, append 0x00 (or pick a safe suffix char)
 	return s + "\x00"
 }
-
-func (m *MongoStore) GetItemsByKeyPrefix(
+func (m *MongoStore) GetItemsByKeyPrefixes(
 	appID, bucketID int32,
-	prefix string,
-	tags []int64, // optional slice of tags
-	metricValue *float64, // optional metric value
-	metricIsGt bool, // "gt" or "lt"
+	prefixes []string, // multiple prefixes allowed
+	tags []int64, // optional
+	metricValue *float64, // optional
+	metricIsGt bool, // if metricValue != nil
 ) ([]model.TrackKeyValueItem, error) {
 
-	lower := prefix
-	upper := nextLexicographicString(prefix)
+	if len(prefixes) == 0 {
+		return nil, fmt.Errorf("must provide at least one prefix")
+	}
 
+	// Base filter for app and bucket
 	filter := bson.M{
 		"appId":    appID,
 		"bucketId": bucketID,
-		"key": bson.M{
-			"$gte": lower,
-			"$lt":  upper,
-		},
 	}
 
-	// Add tag filter if tags provided
+	// Build the OR clause for prefix ranges
+	orClauses := make([]bson.M, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		if prefix == "" {
+			continue // ignore empty prefix entries
+		}
+		lower := prefix
+		upper := nextLexicographicString(prefix)
+
+		orClauses = append(orClauses, bson.M{
+			"key": bson.M{
+				"$gte": lower,
+				"$lt":  upper,
+			},
+		})
+	}
+
+	if len(orClauses) == 0 {
+		return nil, fmt.Errorf("all prefixes were empty")
+	}
+
+	// Attach OR conditions
+	filter["$or"] = orClauses
+
+	// Attach tags filter if provided
 	if len(tags) > 0 {
 		filter["tag"] = bson.M{"$in": tags}
 	}
 
-	// Add metric filter if value and operator are provided
+	// Attach metric filter if provided
 	if metricValue != nil {
-		metricFilter := bson.M{}
-		switch metricIsGt {
-		case true:
-			metricFilter["$gt"] = *metricValue
-		case false:
-			metricFilter["$lt"] = *metricValue
-		default:
-			return nil, fmt.Errorf("invalid metricOperator: must be 'gt' or 'lt'")
+		op := "$lt"
+		if metricIsGt {
+			op = "$gt"
 		}
-		filter["metric"] = metricFilter
+		filter["metric"] = bson.M{op: *metricValue}
 	}
 
 	cursor, err := m.trackCollection.Find(context.TODO(), filter)

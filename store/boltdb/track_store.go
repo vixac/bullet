@@ -206,7 +206,6 @@ func (b *BoltStore) TrackGetMany(appID int32, keys map[int32][]string) (
 	return found, missing, err
 }
 
-// /VX:Note this does not use any index. It fetches all items in the bucket and manually seeks on the parameters
 func (b *BoltStore) GetItemsByKeyPrefix(
 	appID, bucketID int32,
 	prefix string,
@@ -214,9 +213,32 @@ func (b *BoltStore) GetItemsByKeyPrefix(
 	metricValue *float64,
 	metricIsGt bool,
 ) ([]model.TrackKeyValueItem, error) {
+	return b.GetItemsByKeyPrefixes(appID, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
+}
+func (b *BoltStore) GetItemsByKeyPrefixes(
+	appID, bucketID int32,
+	prefixes []string,
+	tags []int64,
+	metricValue *float64,
+	metricIsGt bool,
+) ([]model.TrackKeyValueItem, error) {
+
+	if len(prefixes) == 0 {
+		return nil, fmt.Errorf("must provide at least one prefix")
+	}
+
+	// Deduplicate empty prefixes
+	cleanPrefixes := make([][]byte, 0, len(prefixes))
+	for _, p := range prefixes {
+		if p != "" {
+			cleanPrefixes = append(cleanPrefixes, []byte(p))
+		}
+	}
+	if len(cleanPrefixes) == 0 {
+		return nil, fmt.Errorf("all prefixes were empty")
+	}
 
 	var result []model.TrackKeyValueItem
-	p := []byte(prefix)
 
 	tagFilter := func(tag *int64) bool {
 		if len(tags) == 0 {
@@ -255,29 +277,33 @@ func (b *BoltStore) GetItemsByKeyPrefix(
 
 		c := bkt.Cursor()
 
-		for k, v := c.Seek(p); k != nil && bytes.HasPrefix(k, p); k, v = c.Next() {
-			value, tag, metric, err := decodeTrackValue(v)
-			if err != nil {
-				return err
-			}
+		for _, p := range cleanPrefixes {
+			for k, v := c.Seek(p); k != nil && bytes.HasPrefix(k, p); k, v = c.Next() {
 
-			if !tagFilter(tag) {
-				continue
-			}
+				value, tag, metric, err := decodeTrackValue(v)
+				if err != nil {
+					return err
+				}
 
-			if !metricFilter(metric) {
-				continue
-			}
+				if !tagFilter(tag) {
+					continue
+				}
 
-			result = append(result, model.TrackKeyValueItem{
-				Key: string(k),
-				Value: model.TrackValue{
-					Value:  value,
-					Tag:    tag,
-					Metric: metric,
-				},
-			})
+				if !metricFilter(metric) {
+					continue
+				}
+
+				result = append(result, model.TrackKeyValueItem{
+					Key: string(k),
+					Value: model.TrackValue{
+						Value:  value,
+						Tag:    tag,
+						Metric: metric,
+					},
+				})
+			}
 		}
+
 		return nil
 	})
 
