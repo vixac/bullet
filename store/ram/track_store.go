@@ -2,6 +2,7 @@ package ram
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/vixac/bullet/model"
@@ -119,7 +120,23 @@ func (r *RamStore) TrackGetMany(appID int32, keys map[int32][]string) (map[int32
 	return found, missing, nil
 }
 
-func (r *RamStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string, tags []int64, metricValue *float64, metricIsGt bool) ([]model.TrackKeyValueItem, error) {
+func (b *RamStore) GetItemsByKeyPrefix(
+	appID, bucketID int32,
+	prefix string,
+	tags []int64,
+	metricValue *float64,
+	metricIsGt bool,
+) ([]model.TrackKeyValueItem, error) {
+	return b.GetItemsByKeyPrefixes(appID, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
+}
+func (r *RamStore) GetItemsByKeyPrefixes(
+	appID, bucketID int32,
+	prefixes []string,
+	tags []int64,
+	metricValue *float64,
+	metricIsGt bool,
+) ([]model.TrackKeyValueItem, error) {
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -127,6 +144,22 @@ func (r *RamStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string, tag
 	bucket := r.tracks[appID][bucketID]
 	if bucket == nil {
 		return result, nil
+	}
+
+	if len(prefixes) == 0 {
+		return result, fmt.Errorf("must provide at least one prefix")
+	}
+
+	// Convert prefixes to a more efficient lookup structure
+	// (highly cache-friendly when scanning map keys)
+	prefixList := make([]string, 0, len(prefixes))
+	for _, p := range prefixes {
+		if p != "" {
+			prefixList = append(prefixList, p)
+		}
+	}
+	if len(prefixList) == 0 {
+		return result, fmt.Errorf("all prefixes were empty")
 	}
 
 	tagFilter := func(tag *int64) bool {
@@ -157,8 +190,17 @@ func (r *RamStore) GetItemsByKeyPrefix(appID, bucketID int32, prefix string, tag
 		return *metric < *metricValue
 	}
 
+	matchesPrefix := func(k string) bool {
+		for _, p := range prefixList {
+			if strings.HasPrefix(k, p) {
+				return true
+			}
+		}
+		return false
+	}
+
 	for k, v := range bucket {
-		if strings.HasPrefix(k, prefix) && tagFilter(v.Tag) && metricFilter(v.Metric) {
+		if matchesPrefix(k) && tagFilter(v.Tag) && metricFilter(v.Metric) {
 			result = append(result, model.TrackKeyValueItem{
 				Key:   k,
 				Value: v,

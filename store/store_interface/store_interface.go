@@ -19,6 +19,15 @@ type TrackStore interface {
 		metricValue *float64, // optional metric value
 		metricIsGt bool, // "gt" or "lt"
 	) ([]model.TrackKeyValueItem, error)
+
+	//Slower. Advisable to keep the number of prefix strings < 30 as it is implemented via  $or clause
+	GetItemsByKeyPrefixes(
+		appID, bucketID int32,
+		prefixes []string,
+		tags []int64,
+		metricValue *float64,
+		metricIsGt bool,
+	) ([]model.TrackKeyValueItem, error)
 }
 
 type DepotStore interface {
