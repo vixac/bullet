@@ -4,11 +4,12 @@ import (
 	"fmt"
 
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/store/store_interface"
 	"go.etcd.io/bbolt"
 )
 
 func (b *BoltStore) WayFinderPut(
-	appID int32,
+	space store_interface.TenancySpace,
 	bucketID int32,
 	key string,
 	payload string,
@@ -23,7 +24,7 @@ func (b *BoltStore) WayFinderPut(
 		// Generate an itemId: simplest is using UnixNano or an increment key.
 		// But Bolt does support a sequence per bucket.
 
-		trackBucket, err := tx.CreateBucketIfNotExists([]byte(bucketName(appID, bucketID)))
+		trackBucket, err := tx.CreateBucketIfNotExists([]byte(bucketName(space, bucketID)))
 		if err != nil {
 			return err
 		}
@@ -43,7 +44,7 @@ func (b *BoltStore) WayFinderPut(
 		}
 
 		// 2. Store payload in Depot under key=itemId
-		depotBucketName := []byte(fmt.Sprintf("pigeon:app:%d", appID))
+		depotBucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
 		depot, err := tx.CreateBucketIfNotExists(depotBucketName)
 		if err != nil {
 			return err
@@ -60,7 +61,7 @@ func (b *BoltStore) WayFinderPut(
 }
 
 func (b *BoltStore) WayFinderGetByPrefix(
-	appID int32,
+	space store_interface.TenancySpace,
 	bucketID int32,
 	prefix string,
 	tags []int64,
@@ -71,7 +72,7 @@ func (b *BoltStore) WayFinderGetByPrefix(
 	var results []model.WayFinderQueryItem
 
 	trackItems, err := b.GetItemsByKeyPrefix(
-		appID,
+		space,
 		bucketID,
 		prefix,
 		tags,
@@ -83,7 +84,7 @@ func (b *BoltStore) WayFinderGetByPrefix(
 	}
 
 	err = b.db.View(func(tx *bbolt.Tx) error {
-		depot := tx.Bucket([]byte(fmt.Sprintf("pigeon:app:%d", appID)))
+		depot := tx.Bucket([]byte(fmt.Sprintf("pigeon:app:%d", space.AppId)))
 		if depot == nil {
 			// Track existed but Depot missing → corruption
 			return fmt.Errorf("depot bucket missing")
@@ -114,7 +115,7 @@ func (b *BoltStore) WayFinderGetByPrefix(
 }
 
 func (b *BoltStore) WayFinderGetOne(
-	appID int32,
+	space store_interface.TenancySpace,
 	bucketID int32,
 	key string,
 ) (*model.WayFinderGetResponse, error) {
@@ -123,7 +124,7 @@ func (b *BoltStore) WayFinderGetOne(
 
 	var notFound = false
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		track := tx.Bucket([]byte(bucketName(appID, bucketID)))
+		track := tx.Bucket([]byte(bucketName(space, bucketID)))
 		if track == nil {
 			return fmt.Errorf("track bucket not found")
 		}
@@ -139,7 +140,7 @@ func (b *BoltStore) WayFinderGetOne(
 			return err
 		}
 
-		depot := tx.Bucket([]byte(fmt.Sprintf("pigeon:app:%d", appID)))
+		depot := tx.Bucket([]byte(fmt.Sprintf("pigeon:app:%d", space.AppId)))
 		if depot == nil {
 			return fmt.Errorf("depot bucket not found")
 		}

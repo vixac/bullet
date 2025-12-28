@@ -54,7 +54,12 @@ func trackPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := trackStore.TrackPut(appId, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	if err := trackStore.TrackPut(space, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -78,7 +83,12 @@ func trackPutManyHandler(c *gin.Context) {
 		items[bucket.BucketID] = append(items[bucket.BucketID], bucket.Items...)
 	}
 
-	if err := trackStore.TrackPutMany(appId, items); err != nil {
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+
+	if err := trackStore.TrackPutMany(space, items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -102,7 +112,11 @@ func trackGetManyHandler(c *gin.Context) {
 		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
 	}
 
-	values, missing, err := trackStore.TrackGetMany(appId, keys)
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	values, missing, err := trackStore.TrackGetMany(space, keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -125,7 +139,12 @@ func trackGetHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	value, err := trackStore.TrackGet(appId, req.BucketID, req.Key)
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	value, err := trackStore.TrackGet(space, req.BucketID, req.Key)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -145,8 +164,12 @@ func trackDeleteManyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
 
-	if err := trackStore.TrackDeleteMany(appId, req.Items); err != nil {
+	if err := trackStore.TrackDeleteMany(space, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -173,8 +196,13 @@ func handleGetItemsByPrefix(c *gin.Context) {
 		metricValue = &req.Metric.Value
 		isGt = req.Metric.Operator == "gt"
 	}
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
 	items, err := trackStore.GetItemsByKeyPrefix(
-		appId,
+		space,
 		req.BucketID,
 		req.Prefix,
 		req.Tags,

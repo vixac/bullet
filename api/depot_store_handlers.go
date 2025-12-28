@@ -33,7 +33,12 @@ func depotPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := depotStore.DepotPut(appId, req.Key, req.Value); err != nil {
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	if err := depotStore.DepotPut(space, req.Key, req.Value); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -52,7 +57,11 @@ func depotPutManyHandler(c *gin.Context) {
 		return
 	}
 
-	if err := depotStore.DepotPutMany(appId, req.Items); err != nil {
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	if err := depotStore.DepotPutMany(space, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -89,7 +98,12 @@ func depotGetManyHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	values, missing, err := depotStore.DepotGetMany(appId, ints)
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	values, missing, err := depotStore.DepotGetMany(space, ints)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -112,7 +126,12 @@ func depotGetHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	value, err := depotStore.DepotGet(appId, req.Key)
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	value, err := depotStore.DepotGet(space, req.Key)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -131,7 +150,12 @@ func depotDeleteHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := depotStore.DepotDelete(appId, req.Key); err != nil {
+
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	if err := depotStore.DepotDelete(space, req.Key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

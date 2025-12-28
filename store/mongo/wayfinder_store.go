@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -14,17 +15,17 @@ func generateItemID() int64 {
 	return time.Now().UnixNano()
 }
 
-func (s *MongoStore) WayFinderPut(appID int32, bucketID int32, key string, payload string, tag *int64, metric *float64) (int64, error) {
+func (s *MongoStore) WayFinderPut(space store_interface.TenancySpace, bucketID int32, key string, payload string, tag *int64, metric *float64) (int64, error) {
 	id := generateItemID()
 
 	// Insert into Track
-	err := s.TrackPut(appID, bucketID, key, int64(id), tag, metric)
+	err := s.TrackPut(space, bucketID, key, int64(id), tag, metric)
 	if err != nil {
 		return 0, err
 	}
 
 	// Insert into Depot
-	err = s.DepotPut(appID, int64(id), payload)
+	err = s.DepotPut(space, int64(id), payload)
 	if err != nil {
 		return 0, err
 	}
@@ -33,7 +34,7 @@ func (s *MongoStore) WayFinderPut(appID int32, bucketID int32, key string, paylo
 }
 
 func (s *MongoStore) WayFinderGetOne(
-	appID int32,
+	space store_interface.TenancySpace,
 	bucketID int32,
 	key string,
 ) (*model.WayFinderGetResponse, error) {
@@ -44,7 +45,7 @@ func (s *MongoStore) WayFinderGetOne(
 	// Build aggregation pipeline
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{
-			{Key: "appId", Value: appID},
+			{Key: "appId", Value: space.AppId},
 			{Key: "bucketId", Value: bucketID},
 			{Key: "key", Value: key},
 		}}},
@@ -101,7 +102,7 @@ func (s *MongoStore) WayFinderGetOne(
 }
 
 func (s *MongoStore) WayFinderGetByPrefix(
-	appID int32,
+	space store_interface.TenancySpace,
 	bucketID int32,
 	prefix string,
 	tags []int64,
@@ -114,7 +115,7 @@ func (s *MongoStore) WayFinderGetByPrefix(
 
 	// Build $match stage dynamically
 	matchStage := bson.D{
-		{"appId", appID},
+		{"appId", space.AppId},
 		{"bucketId", bucketID},
 		{"key", bson.M{"$regex": "^" + prefix}},
 	}

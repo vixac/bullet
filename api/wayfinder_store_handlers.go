@@ -33,7 +33,11 @@ func wayFinderPutHandler(c *gin.Context) {
 		return
 	}
 	fmt.Println("with request request is", req)
-	itemId, err := wayFinderStore.WayFinderPut(appId, req.BucketId, req.Key, req.Payload, req.Tag, req.Metric)
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	itemId, err := wayFinderStore.WayFinderPut(space, req.BucketId, req.Key, req.Payload, req.Tag, req.Metric)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -56,8 +60,12 @@ func wayFinderQueryByPrefixHandler(c *gin.Context) {
 		return
 	}
 
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
 	items, err := wayFinderStore.WayFinderGetByPrefix(
-		appId, req.BucketId, req.Prefix, req.Tags, req.Metric, req.MetricIsGt,
+		space, req.BucketId, req.Prefix, req.Tags, req.Metric, req.MetricIsGt,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -83,7 +91,12 @@ func wayFinderDeleteManyHandler(c *gin.Context) {
 	fmt.Println("get one called with appId", appId)
 	fmt.Println("with request request is", req)
 
-	item, err := wayFinderStore.WayFinderGetOne(appId, req.BucketId, req.Key)
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+
+	item, err := wayFinderStore.WayFinderGetOne(space, req.BucketId, req.Key)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -113,7 +126,11 @@ func wayFinderGetOneHandler(c *gin.Context) {
 	fmt.Println("get one called with appId", appId)
 	fmt.Println("with request request is", req)
 
-	item, err := wayFinderStore.WayFinderGetOne(appId, req.BucketId, req.Key)
+	space := store_interface.TenancySpace{
+		AppId:     appId,
+		TenancyId: 0, //VX:TODO collect the tenancyId
+	}
+	item, err := wayFinderStore.WayFinderGetOne(space, req.BucketId, req.Key)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

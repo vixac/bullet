@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/store/store_interface"
 	"go.etcd.io/bbolt"
 )
 
-func (b *BoltStore) DepotPut(appID int32, key int64, value string) error {
+func (b *BoltStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", appID))
+		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
 		bkt, err := tx.CreateBucketIfNotExists(bucketName)
 		if err != nil {
 			return err
@@ -19,10 +20,10 @@ func (b *BoltStore) DepotPut(appID int32, key int64, value string) error {
 	})
 }
 
-func (b *BoltStore) DepotGet(appID int32, key int64) (string, error) {
+func (b *BoltStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
 	var val []byte
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", appID))
+		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
 		bkt := tx.Bucket(bucketName)
 		if bkt == nil {
 			return fmt.Errorf("not found")
@@ -36,9 +37,9 @@ func (b *BoltStore) DepotGet(appID int32, key int64) (string, error) {
 	return string(val), err
 }
 
-func (b *BoltStore) DepotDelete(appID int32, key int64) error {
+func (b *BoltStore) DepotDelete(space store_interface.TenancySpace, key int64) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", appID))
+		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
 		bkt := tx.Bucket(bucketName)
 		if bkt == nil {
 			return nil
@@ -47,9 +48,9 @@ func (b *BoltStore) DepotDelete(appID int32, key int64) error {
 	})
 }
 
-func (b *BoltStore) DepotPutMany(appID int32, items []model.DepotKeyValueItem) error {
+func (b *BoltStore) DepotPutMany(space store_interface.TenancySpace, items []model.DepotKeyValueItem) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", appID))
+		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
 		bkt, err := tx.CreateBucketIfNotExists(bucketName)
 		if err != nil {
 			return err
@@ -63,12 +64,12 @@ func (b *BoltStore) DepotPutMany(appID int32, items []model.DepotKeyValueItem) e
 	})
 }
 
-func (b *BoltStore) DepotGetMany(appID int32, keys []int64) (map[int64]string, []int64, error) {
+func (b *BoltStore) DepotGetMany(space store_interface.TenancySpace, keys []int64) (map[int64]string, []int64, error) {
 	results := make(map[int64]string)
 	var missing []int64
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", appID))
+		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
 		bkt := tx.Bucket(bucketName)
 		if bkt == nil {
 			missing = keys
