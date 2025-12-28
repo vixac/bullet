@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (m *MongoStore) DepotPut(appID int32, key int64, value string) error {
-	filter := bson.M{"appId": appID, "key": key}
+func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
+	filter := bson.M{"appId": space.AppId, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
 	opts := options.Update().SetUpsert(true)
 
@@ -19,8 +20,8 @@ func (m *MongoStore) DepotPut(appID int32, key int64, value string) error {
 	return err
 }
 
-func (m *MongoStore) DepotGet(appID int32, key int64) (string, error) {
-	filter := bson.M{"appId": appID, "key": key}
+func (m *MongoStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
+	filter := bson.M{"appId": space.AppId, "key": key}
 
 	var result struct {
 		Value string `bson:"value"`
@@ -33,17 +34,17 @@ func (m *MongoStore) DepotGet(appID int32, key int64) (string, error) {
 	return result.Value, err
 }
 
-func (m *MongoStore) DepotDelete(appID int32, key int64) error {
-	filter := bson.M{"appId": appID, "key": key}
+func (m *MongoStore) DepotDelete(space store_interface.TenancySpace, key int64) error {
+	filter := bson.M{"appId": space.AppId, "key": key}
 	_, err := m.depotCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
-func (m *MongoStore) DepotPutMany(appID int32, items []model.DepotKeyValueItem) error {
+func (m *MongoStore) DepotPutMany(space store_interface.TenancySpace, items []model.DepotKeyValueItem) error {
 	var ops []mongo.WriteModel
 
 	for _, item := range items {
-		filter := bson.M{"appId": appID, "key": item.Key}
+		filter := bson.M{"appId": space.AppId, "key": item.Key}
 		update := bson.M{"$set": bson.M{"value": item.Value}}
 		ops = append(ops, mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update).SetUpsert(true))
 	}
@@ -56,9 +57,9 @@ func (m *MongoStore) DepotPutMany(appID int32, items []model.DepotKeyValueItem) 
 	return err
 }
 
-func (m *MongoStore) DepotGetMany(appID int32, keys []int64) (map[int64]string, []int64, error) {
+func (m *MongoStore) DepotGetMany(space store_interface.TenancySpace, keys []int64) (map[int64]string, []int64, error) {
 	filter := bson.M{
-		"appId": appID,
+		"appId": space.AppId,
 		"key":   bson.M{"$in": keys},
 	}
 

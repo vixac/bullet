@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (m *MongoStore) TrackDeleteMany(appID int32, items []model.TrackBucketKeyPair) error {
+func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -20,7 +21,7 @@ func (m *MongoStore) TrackDeleteMany(appID int32, items []model.TrackBucketKeyPa
 
 	for _, item := range items {
 		orFilters = append(orFilters, bson.M{
-			"appId":    appID,
+			"appId":    space.AppId,
 			"bucketId": item.BucketID,
 			"key":      item.Key,
 		})
@@ -34,9 +35,9 @@ func (m *MongoStore) TrackDeleteMany(appID int32, items []model.TrackBucketKeyPa
 	return err
 }
 
-func (m *MongoStore) TrackPut(appID int32, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (m *MongoStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	filter := bson.M{
-		"appId":    appID,
+		"appId":    space.AppId,
 		"bucketId": bucketID,
 		"key":      key,
 	}
@@ -62,15 +63,15 @@ func (m *MongoStore) TrackPut(appID int32, bucketID int32, key string, value int
 	return err
 }
 
-func (m *MongoStore) TrackGet(appID, bucketID int32, key string) (int64, error) {
+func (m *MongoStore) TrackGet(space store_interface.TenancySpace, bucketID int32, key string) (int64, error) {
 	var result struct{ Value int64 }
-	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
+	filter := bson.M{"appId": space.AppId, "bucketId": bucketID, "key": key}
 	err := m.trackCollection.FindOne(context.TODO(), filter).Decode(&result)
 	return result.Value, err
 }
 
-func (m *MongoStore) TrackDelete(appID, bucketID int32, key string) error {
-	filter := bson.M{"appId": appID, "bucketId": bucketID, "key": key}
+func (m *MongoStore) TrackDelete(space store_interface.TenancySpace, bucketID int32, key string) error {
+	filter := bson.M{"appId": space.AppId, "bucketId": bucketID, "key": key}
 	_, err := m.trackCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
@@ -79,13 +80,13 @@ func (m *MongoStore) TrackClose() error {
 	return m.client.Disconnect(context.TODO())
 }
 
-func (m *MongoStore) TrackPutMany(appID int32, items map[int32][]model.TrackKeyValueItem) error {
+func (m *MongoStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
 	var docs []interface{}
 
 	for bucketID, kvItems := range items {
 		for _, kv := range kvItems {
 			doc := bson.M{
-				"appId":    appID,
+				"appId":    space.AppId,
 				"bucketId": bucketID,
 				"key":      kv.Key,
 				"value":    kv.Value,
@@ -103,16 +104,16 @@ func (m *MongoStore) TrackPutMany(appID int32, items map[int32][]model.TrackKeyV
 }
 
 func (b *MongoStore) GetItemsByKeyPrefix(
-	appID, bucketID int32,
+	space store_interface.TenancySpace, bucketID int32,
 	prefix string,
 	tags []int64,
 	metricValue *float64,
 	metricIsGt bool,
 ) ([]model.TrackKeyValueItem, error) {
-	return b.GetItemsByKeyPrefixes(appID, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
+	return b.GetItemsByKeyPrefixes(space, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
 }
 
-func (m *MongoStore) TrackGetMany(appID int32, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+func (m *MongoStore) TrackGetMany(space store_interface.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
@@ -120,7 +121,7 @@ func (m *MongoStore) TrackGetMany(appID int32, keys map[int32][]string) (map[int
 	for bucketID, keyList := range keys {
 		for _, key := range keyList {
 			orFilters = append(orFilters, bson.M{
-				"appId":    appID,
+				"appId":    space.AppId,
 				"bucketId": bucketID,
 				"key":      key,
 			})
@@ -198,7 +199,7 @@ func nextLexicographicString(s string) string {
 	return s + "\x00"
 }
 func (m *MongoStore) GetItemsByKeyPrefixes(
-	appID, bucketID int32,
+	space store_interface.TenancySpace, bucketID int32,
 	prefixes []string, // multiple prefixes allowed
 	tags []int64, // optional
 	metricValue *float64, // optional
@@ -211,7 +212,7 @@ func (m *MongoStore) GetItemsByKeyPrefixes(
 
 	// Base filter for app and bucket
 	filter := bson.M{
-		"appId":    appID,
+		"appId":    space.AppId,
 		"bucketId": bucketID,
 	}
 
