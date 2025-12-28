@@ -1,6 +1,8 @@
 package boltdb
 
-import "go.etcd.io/bbolt"
+import (
+	"go.etcd.io/bbolt"
+)
 
 type BoltStore struct {
 	db *bbolt.DB

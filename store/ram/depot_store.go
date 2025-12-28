@@ -10,17 +10,17 @@ import (
 func (r *RamStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.depots[space.AppId] == nil {
-		r.depots[space.AppId] = make(map[int64]string)
+	if r.depots[space] == nil {
+		r.depots[space] = make(map[int64]string)
 	}
-	r.depots[space.AppId][key] = value
+	r.depots[space][key] = value
 	return nil
 }
 
 func (r *RamStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	val, ok := r.depots[space.AppId][key]
+	val, ok := r.depots[space][key]
 	if !ok {
 		return "", errors.New("key not found")
 	}
@@ -30,7 +30,7 @@ func (r *RamStore) DepotGet(space store_interface.TenancySpace, key int64) (stri
 func (r *RamStore) DepotDelete(space store_interface.TenancySpace, key int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.depots[space.AppId], key)
+	delete(r.depots[space], key)
 	return nil
 }
 
@@ -49,7 +49,7 @@ func (r *RamStore) DepotGetMany(space store_interface.TenancySpace, keys []int64
 	found := make(map[int64]string)
 	var missing []int64
 	for _, k := range keys {
-		if v, ok := r.depots[space.AppId][k]; ok {
+		if v, ok := r.depots[space][k]; ok {
 			found[k] = v
 		} else {
 			missing = append(missing, k)

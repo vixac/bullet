@@ -44,6 +44,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	model := mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "appId", Value: 1},
+			{Key: "tenenacyId", Value: 1},
 			{Key: "bucketId", Value: 1},
 			{Key: "key", Value: 1},
 			{Key: "tag", Value: 1},    // equality filters should come before range filters
@@ -61,6 +62,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	uniqueIndex := mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "appId", Value: 1},
+			{Key: "tenancyId", Value: 1},
 			{Key: "bucketId", Value: 1},
 			{Key: "key", Value: 1},
 		},
@@ -75,6 +77,7 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 	depotModel := mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "appId", Value: 1},
+			{Key: "tenancyId", Value: 1},
 			{Key: "key", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),

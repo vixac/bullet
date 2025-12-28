@@ -12,15 +12,15 @@ func (r *RamStore) WayFinderPut(space store_interface.TenancySpace, bucketID int
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.wayfind[space.AppId] == nil {
-		r.wayfind[space.AppId] = make(map[int32]map[string]model.WayFinderQueryItem)
+	if r.wayfind[space] == nil {
+		r.wayfind[space] = make(map[int32]map[string]model.WayFinderQueryItem)
 	}
-	if r.wayfind[space.AppId][bucketID] == nil {
-		r.wayfind[space.AppId][bucketID] = make(map[string]model.WayFinderQueryItem)
+	if r.wayfind[space][bucketID] == nil {
+		r.wayfind[space][bucketID] = make(map[string]model.WayFinderQueryItem)
 	}
 
-	itemID := int64(len(r.wayfind[space.AppId][bucketID]) + 1)
-	r.wayfind[space.AppId][bucketID][key] = model.WayFinderQueryItem{
+	itemID := int64(len(r.wayfind[space][bucketID]) + 1)
+	r.wayfind[space][bucketID][key] = model.WayFinderQueryItem{
 		Key:     key,
 		ItemId:  itemID,
 		Payload: payload,
@@ -36,7 +36,7 @@ func (r *RamStore) WayFinderGetByPrefix(space store_interface.TenancySpace, buck
 	defer r.mu.RUnlock()
 	var result []model.WayFinderQueryItem
 
-	bucket := r.wayfind[space.AppId][bucketID]
+	bucket := r.wayfind[space][bucketID]
 	if bucket == nil {
 		return result, nil
 	}
@@ -82,7 +82,7 @@ func (r *RamStore) WayFinderGetOne(space store_interface.TenancySpace, bucketID 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	bucket := r.wayfind[space.AppId][bucketID]
+	bucket := r.wayfind[space][bucketID]
 	if bucket == nil {
 		return nil, errors.New("bucket not found in wayfinder get one ramstore")
 	}

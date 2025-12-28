@@ -9,9 +9,22 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+func oldBucketName(appId int32) []byte {
+	return []byte(fmt.Sprintf("pigeon:app:%d", appId))
+}
+
+// VX:TODO use the newdepot after migration.
+func newDepotBucket(appID int32, tenantId int64) []byte {
+	return []byte(fmt.Sprintf("depot:v2:%d:tenant:%d", appID, tenantId))
+}
+
+func getBucketName(space store_interface.TenancySpace) []byte {
+	return newDepotBucket(space.AppId, space.TenancyId)
+}
+
 func (b *BoltStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
+		bucketName := getBucketName(space)
 		bkt, err := tx.CreateBucketIfNotExists(bucketName)
 		if err != nil {
 			return err
@@ -23,7 +36,7 @@ func (b *BoltStore) DepotPut(space store_interface.TenancySpace, key int64, valu
 func (b *BoltStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
 	var val []byte
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
+		bucketName := getBucketName(space)
 		bkt := tx.Bucket(bucketName)
 		if bkt == nil {
 			return fmt.Errorf("not found")
@@ -39,7 +52,7 @@ func (b *BoltStore) DepotGet(space store_interface.TenancySpace, key int64) (str
 
 func (b *BoltStore) DepotDelete(space store_interface.TenancySpace, key int64) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
+		bucketName := getBucketName(space)
 		bkt := tx.Bucket(bucketName)
 		if bkt == nil {
 			return nil
@@ -50,7 +63,7 @@ func (b *BoltStore) DepotDelete(space store_interface.TenancySpace, key int64) e
 
 func (b *BoltStore) DepotPutMany(space store_interface.TenancySpace, items []model.DepotKeyValueItem) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
+		bucketName := getBucketName(space)
 		bkt, err := tx.CreateBucketIfNotExists(bucketName)
 		if err != nil {
 			return err
@@ -69,7 +82,7 @@ func (b *BoltStore) DepotGetMany(space store_interface.TenancySpace, keys []int6
 	var missing []int64
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		bucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
+		bucketName := getBucketName(space)
 		bkt := tx.Bucket(bucketName)
 		if bkt == nil {
 			missing = keys

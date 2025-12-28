@@ -46,6 +46,7 @@ func (s *MongoStore) WayFinderGetOne(
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{
 			{Key: "appId", Value: space.AppId},
+			{Key: "tenancyId", Value: space.TenancyId},
 			{Key: "bucketId", Value: bucketID},
 			{Key: "key", Value: key},
 		}}},
@@ -116,6 +117,7 @@ func (s *MongoStore) WayFinderGetByPrefix(
 	// Build $match stage dynamically
 	matchStage := bson.D{
 		{"appId", space.AppId},
+		{"tenancyId", space.TenancyId},
 		{"bucketId", bucketID},
 		{"key", bson.M{"$regex": "^" + prefix}},
 	}
