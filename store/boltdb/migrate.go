@@ -8,8 +8,8 @@ var schemaVersionKey = []byte("version")
 const currentSchemaVersion = 2
 const DefaultTenant = 0
 
-func MigrateToTenantBuckets(db *bbolt.DB, appID int32) error {
-	return db.Update(func(tx *bbolt.Tx) error {
+func (s *BoltStore) MigrateToTenantBuckets(appID int32) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
 		// schema bucket
 		sb, err := tx.CreateBucketIfNotExists(schemaBucket)
 		if err != nil {
