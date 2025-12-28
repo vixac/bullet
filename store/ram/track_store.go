@@ -13,7 +13,7 @@ func (r *RamStore) TrackDeleteMany(space store_interface.TenancySpace, items []m
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	appBuckets, ok := r.tracks[space.AppId]
+	appBuckets, ok := r.tracks[space]
 	if !ok {
 		// No buckets at all — treat all deletes as no-ops, just like single delete
 		return nil
@@ -34,14 +34,14 @@ func (r *RamStore) TrackPut(space store_interface.TenancySpace, bucketID int32, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.tracks[space.AppId] == nil {
-		r.tracks[space.AppId] = make(map[int32]map[string]model.TrackValue)
+	if r.tracks[space] == nil {
+		r.tracks[space] = make(map[int32]map[string]model.TrackValue)
 	}
-	if r.tracks[space.AppId][bucketID] == nil {
-		r.tracks[space.AppId][bucketID] = make(map[string]model.TrackValue)
+	if r.tracks[space][bucketID] == nil {
+		r.tracks[space][bucketID] = make(map[string]model.TrackValue)
 	}
 
-	r.tracks[space.AppId][bucketID][key] = model.TrackValue{
+	r.tracks[space][bucketID][key] = model.TrackValue{
 		Value:  value,
 		Tag:    tag,
 		Metric: metric,
@@ -53,7 +53,7 @@ func (r *RamStore) TrackGet(space store_interface.TenancySpace, bucketID int32, 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	bucket, ok := r.tracks[space.AppId][bucketID]
+	bucket, ok := r.tracks[space][bucketID]
 	if !ok {
 		return 0, errors.New("bucket not found in ram Store.")
 	}
@@ -68,7 +68,7 @@ func (r *RamStore) TrackDelete(space store_interface.TenancySpace, bucketID int3
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if bucket, ok := r.tracks[space.AppId][bucketID]; ok {
+	if bucket, ok := r.tracks[space][bucketID]; ok {
 		delete(bucket, key)
 	}
 	return nil
@@ -97,11 +97,11 @@ func (r *RamStore) TrackGetMany(space store_interface.TenancySpace, keys map[int
 	missing := make(map[int32][]string)
 
 	for bucketID, keyList := range keys {
-		if r.tracks[space.AppId] == nil {
+		if r.tracks[space] == nil {
 			missing[bucketID] = keyList
 			continue
 		}
-		bucket := r.tracks[space.AppId][bucketID]
+		bucket := r.tracks[space][bucketID]
 		if bucket == nil {
 			missing[bucketID] = keyList
 			continue
@@ -144,7 +144,7 @@ func (r *RamStore) GetItemsByKeyPrefixes(
 	defer r.mu.RUnlock()
 
 	var result []model.TrackKeyValueItem
-	bucket := r.tracks[space.AppId][bucketID]
+	bucket := r.tracks[space][bucketID]
 	if bucket == nil {
 		return result, nil
 	}

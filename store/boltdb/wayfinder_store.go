@@ -44,7 +44,7 @@ func (b *BoltStore) WayFinderPut(
 		}
 
 		// 2. Store payload in Depot under key=itemId
-		depotBucketName := []byte(fmt.Sprintf("pigeon:app:%d", space.AppId))
+		depotBucketName := getBucketName(space)
 		depot, err := tx.CreateBucketIfNotExists(depotBucketName)
 		if err != nil {
 			return err
@@ -84,7 +84,7 @@ func (b *BoltStore) WayFinderGetByPrefix(
 	}
 
 	err = b.db.View(func(tx *bbolt.Tx) error {
-		depot := tx.Bucket([]byte(fmt.Sprintf("pigeon:app:%d", space.AppId)))
+		depot := tx.Bucket(getBucketName(space))
 		if depot == nil {
 			// Track existed but Depot missing → corruption
 			return fmt.Errorf("depot bucket missing")
@@ -140,7 +140,7 @@ func (b *BoltStore) WayFinderGetOne(
 			return err
 		}
 
-		depot := tx.Bucket([]byte(fmt.Sprintf("pigeon:app:%d", space.AppId)))
+		depot := tx.Bucket(getBucketName(space))
 		if depot == nil {
 			return fmt.Errorf("depot bucket not found")
 		}

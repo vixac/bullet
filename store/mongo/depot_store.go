@@ -12,7 +12,7 @@ import (
 )
 
 func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
-	filter := bson.M{"appId": space.AppId, "key": key}
+	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
 	opts := options.Update().SetUpsert(true)
 
@@ -21,7 +21,7 @@ func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, val
 }
 
 func (m *MongoStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
-	filter := bson.M{"appId": space.AppId, "key": key}
+	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 
 	var result struct {
 		Value string `bson:"value"`
@@ -35,7 +35,7 @@ func (m *MongoStore) DepotGet(space store_interface.TenancySpace, key int64) (st
 }
 
 func (m *MongoStore) DepotDelete(space store_interface.TenancySpace, key int64) error {
-	filter := bson.M{"appId": space.AppId, "key": key}
+	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 	_, err := m.depotCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
@@ -44,7 +44,7 @@ func (m *MongoStore) DepotPutMany(space store_interface.TenancySpace, items []mo
 	var ops []mongo.WriteModel
 
 	for _, item := range items {
-		filter := bson.M{"appId": space.AppId, "key": item.Key}
+		filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": item.Key}
 		update := bson.M{"$set": bson.M{"value": item.Value}}
 		ops = append(ops, mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update).SetUpsert(true))
 	}
@@ -59,8 +59,9 @@ func (m *MongoStore) DepotPutMany(space store_interface.TenancySpace, items []mo
 
 func (m *MongoStore) DepotGetMany(space store_interface.TenancySpace, keys []int64) (map[int64]string, []int64, error) {
 	filter := bson.M{
-		"appId": space.AppId,
-		"key":   bson.M{"$in": keys},
+		"appId":     space.AppId,
+		"tenancyId": space.TenancyId,
+		"key":       bson.M{"$in": keys},
 	}
 
 	cur, err := m.depotCollection.Find(context.TODO(), filter)

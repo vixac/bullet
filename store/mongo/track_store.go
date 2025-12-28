@@ -21,9 +21,10 @@ func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items [
 
 	for _, item := range items {
 		orFilters = append(orFilters, bson.M{
-			"appId":    space.AppId,
-			"bucketId": item.BucketID,
-			"key":      item.Key,
+			"appId":     space.AppId,
+			"tenancyId": space.TenancyId,
+			"bucketId":  item.BucketID,
+			"key":       item.Key,
 		})
 	}
 
@@ -37,9 +38,10 @@ func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items [
 
 func (m *MongoStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	filter := bson.M{
-		"appId":    space.AppId,
-		"bucketId": bucketID,
-		"key":      key,
+		"appId":     space.AppId,
+		"tenancyId": space.TenancyId,
+		"bucketId":  bucketID,
+		"key":       key,
 	}
 
 	// Build the update document
@@ -65,13 +67,13 @@ func (m *MongoStore) TrackPut(space store_interface.TenancySpace, bucketID int32
 
 func (m *MongoStore) TrackGet(space store_interface.TenancySpace, bucketID int32, key string) (int64, error) {
 	var result struct{ Value int64 }
-	filter := bson.M{"appId": space.AppId, "bucketId": bucketID, "key": key}
+	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
 	err := m.trackCollection.FindOne(context.TODO(), filter).Decode(&result)
 	return result.Value, err
 }
 
 func (m *MongoStore) TrackDelete(space store_interface.TenancySpace, bucketID int32, key string) error {
-	filter := bson.M{"appId": space.AppId, "bucketId": bucketID, "key": key}
+	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
 	_, err := m.trackCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
@@ -86,10 +88,11 @@ func (m *MongoStore) TrackPutMany(space store_interface.TenancySpace, items map[
 	for bucketID, kvItems := range items {
 		for _, kv := range kvItems {
 			doc := bson.M{
-				"appId":    space.AppId,
-				"bucketId": bucketID,
-				"key":      kv.Key,
-				"value":    kv.Value,
+				"appId":     space.AppId,
+				"tenancyId": space.TenancyId,
+				"bucketId":  bucketID,
+				"key":       kv.Key,
+				"value":     kv.Value,
 			}
 			docs = append(docs, doc)
 		}
@@ -121,9 +124,10 @@ func (m *MongoStore) TrackGetMany(space store_interface.TenancySpace, keys map[i
 	for bucketID, keyList := range keys {
 		for _, key := range keyList {
 			orFilters = append(orFilters, bson.M{
-				"appId":    space.AppId,
-				"bucketId": bucketID,
-				"key":      key,
+				"appId":     space.AppId,
+				"tenancyId": space.TenancyId,
+				"bucketId":  bucketID,
+				"key":       key,
 			})
 		}
 	}
@@ -212,8 +216,9 @@ func (m *MongoStore) GetItemsByKeyPrefixes(
 
 	// Base filter for app and bucket
 	filter := bson.M{
-		"appId":    space.AppId,
-		"bucketId": bucketID,
+		"appId":     space.AppId,
+		"tenancyId": space.TenancyId,
+		"bucketId":  bucketID,
 	}
 
 	// Build the OR clause for prefix ranges
