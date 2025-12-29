@@ -11,10 +11,17 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func bucketName(space store_interface.TenancySpace, bucketID int32) string {
-	return fmt.Sprintf("app_%d_bucket_%d", space.AppId, bucketID)
+// VX:TODO MIGRATE THIS POS
+func oldTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
+	return []byte(fmt.Sprintf("app_%d_bucket_%d", space.AppId, bucketID))
 }
 
+func newTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
+	return []byte(fmt.Sprintf("track:v2:%d:%d_bucket_%d", space.AppId, space.TenancyId, bucketID))
+}
+func getTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
+	return newTrackBucketName(space, bucketID)
+}
 func encodeTrackValue(value int64, tag *int64, metric *float64) []byte {
 	buf := &bytes.Buffer{}
 
@@ -82,7 +89,7 @@ func decodeTrackValue(b []byte) (value int64, tag *int64, metric *float64, err e
 
 func (b *BoltStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
-		bkt, err := tx.CreateBucketIfNotExists([]byte(bucketName(space, bucketID)))
+		bkt, err := tx.CreateBucketIfNotExists(getTrackBucketName(space, bucketID))
 		if err != nil {
 			return err
 		}
@@ -96,7 +103,7 @@ func (b *BoltStore) TrackGet(space store_interface.TenancySpace, bucketID int32,
 	fmt.Printf("VX: BoltStore track get called with %d bucket and key %s \n", bucketID, key)
 	var value int64
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		bkt := tx.Bucket([]byte(bucketName(space, bucketID)))
+		bkt := tx.Bucket(getTrackBucketName(space, bucketID))
 		if bkt == nil {
 			return bbolt.ErrBucketNotFound
 		}
@@ -118,7 +125,7 @@ func (b *BoltStore) TrackDeleteMany(space store_interface.TenancySpace, items []
 		for _, item := range items {
 			bkt, ok := buckets[item.BucketID]
 			if !ok {
-				bkt = tx.Bucket([]byte(bucketName(space, item.BucketID)))
+				bkt = tx.Bucket(getTrackBucketName(space, item.BucketID))
 				if bkt == nil {
 					return bbolt.ErrBucketNotFound
 				}
@@ -141,7 +148,7 @@ func (b *BoltStore) TrackClose() error {
 func (b *BoltStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		for bucketID, arr := range items {
-			bkt, err := tx.CreateBucketIfNotExists([]byte(bucketName(space, bucketID)))
+			bkt, err := tx.CreateBucketIfNotExists([]byte(getTrackBucketName(space, bucketID)))
 			if err != nil {
 				return err
 			}
@@ -170,7 +177,7 @@ func (b *BoltStore) TrackGetMany(space store_interface.TenancySpace, keys map[in
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		for bucketID, keyList := range keys {
-			bkt := tx.Bucket([]byte(bucketName(space, bucketID)))
+			bkt := tx.Bucket(getTrackBucketName(space, bucketID))
 			if bkt == nil {
 				// whole bucket missing, all keys missing
 				missing[bucketID] = append(missing[bucketID], keyList...)
@@ -271,7 +278,7 @@ func (b *BoltStore) GetItemsByKeyPrefixes(
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 
-		bkt := tx.Bucket([]byte(bucketName(space, bucketID)))
+		bkt := tx.Bucket(getTrackBucketName(space, bucketID))
 		if bkt == nil {
 			return nil
 		}

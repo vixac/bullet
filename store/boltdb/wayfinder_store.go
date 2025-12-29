@@ -24,7 +24,7 @@ func (b *BoltStore) WayFinderPut(
 		// Generate an itemId: simplest is using UnixNano or an increment key.
 		// But Bolt does support a sequence per bucket.
 
-		trackBucket, err := tx.CreateBucketIfNotExists([]byte(bucketName(space, bucketID)))
+		trackBucket, err := tx.CreateBucketIfNotExists([]byte(getTrackBucketName(space, bucketID)))
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func (b *BoltStore) WayFinderGetOne(
 
 	var notFound = false
 	err := b.db.View(func(tx *bbolt.Tx) error {
-		track := tx.Bucket([]byte(bucketName(space, bucketID)))
+		track := tx.Bucket([]byte(getTrackBucketName(space, bucketID)))
 		if track == nil {
 			return fmt.Errorf("track bucket not found")
 		}
