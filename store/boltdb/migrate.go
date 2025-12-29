@@ -1,14 +1,18 @@
 package boltdb
 
-import "go.etcd.io/bbolt"
+import (
+	"fmt"
+
+	"github.com/vixac/bullet/store/store_interface"
+	"go.etcd.io/bbolt"
+)
 
 var schemaBucket = []byte("__schema")
 var schemaVersionKey = []byte("version")
 
-const currentSchemaVersion = 2
-const DefaultTenant = 0
+const currentSchemaVersion = "4"
 
-func (s *BoltStore) MigrateToTenantBuckets(appID int32) error {
+func (s *BoltStore) MigrateToTenantBuckets(space store_interface.TenancySpace, bucketId int32) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		// schema bucket
 		sb, err := tx.CreateBucketIfNotExists(schemaBucket)
@@ -16,20 +20,25 @@ func (s *BoltStore) MigrateToTenantBuckets(appID int32) error {
 			return err
 		}
 
-		v := sb.Get(schemaVersionKey)
-		if v != nil && string(v) == "2" {
-			return nil // already migrated
-		}
+		//VX:Note when migrating multiple things, this schema check gets in the way.
+		/*
+			v := sb.Get(schemaVersionKey)
+			if v != nil && string(v) == currentSchemaVersion {
+				fmt.Printf("VX: ALREADY")
+				return nil // already migrated
+			}*/
 
-		oldBkt := tx.Bucket(oldBucketName(appID))
+		oldBkt := tx.Bucket(oldTrackBucketName(space, bucketId))
 		if oldBkt == nil {
+			fmt.Printf("VX: no bucket \n")
 			// nothing to migrate
-			sb.Put(schemaVersionKey, []byte("2"))
+			sb.Put(schemaVersionKey, []byte(currentSchemaVersion))
 			return nil
 		}
 
+		fmt.Printf("VX: new bucket \n")
 		newBkt, err := tx.CreateBucketIfNotExists(
-			newDepotBucket(appID, DefaultTenant),
+			newTrackBucketName(space, bucketId),
 		)
 		if err != nil {
 			return err
@@ -44,11 +53,11 @@ func (s *BoltStore) MigrateToTenantBuckets(appID int32) error {
 		}
 
 		// optional: delete old bucket
-		if err := tx.DeleteBucket(oldBucketName(appID)); err != nil {
+		if err := tx.DeleteBucket(oldTrackBucketName(space, bucketId)); err != nil {
 			return err
 		}
 
-		sb.Put(schemaVersionKey, []byte("2"))
+		sb.Put(schemaVersionKey, []byte(currentSchemaVersion))
 		return nil
 	})
 }
