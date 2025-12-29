@@ -13,6 +13,7 @@ import (
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
 	"github.com/vixac/bullet/store/ram"
+	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
@@ -62,6 +63,12 @@ func TestMain(m *testing.M) {
 
 	ramStore := ram.NewRamStore()
 	clients["ram_store"] = ramStore
+
+	sqlListStore, err := sqlite_store.NewSQLiteStore("test-sqlite")
+	if err != nil {
+		log.Fatal(err)
+	}
+	clients["sqlite"] = sqlListStore
 
 	code := m.Run() //run entire test suite
 	os.Exit(code)

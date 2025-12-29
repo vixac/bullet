@@ -4,6 +4,8 @@ go 1.24.1
 
 require (
 	github.com/gin-gonic/gin v1.10.1
+	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
 	go.etcd.io/bbolt v1.4.1
 	go.mongodb.org/mongo-driver v1.17.4
@@ -65,8 +67,6 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/sony/sonyflake v1.2.1 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

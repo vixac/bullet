@@ -2,3 +2,4 @@
 bullet/bullet_bin
 .bullet_bin
 api/test-boltdb
+api/test-sqlite*
