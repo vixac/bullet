@@ -11,7 +11,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// VX:TODO MIGRATE THIS POS
 func oldTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
 	return []byte(fmt.Sprintf("app_%d_bucket_%d", space.AppId, bucketID))
 }

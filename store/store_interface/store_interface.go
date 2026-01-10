@@ -1,6 +1,8 @@
 package store_interface
 
 import (
+	"errors"
+
 	"github.com/vixac/bullet/model"
 )
 
@@ -56,8 +58,51 @@ type WayFinderStore interface {
 	WayFinderGetOne(space TenancySpace, bucketID int32, key string) (*model.WayFinderGetResponse, error)
 }
 
+type NodeID string
+type AggregateKey string
+type MutationID string
+type AggregateValue int64
+type AggregateDeltas map[AggregateKey]AggregateValue
+
+var (
+	ErrNodeNotFound      = errors.New("node not found")
+	ErrNodeAlreadyExists = errors.New("node already exists")
+	ErrCycleDetected     = errors.New("cycle detected")
+	ErrMutationConflict  = errors.New("mutation already applied")
+)
+
+type GroveStore interface {
+	CreateNode(space TenancySpace, node NodeID, parent *NodeID) error
+	DeleteNode(space TenancySpace, node NodeID) error
+	MoveNode(space TenancySpace, node NodeID, newParent *NodeID) error
+
+	Exists(space TenancySpace, node NodeID) (bool, error)
+
+	GetParent(space TenancySpace, node NodeID) (*NodeID, error)
+	GetChildren(space TenancySpace, node NodeID) ([]NodeID, error)
+
+	GetAncestors(space TenancySpace, node NodeID) ([]NodeID, error)
+	GetDescendants(space TenancySpace, node NodeID, maxDepth *int) ([]NodeID, error)
+	ApplyAggregateMutation(
+		space TenancySpace,
+		mutation MutationID,
+		node NodeID,
+		deltas AggregateDeltas,
+	) error
+	GetNodeAggregates(space TenancySpace, node NodeID) (map[AggregateKey]AggregateValue, error)
+	GetSubtreeStats(space TenancySpace, node NodeID) (map[AggregateKey]AggregateValue, error)
+
+	//Not needed yet
+	/*
+	   RegisterAggregate(key AggregateKey) error
+	   UnregisterAggregate(key AggregateKey) error
+	   ListAggregates() ([]AggregateKey, error)
+	*/
+}
+
 type Store interface {
 	TrackStore
 	DepotStore
 	WayFinderStore
+	GroveStore
 }
