@@ -10,6 +10,7 @@ import (
 // CreateNode creates a new node in the tree
 func (s *SQLiteStore) CreateNode(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 	parent *store_interface.NodeID,
 	position *store_interface.ChildPosition,
@@ -26,8 +27,8 @@ func (s *SQLiteStore) CreateNode(
 	err = tx.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0
-		)`, space.AppId, space.TenancyId, string(node)).Scan(&exists)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0
+		)`, space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -40,8 +41,8 @@ func (s *SQLiteStore) CreateNode(
 	if parent != nil {
 		err = tx.QueryRow(`
 			SELECT depth FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0`,
-			space.AppId, space.TenancyId, string(*parent)).Scan(&depth)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0`,
+			space.AppId, space.TenancyId, string(treeID), string(*parent)).Scan(&depth)
 		if err == sql.ErrNoRows {
 			return store_interface.ErrNodeNotFound
 		}
@@ -75,18 +76,18 @@ func (s *SQLiteStore) CreateNode(
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO grove_nodes (app_id, tenancy_id, node_id, parent_id, position, depth, metadata, is_deleted)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-		space.AppId, space.TenancyId, string(node), parentIDStr, positionVal, depth, metadataJSON)
+		INSERT INTO grove_nodes (app_id, tenancy_id, tree_id, node_id, parent_id, position, depth, metadata, is_deleted)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+		space.AppId, space.TenancyId, string(treeID), string(node), parentIDStr, positionVal, depth, metadataJSON)
 	if err != nil {
 		return err
 	}
 
 	// Insert self-reference in closure table
 	_, err = tx.Exec(`
-		INSERT INTO grove_closure (app_id, tenancy_id, ancestor_id, descendant_id, depth)
-		VALUES (?, ?, ?, ?, 0)`,
-		space.AppId, space.TenancyId, string(node), string(node))
+		INSERT INTO grove_closure (app_id, tenancy_id, tree_id, ancestor_id, descendant_id, depth)
+		VALUES (?, ?, ?, ?, ?, 0)`,
+		space.AppId, space.TenancyId, string(treeID), string(node), string(node))
 	if err != nil {
 		return err
 	}
@@ -94,11 +95,11 @@ func (s *SQLiteStore) CreateNode(
 	// If has parent, add relationships to all ancestors
 	if parent != nil {
 		_, err = tx.Exec(`
-			INSERT INTO grove_closure (app_id, tenancy_id, ancestor_id, descendant_id, depth)
-			SELECT app_id, tenancy_id, ancestor_id, ?, depth + 1
+			INSERT INTO grove_closure (app_id, tenancy_id, tree_id, ancestor_id, descendant_id, depth)
+			SELECT app_id, tenancy_id, tree_id, ancestor_id, ?, depth + 1
 			FROM grove_closure
-			WHERE app_id = ? AND tenancy_id = ? AND descendant_id = ?`,
-			string(node), space.AppId, space.TenancyId, string(*parent))
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND descendant_id = ?`,
+			string(node), space.AppId, space.TenancyId, string(treeID), string(*parent))
 		if err != nil {
 			return err
 		}
@@ -108,7 +109,7 @@ func (s *SQLiteStore) CreateNode(
 }
 
 // DeleteNode deletes a node (soft or hard delete)
-func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_interface.NodeID, soft bool) error {
+func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, soft bool) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -120,8 +121,8 @@ func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_
 	err = tx.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0
-		)`, space.AppId, space.TenancyId, string(node)).Scan(&exists)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0
+		)`, space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -134,8 +135,8 @@ func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_
 	err = tx.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND parent_id = ? AND is_deleted = 0
-		)`, space.AppId, space.TenancyId, string(node)).Scan(&hasChildren)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND parent_id = ? AND is_deleted = 0
+		)`, space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&hasChildren)
 	if err != nil {
 		return err
 	}
@@ -147,8 +148,8 @@ func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_
 		// Soft delete: mark as deleted
 		_, err = tx.Exec(`
 			UPDATE grove_nodes SET is_deleted = 1
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ?`,
-			space.AppId, space.TenancyId, string(node))
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ?`,
+			space.AppId, space.TenancyId, string(treeID), string(node))
 		if err != nil {
 			return err
 		}
@@ -156,8 +157,8 @@ func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_
 		// Hard delete: remove from nodes table
 		_, err = tx.Exec(`
 			DELETE FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ?`,
-			space.AppId, space.TenancyId, string(node))
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ?`,
+			space.AppId, space.TenancyId, string(treeID), string(node))
 		if err != nil {
 			return err
 		}
@@ -166,16 +167,16 @@ func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_
 	// Remove from closure table
 	_, err = tx.Exec(`
 		DELETE FROM grove_closure
-		WHERE app_id = ? AND tenancy_id = ? AND descendant_id = ?`,
-		space.AppId, space.TenancyId, string(node))
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND descendant_id = ?`,
+		space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return err
 	}
 
 	_, err = tx.Exec(`
 		DELETE FROM grove_closure
-		WHERE app_id = ? AND tenancy_id = ? AND ancestor_id = ?`,
-		space.AppId, space.TenancyId, string(node))
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND ancestor_id = ?`,
+		space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return err
 	}
@@ -186,6 +187,7 @@ func (s *SQLiteStore) DeleteNode(space store_interface.TenancySpace, node store_
 // MoveNode moves a node to a new parent
 func (s *SQLiteStore) MoveNode(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 	newParent *store_interface.NodeID,
 	newPosition *store_interface.ChildPosition,
@@ -200,8 +202,8 @@ func (s *SQLiteStore) MoveNode(
 	var currentDepth int
 	err = tx.QueryRow(`
 		SELECT depth FROM grove_nodes
-		WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0`,
-		space.AppId, space.TenancyId, string(node)).Scan(&currentDepth)
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0`,
+		space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&currentDepth)
 	if err == sql.ErrNoRows {
 		return store_interface.ErrNodeNotFound
 	}
@@ -214,8 +216,8 @@ func (s *SQLiteStore) MoveNode(
 	if newParent != nil {
 		err = tx.QueryRow(`
 			SELECT depth FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0`,
-			space.AppId, space.TenancyId, string(*newParent)).Scan(&newDepth)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0`,
+			space.AppId, space.TenancyId, string(treeID), string(*newParent)).Scan(&newDepth)
 		if err == sql.ErrNoRows {
 			return store_interface.ErrNodeNotFound
 		}
@@ -228,8 +230,8 @@ func (s *SQLiteStore) MoveNode(
 		err = tx.QueryRow(`
 			SELECT EXISTS(
 				SELECT 1 FROM grove_closure
-				WHERE app_id = ? AND tenancy_id = ? AND ancestor_id = ? AND descendant_id = ?
-			)`, space.AppId, space.TenancyId, string(node), string(*newParent)).Scan(&isCycle)
+				WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND ancestor_id = ? AND descendant_id = ?
+			)`, space.AppId, space.TenancyId, string(treeID), string(node), string(*newParent)).Scan(&isCycle)
 		if err != nil {
 			return err
 		}
@@ -245,8 +247,8 @@ func (s *SQLiteStore) MoveNode(
 	// Get all descendants (including node itself)
 	rows, err := tx.Query(`
 		SELECT descendant_id, depth FROM grove_closure
-		WHERE app_id = ? AND tenancy_id = ? AND ancestor_id = ?`,
-		space.AppId, space.TenancyId, string(node))
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND ancestor_id = ?`,
+		space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return err
 	}
@@ -270,8 +272,8 @@ func (s *SQLiteStore) MoveNode(
 	for _, desc := range descendants {
 		_, err = tx.Exec(`
 			DELETE FROM grove_closure
-			WHERE app_id = ? AND tenancy_id = ? AND descendant_id = ? AND ancestor_id != ?`,
-			space.AppId, space.TenancyId, desc.id, desc.id)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND descendant_id = ? AND ancestor_id != ?`,
+			space.AppId, space.TenancyId, string(treeID), desc.id, desc.id)
 		if err != nil {
 			return err
 		}
@@ -291,8 +293,8 @@ func (s *SQLiteStore) MoveNode(
 
 	_, err = tx.Exec(`
 		UPDATE grove_nodes SET parent_id = ?, position = ?, depth = ?
-		WHERE app_id = ? AND tenancy_id = ? AND node_id = ?`,
-		parentIDStr, positionVal, newDepth, space.AppId, space.TenancyId, string(node))
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ?`,
+		parentIDStr, positionVal, newDepth, space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return err
 	}
@@ -302,8 +304,8 @@ func (s *SQLiteStore) MoveNode(
 		if desc.id != string(node) {
 			_, err = tx.Exec(`
 				UPDATE grove_nodes SET depth = depth + ?
-				WHERE app_id = ? AND tenancy_id = ? AND node_id = ?`,
-				depthDelta, space.AppId, space.TenancyId, desc.id)
+				WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ?`,
+				depthDelta, space.AppId, space.TenancyId, string(treeID), desc.id)
 			if err != nil {
 				return err
 			}
@@ -315,11 +317,11 @@ func (s *SQLiteStore) MoveNode(
 		for _, desc := range descendants {
 			relativeDepth := desc.depth
 			_, err = tx.Exec(`
-				INSERT INTO grove_closure (app_id, tenancy_id, ancestor_id, descendant_id, depth)
-				SELECT app_id, tenancy_id, ancestor_id, ?, depth + ? + 1
+				INSERT INTO grove_closure (app_id, tenancy_id, tree_id, ancestor_id, descendant_id, depth)
+				SELECT app_id, tenancy_id, tree_id, ancestor_id, ?, depth + ? + 1
 				FROM grove_closure
-				WHERE app_id = ? AND tenancy_id = ? AND descendant_id = ?`,
-				desc.id, relativeDepth, space.AppId, space.TenancyId, string(*newParent))
+				WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND descendant_id = ?`,
+				desc.id, relativeDepth, space.AppId, space.TenancyId, string(treeID), string(*newParent))
 			if err != nil {
 				return err
 			}
@@ -330,18 +332,18 @@ func (s *SQLiteStore) MoveNode(
 }
 
 // Exists checks if a node exists
-func (s *SQLiteStore) Exists(space store_interface.TenancySpace, node store_interface.NodeID) (bool, error) {
+func (s *SQLiteStore) Exists(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (bool, error) {
 	var exists bool
 	err := s.db.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0
-		)`, space.AppId, space.TenancyId, string(node)).Scan(&exists)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0
+		)`, space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&exists)
 	return exists, err
 }
 
 // GetNodeInfo gets complete node information
-func (s *SQLiteStore) GetNodeInfo(space store_interface.TenancySpace, node store_interface.NodeID) (*store_interface.NodeInfo, error) {
+func (s *SQLiteStore) GetNodeInfo(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (*store_interface.NodeInfo, error) {
 	var parentIDStr *string
 	var positionVal *float64
 	var depth int
@@ -350,8 +352,8 @@ func (s *SQLiteStore) GetNodeInfo(space store_interface.TenancySpace, node store
 	err := s.db.QueryRow(`
 		SELECT parent_id, position, depth, metadata
 		FROM grove_nodes
-		WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0`,
-		space.AppId, space.TenancyId, string(node)).Scan(&parentIDStr, &positionVal, &depth, &metadataJSON)
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0`,
+		space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&parentIDStr, &positionVal, &depth, &metadataJSON)
 	if err == sql.ErrNoRows {
 		return nil, store_interface.ErrNodeNotFound
 	}
@@ -392,11 +394,12 @@ func (s *SQLiteStore) GetNodeInfo(space store_interface.TenancySpace, node store
 // GetChildren gets children of a node
 func (s *SQLiteStore) GetChildren(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 	pagination *store_interface.PaginationParams,
 ) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
 	// Check if node exists
-	exists, err := s.Exists(space, node)
+	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,9 +409,9 @@ func (s *SQLiteStore) GetChildren(
 
 	rows, err := s.db.Query(`
 		SELECT node_id FROM grove_nodes
-		WHERE app_id = ? AND tenancy_id = ? AND parent_id = ? AND is_deleted = 0
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND parent_id = ? AND is_deleted = 0
 		ORDER BY position, node_id`,
-		space.AppId, space.TenancyId, string(node))
+		space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -429,11 +432,12 @@ func (s *SQLiteStore) GetChildren(
 // GetAncestors gets all ancestors of a node
 func (s *SQLiteStore) GetAncestors(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 	pagination *store_interface.PaginationParams,
 ) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
 	// Check if node exists
-	exists, err := s.Exists(space, node)
+	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -443,9 +447,9 @@ func (s *SQLiteStore) GetAncestors(
 
 	rows, err := s.db.Query(`
 		SELECT ancestor_id FROM grove_closure
-		WHERE app_id = ? AND tenancy_id = ? AND descendant_id = ? AND ancestor_id != ?
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND descendant_id = ? AND ancestor_id != ?
 		ORDER BY depth DESC`,
-		space.AppId, space.TenancyId, string(node), string(node))
+		space.AppId, space.TenancyId, string(treeID), string(node), string(node))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -466,11 +470,12 @@ func (s *SQLiteStore) GetAncestors(
 // GetDescendants gets all descendants of a node
 func (s *SQLiteStore) GetDescendants(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 	opts *store_interface.DescendantOptions,
 ) ([]store_interface.NodeWithDepth, *store_interface.PaginationResult, error) {
 	// Check if node exists
-	exists, err := s.Exists(space, node)
+	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -480,9 +485,9 @@ func (s *SQLiteStore) GetDescendants(
 
 	query := `
 		SELECT descendant_id, depth FROM grove_closure
-		WHERE app_id = ? AND tenancy_id = ? AND ancestor_id = ? AND descendant_id != ?`
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND ancestor_id = ? AND descendant_id != ?`
 
-	args := []interface{}{space.AppId, space.TenancyId, string(node), string(node)}
+	args := []interface{}{space.AppId, space.TenancyId, string(treeID), string(node), string(node)}
 
 	if opts != nil && opts.MaxDepth != nil {
 		query += ` AND depth <= ?`
@@ -516,6 +521,7 @@ func (s *SQLiteStore) GetDescendants(
 // ApplyAggregateMutation applies aggregate deltas to a node
 func (s *SQLiteStore) ApplyAggregateMutation(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	mutation store_interface.MutationID,
 	node store_interface.NodeID,
 	deltas store_interface.AggregateDeltas,
@@ -531,8 +537,8 @@ func (s *SQLiteStore) ApplyAggregateMutation(
 	err = tx.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM grove_nodes
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND is_deleted = 0
-		)`, space.AppId, space.TenancyId, string(node)).Scan(&exists)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND is_deleted = 0
+		)`, space.AppId, space.TenancyId, string(treeID), string(node)).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -544,8 +550,8 @@ func (s *SQLiteStore) ApplyAggregateMutation(
 	err = tx.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM grove_mutations
-			WHERE app_id = ? AND tenancy_id = ? AND node_id = ? AND mutation_id = ?
-		)`, space.AppId, space.TenancyId, string(node), string(mutation)).Scan(&exists)
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ? AND mutation_id = ?
+		)`, space.AppId, space.TenancyId, string(treeID), string(node), string(mutation)).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -556,11 +562,11 @@ func (s *SQLiteStore) ApplyAggregateMutation(
 	// Apply deltas
 	for key, delta := range deltas {
 		_, err = tx.Exec(`
-			INSERT INTO grove_aggregates (app_id, tenancy_id, node_id, aggregate_key, aggregate_value)
-			VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT(app_id, tenancy_id, node_id, aggregate_key)
+			INSERT INTO grove_aggregates (app_id, tenancy_id, tree_id, node_id, aggregate_key, aggregate_value)
+			VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT(app_id, tenancy_id, tree_id, node_id, aggregate_key)
 			DO UPDATE SET aggregate_value = aggregate_value + ?`,
-			space.AppId, space.TenancyId, string(node), string(key), delta, delta)
+			space.AppId, space.TenancyId, string(treeID), string(node), string(key), delta, delta)
 		if err != nil {
 			return err
 		}
@@ -568,9 +574,9 @@ func (s *SQLiteStore) ApplyAggregateMutation(
 
 	// Mark mutation as applied
 	_, err = tx.Exec(`
-		INSERT INTO grove_mutations (app_id, tenancy_id, node_id, mutation_id)
-		VALUES (?, ?, ?, ?)`,
-		space.AppId, space.TenancyId, string(node), string(mutation))
+		INSERT INTO grove_mutations (app_id, tenancy_id, tree_id, node_id, mutation_id)
+		VALUES (?, ?, ?, ?, ?)`,
+		space.AppId, space.TenancyId, string(treeID), string(node), string(mutation))
 	if err != nil {
 		return err
 	}
@@ -581,10 +587,11 @@ func (s *SQLiteStore) ApplyAggregateMutation(
 // GetNodeLocalAggregates gets aggregates for the node only
 func (s *SQLiteStore) GetNodeLocalAggregates(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 ) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
 	// Check if node exists
-	exists, err := s.Exists(space, node)
+	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, err
 	}
@@ -594,8 +601,8 @@ func (s *SQLiteStore) GetNodeLocalAggregates(
 
 	rows, err := s.db.Query(`
 		SELECT aggregate_key, aggregate_value FROM grove_aggregates
-		WHERE app_id = ? AND tenancy_id = ? AND node_id = ?`,
-		space.AppId, space.TenancyId, string(node))
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND node_id = ?`,
+		space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return nil, err
 	}
@@ -617,10 +624,11 @@ func (s *SQLiteStore) GetNodeLocalAggregates(
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (s *SQLiteStore) GetNodeWithDescendantsAggregates(
 	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
 	node store_interface.NodeID,
 ) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
 	// Check if node exists
-	exists, err := s.Exists(space, node)
+	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, err
 	}
@@ -634,10 +642,11 @@ func (s *SQLiteStore) GetNodeWithDescendantsAggregates(
 		INNER JOIN grove_closure gc ON
 			ga.app_id = gc.app_id AND
 			ga.tenancy_id = gc.tenancy_id AND
+			ga.tree_id = gc.tree_id AND
 			ga.node_id = gc.descendant_id
-		WHERE gc.app_id = ? AND gc.tenancy_id = ? AND gc.ancestor_id = ?
+		WHERE gc.app_id = ? AND gc.tenancy_id = ? AND gc.tree_id = ? AND gc.ancestor_id = ?
 		GROUP BY ga.aggregate_key`,
-		space.AppId, space.TenancyId, string(node))
+		space.AppId, space.TenancyId, string(treeID), string(node))
 	if err != nil {
 		return nil, err
 	}

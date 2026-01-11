@@ -48,16 +48,17 @@ func TestGroveBasicOperations(t *testing.T) {
 func testGroveBasicOperations(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 1, TenancyId: 1}
+		treeID := store_interface.TreeID("tree1")
 
 		// Test creating root node
 		rootID := store_interface.NodeID("root")
-		err := store.CreateNode(space, rootID, nil, nil, nil)
+		err := store.CreateNode(space, treeID, rootID, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create root node: %v", err)
 		}
 
 		// Test node exists
-		exists, err := store.Exists(space, rootID)
+		exists, err := store.Exists(space, treeID, rootID)
 		if err != nil {
 			t.Fatalf("Failed to check existence: %v", err)
 		}
@@ -66,7 +67,7 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 		}
 
 		// Test get node info
-		info, err := store.GetNodeInfo(space, rootID)
+		info, err := store.GetNodeInfo(space, treeID, rootID)
 		if err != nil {
 			t.Fatalf("Failed to get node info: %v", err)
 		}
@@ -82,19 +83,19 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 
 		// Test creating child nodes
 		child1ID := store_interface.NodeID("child1")
-		err = store.CreateNode(space, child1ID, &rootID, nil, nil)
+		err = store.CreateNode(space, treeID, child1ID, &rootID, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create child1: %v", err)
 		}
 
 		child2ID := store_interface.NodeID("child2")
-		err = store.CreateNode(space, child2ID, &rootID, nil, nil)
+		err = store.CreateNode(space, treeID, child2ID, &rootID, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create child2: %v", err)
 		}
 
 		// Verify child depth
-		child1Info, err := store.GetNodeInfo(space, child1ID)
+		child1Info, err := store.GetNodeInfo(space, treeID, child1ID)
 		if err != nil {
 			t.Fatalf("Failed to get child1 info: %v", err)
 		}
@@ -103,7 +104,7 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 		}
 
 		// Test get children
-		children, _, err := store.GetChildren(space, rootID, nil)
+		children, _, err := store.GetChildren(space, treeID, rootID, nil)
 		if err != nil {
 			t.Fatalf("Failed to get children: %v", err)
 		}
@@ -112,7 +113,7 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 		}
 
 		// Test get ancestors
-		ancestors, _, err := store.GetAncestors(space, child1ID, nil)
+		ancestors, _, err := store.GetAncestors(space, treeID, child1ID, nil)
 		if err != nil {
 			t.Fatalf("Failed to get ancestors: %v", err)
 		}
@@ -124,7 +125,7 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 		}
 
 		// Test delete node already exists error
-		err = store.CreateNode(space, child1ID, &rootID, nil, nil)
+		err = store.CreateNode(space, treeID, child1ID, &rootID, nil, nil)
 		if err != store_interface.ErrNodeAlreadyExists {
 			t.Errorf("Expected ErrNodeAlreadyExists, got %v", err)
 		}
@@ -140,6 +141,7 @@ func TestGroveDescendants(t *testing.T) {
 func testGroveDescendants(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 2, TenancyId: 1}
+		treeID := store_interface.TreeID("tree2")
 
 		// Create tree:
 		//     root
@@ -154,14 +156,14 @@ func testGroveDescendants(store store_interface.GroveStore, name string, t *test
 		c := store_interface.NodeID("c2")
 		d := store_interface.NodeID("d2")
 
-		store.CreateNode(space, root, nil, nil, nil)
-		store.CreateNode(space, a, &root, nil, nil)
-		store.CreateNode(space, b, &root, nil, nil)
-		store.CreateNode(space, c, &a, nil, nil)
-		store.CreateNode(space, d, &a, nil, nil)
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, a, &root, nil, nil)
+		store.CreateNode(space, treeID, b, &root, nil, nil)
+		store.CreateNode(space, treeID, c, &a, nil, nil)
+		store.CreateNode(space, treeID, d, &a, nil, nil)
 
 		// Get all descendants of root
-		descendants, _, err := store.GetDescendants(space, root, nil)
+		descendants, _, err := store.GetDescendants(space, treeID, root, nil)
 		if err != nil {
 			t.Fatalf("Failed to get descendants: %v", err)
 		}
@@ -172,7 +174,7 @@ func testGroveDescendants(store store_interface.GroveStore, name string, t *test
 		// Get descendants of 'a' with max depth 1
 		maxDepth := 1
 		opts := &store_interface.DescendantOptions{MaxDepth: &maxDepth}
-		descendants, _, err = store.GetDescendants(space, a, opts)
+		descendants, _, err = store.GetDescendants(space, treeID, a, opts)
 		if err != nil {
 			t.Fatalf("Failed to get descendants: %v", err)
 		}
@@ -198,6 +200,7 @@ func TestGroveMoveNode(t *testing.T) {
 func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 3, TenancyId: 1}
+		treeID := store_interface.TreeID("tree3")
 
 		// Create tree:
 		//     root
@@ -211,13 +214,13 @@ func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing
 		b := store_interface.NodeID("b3")
 		c := store_interface.NodeID("c3")
 
-		store.CreateNode(space, root, nil, nil, nil)
-		store.CreateNode(space, a, &root, nil, nil)
-		store.CreateNode(space, b, &root, nil, nil)
-		store.CreateNode(space, c, &a, nil, nil)
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, a, &root, nil, nil)
+		store.CreateNode(space, treeID, b, &root, nil, nil)
+		store.CreateNode(space, treeID, c, &a, nil, nil)
 
 		// Verify initial structure
-		cInfo, _ := store.GetNodeInfo(space, c)
+		cInfo, _ := store.GetNodeInfo(space, treeID, c)
 		if *cInfo.Parent != a {
 			t.Errorf("Expected c's parent to be a, got %s", *cInfo.Parent)
 		}
@@ -226,13 +229,13 @@ func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing
 		}
 
 		// Move c from a to b
-		err := store.MoveNode(space, c, &b, nil)
+		err := store.MoveNode(space, treeID, c, &b, nil)
 		if err != nil {
 			t.Fatalf("Failed to move node: %v", err)
 		}
 
 		// Verify new structure
-		cInfo, _ = store.GetNodeInfo(space, c)
+		cInfo, _ = store.GetNodeInfo(space, treeID, c)
 		if *cInfo.Parent != b {
 			t.Errorf("Expected c's parent to be b after move, got %s", *cInfo.Parent)
 		}
@@ -241,13 +244,13 @@ func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing
 		}
 
 		// Verify ancestors
-		ancestors, _, _ := store.GetAncestors(space, c, nil)
+		ancestors, _, _ := store.GetAncestors(space, treeID, c, nil)
 		if len(ancestors) != 2 {
 			t.Errorf("Expected 2 ancestors (b, root), got %d", len(ancestors))
 		}
 
 		// Test cycle detection: try to move b under c (should fail)
-		err = store.MoveNode(space, b, &c, nil)
+		err = store.MoveNode(space, treeID, b, &c, nil)
 		if err != store_interface.ErrCycleDetected {
 			t.Errorf("Expected ErrCycleDetected, got %v", err)
 		}
@@ -263,6 +266,7 @@ func TestGroveAggregates(t *testing.T) {
 func testGroveAggregates(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 4, TenancyId: 1}
+		treeID := store_interface.TreeID("tree4")
 
 		// Create tree:
 		//     root
@@ -273,9 +277,9 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 		a := store_interface.NodeID("a4")
 		b := store_interface.NodeID("b4")
 
-		store.CreateNode(space, root, nil, nil, nil)
-		store.CreateNode(space, a, &root, nil, nil)
-		store.CreateNode(space, b, &root, nil, nil)
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, a, &root, nil, nil)
+		store.CreateNode(space, treeID, b, &root, nil, nil)
 
 		// Apply mutations
 		mutation1 := store_interface.MutationID("m1")
@@ -283,7 +287,7 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 			store_interface.AggregateKey("count"): 5,
 			store_interface.AggregateKey("value"): 100,
 		}
-		err := store.ApplyAggregateMutation(space, mutation1, a, deltas1)
+		err := store.ApplyAggregateMutation(space, treeID, mutation1, a, deltas1)
 		if err != nil {
 			t.Fatalf("Failed to apply mutation: %v", err)
 		}
@@ -293,13 +297,13 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 			store_interface.AggregateKey("count"): 3,
 			store_interface.AggregateKey("value"): 50,
 		}
-		err = store.ApplyAggregateMutation(space, mutation2, b, deltas2)
+		err = store.ApplyAggregateMutation(space, treeID, mutation2, b, deltas2)
 		if err != nil {
 			t.Fatalf("Failed to apply mutation: %v", err)
 		}
 
 		// Test local aggregates
-		localAgg, err := store.GetNodeLocalAggregates(space, a)
+		localAgg, err := store.GetNodeLocalAggregates(space, treeID, a)
 		if err != nil {
 			t.Fatalf("Failed to get local aggregates: %v", err)
 		}
@@ -308,7 +312,7 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 		}
 
 		// Test subtree aggregates
-		subtreeAgg, err := store.GetNodeWithDescendantsAggregates(space, root)
+		subtreeAgg, err := store.GetNodeWithDescendantsAggregates(space, treeID, root)
 		if err != nil {
 			t.Fatalf("Failed to get subtree aggregates: %v", err)
 		}
@@ -320,7 +324,7 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 		}
 
 		// Test idempotency: applying same mutation should fail
-		err = store.ApplyAggregateMutation(space, mutation1, a, deltas1)
+		err = store.ApplyAggregateMutation(space, treeID, mutation1, a, deltas1)
 		if err != store_interface.ErrMutationConflict {
 			t.Errorf("Expected ErrMutationConflict, got %v", err)
 		}
@@ -336,21 +340,22 @@ func TestGroveSoftDelete(t *testing.T) {
 func testGroveSoftDelete(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 5, TenancyId: 1}
+		treeID := store_interface.TreeID("tree5")
 
 		root := store_interface.NodeID("root5")
 		child := store_interface.NodeID("child5")
 
-		store.CreateNode(space, root, nil, nil, nil)
-		store.CreateNode(space, child, &root, nil, nil)
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, child, &root, nil, nil)
 
 		// Soft delete child
-		err := store.DeleteNode(space, child, true)
+		err := store.DeleteNode(space, treeID, child, true)
 		if err != nil {
 			t.Fatalf("Failed to soft delete: %v", err)
 		}
 
 		// Node should not exist after soft delete
-		exists, _ := store.Exists(space, child)
+		exists, _ := store.Exists(space, treeID, child)
 		if exists {
 			t.Error("Soft deleted node should not exist")
 		}
@@ -369,39 +374,151 @@ func testGroveMultiTenancy(store store_interface.GroveStore, name string, t *tes
 	t.Run(name, func(t *testing.T) {
 		space1 := store_interface.TenancySpace{AppId: 6, TenancyId: 1}
 		space2 := store_interface.TenancySpace{AppId: 6, TenancyId: 2}
+		treeID := store_interface.TreeID("tree6")
 
 		nodeID := store_interface.NodeID("node6")
 
 		// Create same node ID in different tenancy spaces
-		err := store.CreateNode(space1, nodeID, nil, nil, nil)
+		err := store.CreateNode(space1, treeID, nodeID, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create node in space1: %v", err)
 		}
 
-		err = store.CreateNode(space2, nodeID, nil, nil, nil)
+		err = store.CreateNode(space2, treeID, nodeID, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create node in space2: %v", err)
 		}
 
 		// Both should exist independently
-		exists1, _ := store.Exists(space1, nodeID)
-		exists2, _ := store.Exists(space2, nodeID)
+		exists1, _ := store.Exists(space1, treeID, nodeID)
+		exists2, _ := store.Exists(space2, treeID, nodeID)
 
 		if !exists1 || !exists2 {
 			t.Error("Nodes should exist in both tenancy spaces")
 		}
 
 		// Delete from space1 shouldn't affect space2
-		store.DeleteNode(space1, nodeID, false)
+		store.DeleteNode(space1, treeID, nodeID, false)
 
-		exists1, _ = store.Exists(space1, nodeID)
-		exists2, _ = store.Exists(space2, nodeID)
+		exists1, _ = store.Exists(space1, treeID, nodeID)
+		exists2, _ = store.Exists(space2, treeID, nodeID)
 
 		if exists1 {
 			t.Error("Node should be deleted from space1")
 		}
 		if !exists2 {
 			t.Error("Node should still exist in space2")
+		}
+	})
+}
+
+func TestGroveTreeIsolation(t *testing.T) {
+	for name, store := range groveStores {
+		testGroveTreeIsolation(store, name, t)
+	}
+}
+
+func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 7, TenancyId: 1}
+		tree1 := store_interface.TreeID("fileSystemA")
+		tree2 := store_interface.TreeID("fileSystemB")
+
+		// Create same node structure in two different trees
+		rootID := store_interface.NodeID("root")
+		childID := store_interface.NodeID("child")
+
+		// Create nodes in tree1
+		err := store.CreateNode(space, tree1, rootID, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create root in tree1: %v", err)
+		}
+		err = store.CreateNode(space, tree1, childID, &rootID, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create child in tree1: %v", err)
+		}
+
+		// Create same node IDs in tree2 (should work - different tree)
+		err = store.CreateNode(space, tree2, rootID, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create root in tree2: %v", err)
+		}
+		err = store.CreateNode(space, tree2, childID, &rootID, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create child in tree2: %v", err)
+		}
+
+		// Both trees should have independent structures
+		exists1, _ := store.Exists(space, tree1, rootID)
+		exists2, _ := store.Exists(space, tree2, rootID)
+		if !exists1 || !exists2 {
+			t.Error("Root should exist in both trees")
+		}
+
+		// Get children from both trees
+		children1, _, err := store.GetChildren(space, tree1, rootID, nil)
+		if err != nil {
+			t.Fatalf("Failed to get children from tree1: %v", err)
+		}
+		children2, _, err := store.GetChildren(space, tree2, rootID, nil)
+		if err != nil {
+			t.Fatalf("Failed to get children from tree2: %v", err)
+		}
+
+		if len(children1) != 1 || len(children2) != 1 {
+			t.Errorf("Each tree should have 1 child, got tree1=%d, tree2=%d", len(children1), len(children2))
+		}
+
+		// Apply different aggregates to same node ID in different trees
+		mutation1 := store_interface.MutationID("mut1")
+		deltas1 := store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 10,
+		}
+		err = store.ApplyAggregateMutation(space, tree1, mutation1, rootID, deltas1)
+		if err != nil {
+			t.Fatalf("Failed to apply mutation to tree1: %v", err)
+		}
+
+		mutation2 := store_interface.MutationID("mut2")
+		deltas2 := store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 20,
+		}
+		err = store.ApplyAggregateMutation(space, tree2, mutation2, rootID, deltas2)
+		if err != nil {
+			t.Fatalf("Failed to apply mutation to tree2: %v", err)
+		}
+
+		// Verify aggregates are independent
+		agg1, err := store.GetNodeLocalAggregates(space, tree1, rootID)
+		if err != nil {
+			t.Fatalf("Failed to get aggregates from tree1: %v", err)
+		}
+		agg2, err := store.GetNodeLocalAggregates(space, tree2, rootID)
+		if err != nil {
+			t.Fatalf("Failed to get aggregates from tree2: %v", err)
+		}
+
+		if agg1[store_interface.AggregateKey("count")] != 10 {
+			t.Errorf("Tree1 count should be 10, got %d", agg1[store_interface.AggregateKey("count")])
+		}
+		if agg2[store_interface.AggregateKey("count")] != 20 {
+			t.Errorf("Tree2 count should be 20, got %d", agg2[store_interface.AggregateKey("count")])
+		}
+
+		// Delete from tree1 shouldn't affect tree2
+		err = store.DeleteNode(space, tree1, childID, false)
+		if err != nil {
+			t.Fatalf("Failed to delete child from tree1: %v", err)
+		}
+
+		exists1, _ = store.Exists(space, tree1, childID)
+		exists2, _ = store.Exists(space, tree2, childID)
+
+		if exists1 {
+			t.Error("Child should be deleted from tree1")
+		}
+		if !exists2 {
+			t.Error("Child should still exist in tree2")
 		}
 	})
 }
