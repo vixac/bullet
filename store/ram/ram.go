@@ -23,13 +23,13 @@ type RamStore struct {
 	depots  map[store_interface.TenancySpace]map[int64]string                      // appID -> key -> value
 	wayfind map[store_interface.TenancySpace]map[int32]map[string]model.WayFinderQueryItem
 
-	// Grove data structures
-	groveNodes        map[store_interface.TenancySpace]map[store_interface.NodeID]*nodeData
-	groveClosure      map[store_interface.TenancySpace]map[store_interface.NodeID]map[store_interface.NodeID]int // ancestor -> descendant -> relative_depth
-	groveChildren     map[store_interface.TenancySpace]map[store_interface.NodeID][]store_interface.NodeID       // parent -> ordered children
-	groveDeletedNodes map[store_interface.TenancySpace]map[store_interface.NodeID]*nodeData
-	groveMutations    map[store_interface.TenancySpace]map[store_interface.NodeID]map[store_interface.MutationID]bool
-	groveAggregates   map[store_interface.TenancySpace]map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue
+	// Grove data structures (with TreeID for logical tree separation)
+	groveNodes        map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
+	groveClosure      map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.NodeID]int // ancestor -> descendant -> relative_depth
+	groveChildren     map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID][]store_interface.NodeID       // parent -> ordered children
+	groveDeletedNodes map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
+	groveMutations    map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.MutationID]bool
+	groveAggregates   map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue
 }
 
 // NewRamStore returns a new empty in-memory store
