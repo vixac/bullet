@@ -79,7 +79,6 @@ func (s *SQLiteStore) initSchema() error {
 			node_id TEXT,
 			parent_id TEXT,
 			position REAL,
-			depth INTEGER,
 			metadata TEXT,
 			is_deleted BOOLEAN DEFAULT 0,
 			PRIMARY KEY (app_id, tenancy_id, tree_id, node_id)
@@ -87,9 +86,6 @@ func (s *SQLiteStore) initSchema() error {
 
 		`CREATE INDEX IF NOT EXISTS grove_nodes_parent_idx
 		 ON grove_nodes(app_id, tenancy_id, tree_id, parent_id) WHERE is_deleted = 0;`,
-
-		`CREATE INDEX IF NOT EXISTS grove_nodes_depth_idx
-		 ON grove_nodes(app_id, tenancy_id, tree_id, depth) WHERE is_deleted = 0;`,
 
 		// Closure table for efficient tree traversal
 		`CREATE TABLE IF NOT EXISTS grove_closure (
