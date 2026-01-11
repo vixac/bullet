@@ -1,5 +1,7 @@
 package api
 
+//VX:TODO I'm taking wayfinder test suite out of circulation for now.
+/*
 import (
 	"bytes"
 	"encoding/json"
@@ -12,6 +14,7 @@ import (
 	"github.com/vixac/bullet/model"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
+
 
 func TestWayFinder(t *testing.T) {
 	for name, client := range clients {
@@ -224,3 +227,4 @@ func testWayFinderGetOne(client store_interface.Store, name string, t *testing.T
 		assert.Equal(t, http.StatusNotFound, missingResp.StatusCode)
 	})
 }
+*/

@@ -70,6 +70,60 @@ func (s *SQLiteStore) initSchema() error {
 			tag INTEGER,
 			metric REAL
 		);`,
+
+		// Grove tables
+		`CREATE TABLE IF NOT EXISTS grove_nodes (
+			app_id INTEGER,
+			tenancy_id INTEGER,
+			node_id TEXT,
+			parent_id TEXT,
+			position REAL,
+			depth INTEGER,
+			metadata TEXT,
+			is_deleted BOOLEAN DEFAULT 0,
+			PRIMARY KEY (app_id, tenancy_id, node_id)
+		);`,
+
+		`CREATE INDEX IF NOT EXISTS grove_nodes_parent_idx
+		 ON grove_nodes(app_id, tenancy_id, parent_id) WHERE is_deleted = 0;`,
+
+		`CREATE INDEX IF NOT EXISTS grove_nodes_depth_idx
+		 ON grove_nodes(app_id, tenancy_id, depth) WHERE is_deleted = 0;`,
+
+		// Closure table for efficient tree traversal
+		`CREATE TABLE IF NOT EXISTS grove_closure (
+			app_id INTEGER,
+			tenancy_id INTEGER,
+			ancestor_id TEXT,
+			descendant_id TEXT,
+			depth INTEGER,
+			PRIMARY KEY (app_id, tenancy_id, ancestor_id, descendant_id)
+		);`,
+
+		`CREATE INDEX IF NOT EXISTS grove_closure_descendant_idx
+		 ON grove_closure(app_id, tenancy_id, descendant_id);`,
+
+		// Mutation tracking for idempotency
+		`CREATE TABLE IF NOT EXISTS grove_mutations (
+			app_id INTEGER,
+			tenancy_id INTEGER,
+			node_id TEXT,
+			mutation_id TEXT,
+			PRIMARY KEY (app_id, tenancy_id, node_id, mutation_id)
+		);`,
+
+		// Aggregates storage
+		`CREATE TABLE IF NOT EXISTS grove_aggregates (
+			app_id INTEGER,
+			tenancy_id INTEGER,
+			node_id TEXT,
+			aggregate_key TEXT,
+			aggregate_value INTEGER,
+			PRIMARY KEY (app_id, tenancy_id, node_id, aggregate_key)
+		);`,
+
+		`CREATE INDEX IF NOT EXISTS grove_aggregates_key_idx
+		 ON grove_aggregates(app_id, tenancy_id, aggregate_key);`,
 	}
 
 	for _, stmt := range schema {
