@@ -1,9 +1,11 @@
 package store_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/vixac/bullet/store/ram"
+	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -11,6 +13,20 @@ import (
 // Add new implementations here as they're completed
 var groveStores = map[string]store_interface.GroveStore{
 	"ram": ram.NewRamStore(),
+}
+
+func init() {
+	// Create SQLite store for testing
+	sqliteStore, err := sqlite_store.NewSQLiteStore(":memory:")
+	if err != nil {
+		panic(err)
+	}
+	groveStores["sqlite"] = sqliteStore
+}
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	os.Exit(code)
 }
 
 func TestGroveBasicOperations(t *testing.T) {
