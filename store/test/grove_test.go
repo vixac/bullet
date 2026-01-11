@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/vixac/bullet/store/boltdb"
 	"github.com/vixac/bullet/store/ram"
 	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	"github.com/vixac/bullet/store/store_interface"
@@ -22,10 +23,19 @@ func init() {
 		panic(err)
 	}
 	groveStores["sqlite"] = sqliteStore
+
+	// Create BoltDB store for testing
+	boltStore, err := boltdb.NewBoltStore("test-grove.db")
+	if err != nil {
+		panic(err)
+	}
+	groveStores["boltdb"] = boltStore
 }
 
 func TestMain(m *testing.M) {
 	code := m.Run()
+	// Clean up test database
+	os.Remove("test-grove.db")
 	os.Exit(code)
 }
 
