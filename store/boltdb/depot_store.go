@@ -9,11 +9,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func oldBucketName(appId int32) []byte {
-	return []byte(fmt.Sprintf("pigeon:app:%d", appId))
-}
-
-// VX:TODO use the newdepot after migration.
 func newDepotBucket(appID int32, tenantId int64) []byte {
 	return []byte(fmt.Sprintf("depot:v2:%d:tenant:%d", appID, tenantId))
 }

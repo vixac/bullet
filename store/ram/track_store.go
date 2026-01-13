@@ -155,14 +155,20 @@ func (r *RamStore) GetItemsByKeyPrefixes(
 
 	// Convert prefixes to a more efficient lookup structure
 	// (highly cache-friendly when scanning map keys)
+	// Note: empty prefix means "match all" (useful for migration and bulk queries)
 	prefixList := make([]string, 0, len(prefixes))
+	hasEmptyPrefix := false
 	for _, p := range prefixes {
-		if p != "" {
+		if p == "" {
+			hasEmptyPrefix = true
+		} else {
 			prefixList = append(prefixList, p)
 		}
 	}
-	if len(prefixList) == 0 {
-		return result, fmt.Errorf("all prefixes were empty")
+
+	// If we have an empty prefix, it matches everything
+	if hasEmptyPrefix && len(prefixList) == 0 {
+		prefixList = nil // signal to match all
 	}
 
 	tagFilter := func(tag *int64) bool {
@@ -194,6 +200,10 @@ func (r *RamStore) GetItemsByKeyPrefixes(
 	}
 
 	matchesPrefix := func(k string) bool {
+		// nil prefixList means match all (empty prefix was provided)
+		if prefixList == nil {
+			return true
+		}
 		for _, p := range prefixList {
 			if strings.HasPrefix(k, p) {
 				return true
