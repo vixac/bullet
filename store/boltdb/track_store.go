@@ -234,16 +234,19 @@ func (b *BoltStore) GetItemsByKeyPrefixes(
 		return nil, fmt.Errorf("must provide at least one prefix")
 	}
 
-	// Deduplicate empty prefixes
+	// Process prefixes - empty prefix means "match all" (useful for migration and bulk queries)
 	cleanPrefixes := make([][]byte, 0, len(prefixes))
+	hasEmptyPrefix := false
 	for _, p := range prefixes {
-		if p != "" {
+		if p == "" {
+			hasEmptyPrefix = true
+		} else {
 			cleanPrefixes = append(cleanPrefixes, []byte(p))
 		}
 	}
-	if len(cleanPrefixes) == 0 {
-		return nil, fmt.Errorf("all prefixes were empty")
-	}
+
+	// If we have only an empty prefix, we'll scan the entire bucket
+	matchAll := hasEmptyPrefix && len(cleanPrefixes) == 0
 
 	var result []model.TrackKeyValueItem
 
@@ -284,9 +287,9 @@ func (b *BoltStore) GetItemsByKeyPrefixes(
 
 		c := bkt.Cursor()
 
-		for _, p := range cleanPrefixes {
-			for k, v := c.Seek(p); k != nil && bytes.HasPrefix(k, p); k, v = c.Next() {
-
+		if matchAll {
+			// Scan entire bucket when empty prefix is provided
+			for k, v := c.First(); k != nil; k, v = c.Next() {
 				value, tag, metric, err := decodeTrackValue(v)
 				if err != nil {
 					return err
@@ -308,6 +311,34 @@ func (b *BoltStore) GetItemsByKeyPrefixes(
 						Metric: metric,
 					},
 				})
+			}
+		} else {
+			// Scan with specific prefixes
+			for _, p := range cleanPrefixes {
+				for k, v := c.Seek(p); k != nil && bytes.HasPrefix(k, p); k, v = c.Next() {
+
+					value, tag, metric, err := decodeTrackValue(v)
+					if err != nil {
+						return err
+					}
+
+					if !tagFilter(tag) {
+						continue
+					}
+
+					if !metricFilter(metric) {
+						continue
+					}
+
+					result = append(result, model.TrackKeyValueItem{
+						Key: string(k),
+						Value: model.TrackValue{
+							Value:  value,
+							Tag:    tag,
+							Metric: metric,
+						},
+					})
+				}
 			}
 		}
 
