@@ -17,6 +17,11 @@ func (r *RamStore) DepotPut(space store_interface.TenancySpace, key int64, value
 	return nil
 }
 
+func (r *RamStore) DepotGetAll(space store_interface.TenancySpace) (map[int64]string, error) {
+	x := make(map[int64]string)
+	return x, errors.New("Not implmented")
+}
+
 func (r *RamStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

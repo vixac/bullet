@@ -1,6 +1,8 @@
 package sqlite_store
 
 import (
+	"errors"
+
 	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
@@ -13,6 +15,11 @@ func (s *SQLiteStore) DepotPut(space store_interface.TenancySpace, key int64, va
 		DO UPDATE SET value=excluded.value
 	`, space.AppId, space.TenancyId, key, value)
 	return err
+}
+
+func (s *SQLiteStore) DepotGetAll(space store_interface.TenancySpace) (map[int64]string, error) {
+	x := make(map[int64]string)
+	return x, errors.New("Not implmented")
 }
 
 func (s *SQLiteStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
