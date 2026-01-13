@@ -72,6 +72,29 @@ func (b *BoltStore) DepotPutMany(space store_interface.TenancySpace, items []mod
 	})
 }
 
+func (b *BoltStore) DepotGetAll(space store_interface.TenancySpace) (map[int64]string, error) {
+	results := make(map[int64]string)
+
+	err := b.db.View(func(tx *bbolt.Tx) error {
+		bucketName := getBucketName(space)
+		bkt := tx.Bucket(bucketName)
+		if bkt == nil {
+			return nil
+		}
+
+		c := bkt.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if v == nil {
+				continue // skip sub-buckets (if any)
+			}
+			key := decodeInt64(k)
+			results[key] = string(v)
+		}
+		return nil
+	})
+	return results, err
+}
+
 func (b *BoltStore) DepotGetMany(space store_interface.TenancySpace, keys []int64) (map[int64]string, []int64, error) {
 	results := make(map[int64]string)
 	var missing []int64
@@ -93,8 +116,14 @@ func (b *BoltStore) DepotGetMany(space store_interface.TenancySpace, keys []int6
 		}
 		return nil
 	})
-
 	return results, missing, err
+}
+
+func decodeInt64(b []byte) int64 {
+	if len(b) != 8 {
+		return 0 // or panic / error depending on your design
+	}
+	return int64(binary.BigEndian.Uint64(b))
 }
 
 func encodeInt64(i int64) []byte {

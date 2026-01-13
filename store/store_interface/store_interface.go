@@ -43,6 +43,7 @@ type DepotStore interface {
 	DepotDelete(space TenancySpace, key int64) error
 	DepotPutMany(space TenancySpace, items []model.DepotKeyValueItem) error
 	DepotGetMany(space TenancySpace, keys []int64) (map[int64]string, []int64, error)
+	DepotGetAll(space TenancySpace) (map[int64]string, error)
 }
 
 // using its own ids, wayfinder uses track and depot to provide a query to payload interface.

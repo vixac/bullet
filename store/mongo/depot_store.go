@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/vixac/bullet/model"
@@ -18,6 +19,10 @@ func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, val
 
 	_, err := m.depotCollection.UpdateOne(context.TODO(), filter, update, opts)
 	return err
+}
+func (b *MongoStore) DepotGetAll(space store_interface.TenancySpace) (map[int64]string, error) {
+	x := make(map[int64]string)
+	return x, errors.New("Not implmented")
 }
 
 func (m *MongoStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
