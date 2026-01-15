@@ -116,6 +116,22 @@ func (s *SQLiteStore) GetItemsByKeyPrefixes(
 	}
 	query += ")"
 
+	if len(tags) > 0 {
+		query += " AND tag IN (" + placeholders(len(tags)) + ")"
+		for _, t := range tags {
+			args = append(args, t)
+		}
+	}
+
+	if metricValue != nil {
+		if metricIsGt {
+			query += " AND metric > ?"
+		} else {
+			query += " AND metric < ?"
+		}
+		args = append(args, *metricValue)
+	}
+
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, err

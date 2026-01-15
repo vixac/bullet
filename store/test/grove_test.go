@@ -34,8 +34,9 @@ func init() {
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	// Clean up test database
+	// Clean up test databases
 	os.Remove("test-grove.db")
+	os.Remove("test-track.db")
 	os.Exit(code)
 }
 
