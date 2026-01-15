@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 	// Clean up test databases
 	os.Remove("test-grove.db")
 	os.Remove("test-track.db")
+	os.Remove("test-depot.db")
 	os.Exit(code)
 }
 
