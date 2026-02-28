@@ -2,6 +2,7 @@ package sqlite_store
 
 import (
 	"database/sql"
+	"errors"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -23,6 +24,9 @@ func placeholders(n int) string {
 //PRAGMA temp_store = MEMORY;
 
 func NewSQLiteStore(path string) (*SQLiteStore, error) {
+	if path == "" {
+		return nil, errors.New("your sqlite path is empty.")
+	}
 	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
 		return nil, err

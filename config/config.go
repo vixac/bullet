@@ -9,12 +9,14 @@ type Config struct {
 	DBType   string
 	MongoURI string
 	BoltPath string
+	SqlPath  string
 	Port     string
 }
 
 const (
 	Mongo  = "mongodb"
 	Boltdb = "boltdb"
+	Sqlite = "sqlite"
 )
 
 func Load() *Config {
@@ -23,6 +25,7 @@ func Load() *Config {
 	port := flag.String("port", "", "port number for bullet HTTP")
 	mongoStr := flag.String("mongo", "", "mongodb endpoint") //mongodb://localhost:27017
 	boltStr := flag.String("bolt", "", "BoltDB file path")
+	sqlStr := flag.String("sqlite", "", "Sqlite file path")
 	dbType := flag.String("db-type", "", "mongo or boldtb mode")
 	flag.Parse()
 	if *port == "" {
@@ -30,8 +33,8 @@ func Load() *Config {
 	}
 	cfg.Port = *port
 
-	if *dbType != Mongo && *dbType != Boltdb {
-		log.Fatal("invalid db-type:" + *dbType + ". needs to be either " + Mongo + " or " + Boltdb)
+	if *dbType != Mongo && *dbType != Boltdb && *dbType != Sqlite {
+		log.Fatal("invalid db-type:" + *dbType + ". needs to be either " + Mongo + " or " + Boltdb + " or " + Sqlite)
 	}
 	if *dbType == Mongo && *mongoStr == "" {
 		log.Fatal("you asked for mongo db type but didnt provide a mongodb con string")
@@ -40,9 +43,13 @@ func Load() *Config {
 	if *dbType == Boltdb && *boltStr == "" {
 		log.Fatal("you asked for boltdb but didnt provide a bolt path")
 	}
+	if *dbType == Sqlite && *sqlStr == "" {
+		log.Fatal("you asked for sqlite but didnt provide a bolt path")
+	}
 
 	cfg.DBType = *dbType
 	cfg.MongoURI = *mongoStr
 	cfg.BoltPath = *boltStr
+	cfg.SqlPath = *sqlStr
 	return &cfg
 }
