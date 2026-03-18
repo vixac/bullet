@@ -38,7 +38,6 @@ func main() {
 	engine := gin.Default()
 	engine = api.SetupTrackRouter(kvStore, "track/", engine)
 	engine = api.SetupDepotRouter(kvStore, "depot/", engine)
-	engine = api.SetupWayFinderRouter(kvStore, "wayfinder/", engine)
 	fmt.Println("Bullet is Healthy, on port " + cfg.Port)
 	log.Fatal(engine.Run(":" + cfg.Port))
 }
