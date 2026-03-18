@@ -1,9 +1,6 @@
 package migrator
 
 import (
-	"testing"
-
-	"github.com/vixac/bullet/store/ram"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -12,6 +9,9 @@ var testTenancy = store_interface.TenancySpace{
 	TenancyId: 100,
 }
 
+//VX:Note Migrator is out of date.
+
+/*
 func TestTrackMigrator(t *testing.T) {
 	source := ram.NewRamStore()
 	target := ram.NewRamStore()
@@ -301,3 +301,4 @@ func TestDepotMigratorEmptyKeys(t *testing.T) {
 		t.Fatalf("Migration of empty keys should not error: %v", err)
 	}
 }
+*/

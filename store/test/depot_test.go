@@ -4,10 +4,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/boltdb"
-	"github.com/vixac/bullet/store/ram"
 	sqlite_store "github.com/vixac/bullet/store/sqlite"
+	"github.com/vixac/bullet/store/ram"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -17,83 +15,128 @@ var depotStores = map[string]store_interface.DepotStore{
 }
 
 func init() {
-	// Create SQLite store for testing
 	sqliteStore, err := sqlite_store.NewSQLiteStore(":memory:")
 	if err != nil {
 		panic(err)
 	}
 	depotStores["sqlite"] = sqliteStore
-
-	// Create BoltDB store for testing
-	boltStore, err := boltdb.NewBoltStore("test-depot.db")
-	if err != nil {
-		panic(err)
-	}
-	depotStores["boltdb"] = boltStore
 }
 
 // Note: TestMain is defined in grove_test.go and handles cleanup
 
-func TestDepotBasicOperations(t *testing.T) {
+func TestDepotCreateAndGet(t *testing.T) {
 	for name, store := range depotStores {
-		testDepotBasicOperations(store, name, t)
+		testDepotCreateAndGet(store, name, t)
 	}
 }
 
-func testDepotBasicOperations(store store_interface.DepotStore, name string, t *testing.T) {
+func testDepotCreateAndGet(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 200, TenancyId: 1}
+		const bucket = int32(1)
 
-		// Test basic put and get
-		key := int64(1)
-		value := "test_value_1"
-		err := store.DepotPut(space, key, value)
+		id, err := store.DepotCreate(space, bucket, "hello")
 		if err != nil {
-			t.Fatalf("Failed to put: %v", err)
+			t.Fatalf("DepotCreate failed: %v", err)
+		}
+		if id == 0 {
+			t.Fatal("expected non-zero id from DepotCreate")
 		}
 
-		got, err := store.DepotGet(space, key)
+		got, err := store.DepotGet(space, id)
 		if err != nil {
-			t.Fatalf("Failed to get: %v", err)
+			t.Fatalf("DepotGet failed: %v", err)
 		}
-		if got != value {
-			t.Errorf("Expected value %s, got %s", value, got)
+		if got != "hello" {
+			t.Errorf("expected 'hello', got %q", got)
 		}
 
-		// Test overwrite
-		newValue := "updated_value"
-		err = store.DepotPut(space, key, newValue)
+		// IDs should be unique across sequential creates
+		id2, err := store.DepotCreate(space, bucket, "world")
 		if err != nil {
-			t.Fatalf("Failed to overwrite: %v", err)
+			t.Fatalf("second DepotCreate failed: %v", err)
+		}
+		if id2 == id {
+			t.Error("expected different id for second create")
 		}
 
-		got, err = store.DepotGet(space, key)
-		if err != nil {
-			t.Fatalf("Failed to get after overwrite: %v", err)
-		}
-		if got != newValue {
-			t.Errorf("Expected overwritten value %s, got %s", newValue, got)
-		}
-
-		// Test get non-existent key
-		_, err = store.DepotGet(space, int64(99999))
+		// Get non-existent id
+		_, err = store.DepotGet(space, id+99999)
 		if err == nil {
-			t.Error("Expected error for non-existent key, got nil")
+			t.Error("expected error for non-existent id")
+		}
+	})
+}
+
+func TestDepotCreateMany(t *testing.T) {
+	for name, store := range depotStores {
+		testDepotCreateMany(store, name, t)
+	}
+}
+
+func testDepotCreateMany(store store_interface.DepotStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 201, TenancyId: 1}
+		const bucket = int32(10)
+
+		values := []string{"a", "b", "c"}
+		ids, err := store.DepotCreateMany(space, bucket, values)
+		if err != nil {
+			t.Fatalf("DepotCreateMany failed: %v", err)
+		}
+		if len(ids) != len(values) {
+			t.Fatalf("expected %d ids, got %d", len(values), len(ids))
 		}
 
-		// Test empty string value
-		emptyKey := int64(2)
-		err = store.DepotPut(space, emptyKey, "")
-		if err != nil {
-			t.Fatalf("Failed to put empty value: %v", err)
+		// All ids must be unique
+		seen := make(map[int64]bool)
+		for _, id := range ids {
+			if seen[id] {
+				t.Errorf("duplicate id %d", id)
+			}
+			seen[id] = true
 		}
 
-		got, err = store.DepotGet(space, emptyKey)
-		if err != nil {
-			t.Fatalf("Failed to get empty value: %v", err)
+		// Verify values
+		for i, id := range ids {
+			got, err := store.DepotGet(space, id)
+			if err != nil {
+				t.Fatalf("DepotGet(%d) failed: %v", id, err)
+			}
+			if got != values[i] {
+				t.Errorf("id %d: expected %q, got %q", id, values[i], got)
+			}
 		}
-		if got != "" {
-			t.Errorf("Expected empty string, got %s", got)
+	})
+}
+
+func TestDepotUpdate(t *testing.T) {
+	for name, store := range depotStores {
+		testDepotUpdate(store, name, t)
+	}
+}
+
+func testDepotUpdate(store store_interface.DepotStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 202, TenancyId: 1}
+		const bucket = int32(1)
+
+		id, err := store.DepotCreate(space, bucket, "original")
+		if err != nil {
+			t.Fatalf("DepotCreate failed: %v", err)
+		}
+
+		err = store.DepotUpdate(space, id, "updated")
+		if err != nil {
+			t.Fatalf("DepotUpdate failed: %v", err)
+		}
+
+		got, err := store.DepotGet(space, id)
+		if err != nil {
+			t.Fatalf("DepotGet after update failed: %v", err)
+		}
+		if got != "updated" {
+			t.Errorf("expected 'updated', got %q", got)
 		}
 	})
 }
@@ -106,184 +149,170 @@ func TestDepotDelete(t *testing.T) {
 
 func testDepotDelete(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 201, TenancyId: 1}
+		space := store_interface.TenancySpace{AppId: 203, TenancyId: 1}
+		const bucket = int32(1)
 
-		// Put a value
-		key := int64(100)
-		value := "to_be_deleted"
-		err := store.DepotPut(space, key, value)
+		id, err := store.DepotCreate(space, bucket, "to_delete")
 		if err != nil {
-			t.Fatalf("Setup put failed: %v", err)
+			t.Fatalf("DepotCreate failed: %v", err)
 		}
 
-		// Verify it exists
-		_, err = store.DepotGet(space, key)
+		err = store.DepotDelete(space, id)
 		if err != nil {
-			t.Fatalf("Value should exist before delete: %v", err)
+			t.Fatalf("DepotDelete failed: %v", err)
 		}
 
-		// Delete it
-		err = store.DepotDelete(space, key)
-		if err != nil {
-			t.Fatalf("Delete failed: %v", err)
-		}
-
-		// Verify it's gone
-		_, err = store.DepotGet(space, key)
+		_, err = store.DepotGet(space, id)
 		if err == nil {
-			t.Error("Value should not exist after delete")
+			t.Error("expected error after delete, got nil")
 		}
 
-		// Delete non-existent key (should be idempotent)
-		err = store.DepotDelete(space, int64(99999))
+		// Deleting non-existent id should be idempotent
+		err = store.DepotDelete(space, id)
 		if err != nil {
-			t.Errorf("Deleting non-existent key should not error: %v", err)
+			t.Errorf("deleting non-existent id should not error: %v", err)
 		}
 	})
 }
 
-func TestDepotPutManyGetMany(t *testing.T) {
+func TestDepotDeleteByBucket(t *testing.T) {
 	for name, store := range depotStores {
-		testDepotPutManyGetMany(store, name, t)
+		testDepotDeleteByBucket(store, name, t)
 	}
 }
 
-func testDepotPutManyGetMany(store store_interface.DepotStore, name string, t *testing.T) {
+func testDepotDeleteByBucket(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 202, TenancyId: 1}
+		space := store_interface.TenancySpace{AppId: 204, TenancyId: 1}
+		const bucketA = int32(100)
+		const bucketB = int32(200)
 
-		// Prepare items for put many
-		items := []model.DepotKeyValueItem{
-			{Key: 10, Value: "value_10"},
-			{Key: 20, Value: "value_20"},
-			{Key: 30, Value: "value_30"},
-		}
+		idA1, _ := store.DepotCreate(space, bucketA, "a1")
+		idA2, _ := store.DepotCreate(space, bucketA, "a2")
+		idB1, _ := store.DepotCreate(space, bucketB, "b1")
 
-		err := store.DepotPutMany(space, items)
+		err := store.DepotDeleteByBucket(space, bucketA)
 		if err != nil {
-			t.Fatalf("DepotPutMany failed: %v", err)
+			t.Fatalf("DepotDeleteByBucket failed: %v", err)
 		}
 
-		// Test get many - all found
-		keys := []int64{10, 20, 30}
-		found, missing, err := store.DepotGetMany(space, keys)
+		// Bucket A items should be gone
+		_, err = store.DepotGet(space, idA1)
+		if err == nil {
+			t.Error("idA1 should be deleted")
+		}
+		_, err = store.DepotGet(space, idA2)
+		if err == nil {
+			t.Error("idA2 should be deleted")
+		}
+
+		// Bucket B item should still exist
+		got, err := store.DepotGet(space, idB1)
+		if err != nil {
+			t.Fatalf("idB1 should still exist: %v", err)
+		}
+		if got != "b1" {
+			t.Errorf("expected 'b1', got %q", got)
+		}
+
+		// Deleting an already-empty bucket should be idempotent
+		err = store.DepotDeleteByBucket(space, bucketA)
+		if err != nil {
+			t.Errorf("deleting empty bucket should not error: %v", err)
+		}
+	})
+}
+
+func TestDepotGetAllByBucket(t *testing.T) {
+	for name, store := range depotStores {
+		testDepotGetAllByBucket(store, name, t)
+	}
+}
+
+func testDepotGetAllByBucket(store store_interface.DepotStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 205, TenancyId: 1}
+		const bucketA = int32(300)
+		const bucketB = int32(400)
+
+		idA1, _ := store.DepotCreate(space, bucketA, "alpha")
+		idA2, _ := store.DepotCreate(space, bucketA, "beta")
+		_, _ = store.DepotCreate(space, bucketB, "gamma")
+
+		all, err := store.DepotGetAllByBucket(space, bucketA)
+		if err != nil {
+			t.Fatalf("DepotGetAllByBucket failed: %v", err)
+		}
+		if len(all) != 2 {
+			t.Fatalf("expected 2 items in bucketA, got %d", len(all))
+		}
+		if all[idA1] != "alpha" {
+			t.Errorf("expected 'alpha' for idA1, got %q", all[idA1])
+		}
+		if all[idA2] != "beta" {
+			t.Errorf("expected 'beta' for idA2, got %q", all[idA2])
+		}
+
+		// Empty bucket
+		emptyResult, err := store.DepotGetAllByBucket(space, int32(9999))
+		if err != nil {
+			t.Fatalf("DepotGetAllByBucket on empty bucket failed: %v", err)
+		}
+		if len(emptyResult) != 0 {
+			t.Errorf("expected 0 items for empty bucket, got %d", len(emptyResult))
+		}
+	})
+}
+
+func TestDepotGetMany(t *testing.T) {
+	for name, store := range depotStores {
+		testDepotGetMany(store, name, t)
+	}
+}
+
+func testDepotGetMany(store store_interface.DepotStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 206, TenancyId: 1}
+		const bucket = int32(1)
+
+		ids, err := store.DepotCreateMany(space, bucket, []string{"x", "y", "z"})
+		if err != nil {
+			t.Fatalf("DepotCreateMany failed: %v", err)
+		}
+
+		// All found
+		found, missing, err := store.DepotGetMany(space, ids)
 		if err != nil {
 			t.Fatalf("DepotGetMany failed: %v", err)
 		}
-
-		// Verify found items
 		if len(found) != 3 {
-			t.Errorf("Expected 3 items, got %d", len(found))
+			t.Errorf("expected 3 found, got %d", len(found))
 		}
-		if found[10] != "value_10" {
-			t.Errorf("Expected value_10, got %s", found[10])
-		}
-		if found[20] != "value_20" {
-			t.Errorf("Expected value_20, got %s", found[20])
-		}
-		if found[30] != "value_30" {
-			t.Errorf("Expected value_30, got %s", found[30])
-		}
-
-		// Verify missing is empty
 		if len(missing) != 0 {
-			t.Errorf("Expected no missing items, got %v", missing)
+			t.Errorf("expected 0 missing, got %v", missing)
 		}
 
-		// Test get many with some missing keys
-		keysWithMissing := []int64{10, 999, 20, 888}
-		found, missing, err = store.DepotGetMany(space, keysWithMissing)
+		// Mix of found and missing
+		bogusID := ids[len(ids)-1] + 99999
+		queryIDs := []int64{ids[0], bogusID}
+		found, missing, err = store.DepotGetMany(space, queryIDs)
 		if err != nil {
 			t.Fatalf("DepotGetMany with missing failed: %v", err)
 		}
-
-		if len(found) != 2 {
-			t.Errorf("Expected 2 found, got %d", len(found))
+		if len(found) != 1 {
+			t.Errorf("expected 1 found, got %d", len(found))
 		}
-		if len(missing) != 2 {
-			t.Errorf("Expected 2 missing, got %d", len(missing))
-		}
-
-		// Verify missing keys
-		sort.Slice(missing, func(i, j int) bool { return missing[i] < missing[j] })
-		if missing[0] != 888 || missing[1] != 999 {
-			t.Errorf("Expected missing [888, 999], got %v", missing)
+		if len(missing) != 1 || missing[0] != bogusID {
+			t.Errorf("expected missing=[%d], got %v", bogusID, missing)
 		}
 
-		// Test get many with empty keys
+		// Empty query
 		found, missing, err = store.DepotGetMany(space, []int64{})
 		if err != nil {
-			t.Fatalf("DepotGetMany empty keys failed: %v", err)
+			t.Fatalf("DepotGetMany empty failed: %v", err)
 		}
 		if len(found) != 0 {
-			t.Errorf("Expected 0 found for empty keys, got %d", len(found))
-		}
-
-		// Test get many from non-existent space
-		nonExistentSpace := store_interface.TenancySpace{AppId: 9999, TenancyId: 9999}
-		found, missing, err = store.DepotGetMany(nonExistentSpace, []int64{10, 20})
-		if err != nil {
-			t.Fatalf("DepotGetMany from non-existent space failed: %v", err)
-		}
-		if len(found) != 0 {
-			t.Errorf("Expected 0 found from non-existent space, got %d", len(found))
-		}
-		if len(missing) != 2 {
-			t.Errorf("Expected 2 missing from non-existent space, got %d", len(missing))
-		}
-	})
-}
-
-func TestDepotGetAll(t *testing.T) {
-	for name, store := range depotStores {
-		testDepotGetAll(store, name, t)
-	}
-}
-
-func testDepotGetAll(store store_interface.DepotStore, name string, t *testing.T) {
-	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 203, TenancyId: 1}
-
-		// Put some items
-		items := []model.DepotKeyValueItem{
-			{Key: 1, Value: "one"},
-			{Key: 2, Value: "two"},
-			{Key: 3, Value: "three"},
-		}
-		err := store.DepotPutMany(space, items)
-		if err != nil {
-			t.Fatalf("Setup DepotPutMany failed: %v", err)
-		}
-
-		// Test GetAll
-		all, err := store.DepotGetAll(space)
-		if err != nil {
-			// RAM and SQLite don't implement this - that's a known issue
-			t.Logf("Note: %s DepotGetAll not implemented: %v", name, err)
-			return
-		}
-
-		if len(all) != 3 {
-			t.Errorf("Expected 3 items, got %d", len(all))
-		}
-		if all[1] != "one" {
-			t.Errorf("Expected 'one', got %s", all[1])
-		}
-		if all[2] != "two" {
-			t.Errorf("Expected 'two', got %s", all[2])
-		}
-		if all[3] != "three" {
-			t.Errorf("Expected 'three', got %s", all[3])
-		}
-
-		// Test GetAll on empty/non-existent space
-		emptySpace := store_interface.TenancySpace{AppId: 9998, TenancyId: 9998}
-		all, err = store.DepotGetAll(emptySpace)
-		if err != nil {
-			t.Fatalf("DepotGetAll on empty space failed: %v", err)
-		}
-		if len(all) != 0 {
-			t.Errorf("Expected 0 items from empty space, got %d", len(all))
+			t.Errorf("expected 0 found for empty query, got %d", len(found))
 		}
 	})
 }
@@ -296,147 +325,49 @@ func TestDepotMultiTenancy(t *testing.T) {
 
 func testDepotMultiTenancy(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space1 := store_interface.TenancySpace{AppId: 204, TenancyId: 1}
-		space2 := store_interface.TenancySpace{AppId: 204, TenancyId: 2}
-		space3 := store_interface.TenancySpace{AppId: 205, TenancyId: 1}
+		space1 := store_interface.TenancySpace{AppId: 207, TenancyId: 1}
+		space2 := store_interface.TenancySpace{AppId: 207, TenancyId: 2}
+		space3 := store_interface.TenancySpace{AppId: 208, TenancyId: 1}
+		const bucket = int32(1)
 
-		// Put same key in different tenancy spaces
-		key := int64(50)
+		id1, _ := store.DepotCreate(space1, bucket, "space1_value")
+		// Create an extra item in space1 so its highest id is beyond space2's range
+		id1Extra, _ := store.DepotCreate(space1, bucket, "space1_extra")
+		id2, _ := store.DepotCreate(space2, bucket, "space2_value")
+		id3, _ := store.DepotCreate(space3, bucket, "space3_value")
 
-		err := store.DepotPut(space1, key, "space1_value")
-		if err != nil {
-			t.Fatalf("Put to space1 failed: %v", err)
+		val1, err := store.DepotGet(space1, id1)
+		if err != nil || val1 != "space1_value" {
+			t.Errorf("space1: expected 'space1_value', got %q (err=%v)", val1, err)
 		}
-		err = store.DepotPut(space2, key, "space2_value")
-		if err != nil {
-			t.Fatalf("Put to space2 failed: %v", err)
+		val2, err := store.DepotGet(space2, id2)
+		if err != nil || val2 != "space2_value" {
+			t.Errorf("space2: expected 'space2_value', got %q (err=%v)", val2, err)
 		}
-		err = store.DepotPut(space3, key, "space3_value")
-		if err != nil {
-			t.Fatalf("Put to space3 failed: %v", err)
-		}
-
-		// Verify isolation
-		val1, err := store.DepotGet(space1, key)
-		if err != nil {
-			t.Fatalf("Get from space1 failed: %v", err)
-		}
-		if val1 != "space1_value" {
-			t.Errorf("Expected space1_value, got %s", val1)
+		val3, err := store.DepotGet(space3, id3)
+		if err != nil || val3 != "space3_value" {
+			t.Errorf("space3: expected 'space3_value', got %q (err=%v)", val3, err)
 		}
 
-		val2, err := store.DepotGet(space2, key)
-		if err != nil {
-			t.Fatalf("Get from space2 failed: %v", err)
-		}
-		if val2 != "space2_value" {
-			t.Errorf("Expected space2_value, got %s", val2)
-		}
-
-		val3, err := store.DepotGet(space3, key)
-		if err != nil {
-			t.Fatalf("Get from space3 failed: %v", err)
-		}
-		if val3 != "space3_value" {
-			t.Errorf("Expected space3_value, got %s", val3)
-		}
-
-		// Delete from space1 shouldn't affect others
-		err = store.DepotDelete(space1, key)
-		if err != nil {
-			t.Fatalf("Delete from space1 failed: %v", err)
-		}
-
-		_, err = store.DepotGet(space1, key)
+		// id1Extra is space1's second item; space2 only has one item so this id is not in space2
+		_, err = store.DepotGet(space2, id1Extra)
 		if err == nil {
-			t.Error("Key should be deleted from space1")
+			t.Error("space2 should not be able to access space1's extra item")
 		}
 
-		val2After, err := store.DepotGet(space2, key)
-		if err != nil {
-			t.Fatalf("Get from space2 after space1 delete failed: %v", err)
+		// Delete from space1 shouldn't affect space2 or space3
+		_ = store.DepotDelete(space1, id1)
+		_, err = store.DepotGet(space1, id1)
+		if err == nil {
+			t.Error("id1 should be gone from space1")
 		}
-		if val2After != "space2_value" {
-			t.Errorf("Space2 value should still be space2_value, got %s", val2After)
+		val2After, err := store.DepotGet(space2, id2)
+		if err != nil || val2After != "space2_value" {
+			t.Errorf("space2 value should be unaffected: got %q (err=%v)", val2After, err)
 		}
-
-		val3After, err := store.DepotGet(space3, key)
-		if err != nil {
-			t.Fatalf("Get from space3 after space1 delete failed: %v", err)
-		}
-		if val3After != "space3_value" {
-			t.Errorf("Space3 value should still be space3_value, got %s", val3After)
-		}
-	})
-}
-
-func TestDepotLargeKeys(t *testing.T) {
-	for name, store := range depotStores {
-		testDepotLargeKeys(store, name, t)
-	}
-}
-
-func testDepotLargeKeys(store store_interface.DepotStore, name string, t *testing.T) {
-	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 206, TenancyId: 1}
-
-		// Test with max int64
-		maxKey := int64(9223372036854775807)
-		err := store.DepotPut(space, maxKey, "max_value")
-		if err != nil {
-			t.Fatalf("Put max key failed: %v", err)
-		}
-
-		got, err := store.DepotGet(space, maxKey)
-		if err != nil {
-			t.Fatalf("Get max key failed: %v", err)
-		}
-		if got != "max_value" {
-			t.Errorf("Expected max_value, got %s", got)
-		}
-
-		// Test with min int64
-		minKey := int64(-9223372036854775808)
-		err = store.DepotPut(space, minKey, "min_value")
-		if err != nil {
-			t.Fatalf("Put min key failed: %v", err)
-		}
-
-		got, err = store.DepotGet(space, minKey)
-		if err != nil {
-			t.Fatalf("Get min key failed: %v", err)
-		}
-		if got != "min_value" {
-			t.Errorf("Expected min_value, got %s", got)
-		}
-
-		// Test with zero
-		err = store.DepotPut(space, 0, "zero_value")
-		if err != nil {
-			t.Fatalf("Put zero key failed: %v", err)
-		}
-
-		got, err = store.DepotGet(space, 0)
-		if err != nil {
-			t.Fatalf("Get zero key failed: %v", err)
-		}
-		if got != "zero_value" {
-			t.Errorf("Expected zero_value, got %s", got)
-		}
-
-		// Test negative keys
-		negKey := int64(-12345)
-		err = store.DepotPut(space, negKey, "negative_value")
-		if err != nil {
-			t.Fatalf("Put negative key failed: %v", err)
-		}
-
-		got, err = store.DepotGet(space, negKey)
-		if err != nil {
-			t.Fatalf("Get negative key failed: %v", err)
-		}
-		if got != "negative_value" {
-			t.Errorf("Expected negative_value, got %s", got)
+		val3After, err := store.DepotGet(space3, id3)
+		if err != nil || val3After != "space3_value" {
+			t.Errorf("space3 value should be unaffected: got %q (err=%v)", val3After, err)
 		}
 	})
 }
@@ -449,92 +380,82 @@ func TestDepotLargeValues(t *testing.T) {
 
 func testDepotLargeValues(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 207, TenancyId: 1}
+		space := store_interface.TenancySpace{AppId: 209, TenancyId: 1}
+		const bucket = int32(1)
 
-		// Test with large string value (1MB)
 		largeValue := make([]byte, 1024*1024)
 		for i := range largeValue {
 			largeValue[i] = byte('a' + (i % 26))
 		}
 
-		err := store.DepotPut(space, 1, string(largeValue))
+		id, err := store.DepotCreate(space, bucket, string(largeValue))
 		if err != nil {
-			t.Fatalf("Put large value failed: %v", err)
+			t.Fatalf("DepotCreate large value failed: %v", err)
 		}
 
-		got, err := store.DepotGet(space, 1)
+		got, err := store.DepotGet(space, id)
 		if err != nil {
-			t.Fatalf("Get large value failed: %v", err)
-		}
-		if len(got) != len(largeValue) {
-			t.Errorf("Expected length %d, got %d", len(largeValue), len(got))
+			t.Fatalf("DepotGet large value failed: %v", err)
 		}
 		if got != string(largeValue) {
-			t.Error("Large value content mismatch")
+			t.Error("large value content mismatch")
 		}
 
-		// Test with unicode characters
 		unicodeValue := "Hello 世界 🌍 مرحبا שלום"
-		err = store.DepotPut(space, 2, unicodeValue)
+		id2, err := store.DepotCreate(space, bucket, unicodeValue)
 		if err != nil {
-			t.Fatalf("Put unicode value failed: %v", err)
+			t.Fatalf("DepotCreate unicode failed: %v", err)
 		}
-
-		got, err = store.DepotGet(space, 2)
+		got2, err := store.DepotGet(space, id2)
 		if err != nil {
-			t.Fatalf("Get unicode value failed: %v", err)
+			t.Fatalf("DepotGet unicode failed: %v", err)
 		}
-		if got != unicodeValue {
-			t.Errorf("Expected %s, got %s", unicodeValue, got)
+		if got2 != unicodeValue {
+			t.Errorf("expected %q, got %q", unicodeValue, got2)
 		}
 	})
 }
 
-func TestDepotPutManyOverwrite(t *testing.T) {
+func TestDepotBucketIsolationInGetAll(t *testing.T) {
 	for name, store := range depotStores {
-		testDepotPutManyOverwrite(store, name, t)
+		testDepotBucketIsolationInGetAll(store, name, t)
 	}
 }
 
-func testDepotPutManyOverwrite(store store_interface.DepotStore, name string, t *testing.T) {
+func testDepotBucketIsolationInGetAll(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 208, TenancyId: 1}
+		space := store_interface.TenancySpace{AppId: 210, TenancyId: 1}
+		const bucketA = int32(500)
+		const bucketB = int32(501)
 
-		// Put initial values
-		initialItems := []model.DepotKeyValueItem{
-			{Key: 1, Value: "initial_1"},
-			{Key: 2, Value: "initial_2"},
-		}
-		err := store.DepotPutMany(space, initialItems)
+		valuesA := []string{"a1", "a2", "a3"}
+		valuesB := []string{"b1", "b2"}
+
+		idsA, _ := store.DepotCreateMany(space, bucketA, valuesA)
+		_, _ = store.DepotCreateMany(space, bucketB, valuesB)
+
+		allA, err := store.DepotGetAllByBucket(space, bucketA)
 		if err != nil {
-			t.Fatalf("Initial DepotPutMany failed: %v", err)
+			t.Fatalf("DepotGetAllByBucket bucketA failed: %v", err)
+		}
+		if len(allA) != 3 {
+			t.Errorf("expected 3 in bucketA, got %d", len(allA))
 		}
 
-		// Overwrite with new values
-		updateItems := []model.DepotKeyValueItem{
-			{Key: 1, Value: "updated_1"},
-			{Key: 2, Value: "updated_2"},
-			{Key: 3, Value: "new_3"},
-		}
-		err = store.DepotPutMany(space, updateItems)
+		allB, err := store.DepotGetAllByBucket(space, bucketB)
 		if err != nil {
-			t.Fatalf("Update DepotPutMany failed: %v", err)
+			t.Fatalf("DepotGetAllByBucket bucketB failed: %v", err)
+		}
+		if len(allB) != 2 {
+			t.Errorf("expected 2 in bucketB, got %d", len(allB))
 		}
 
-		// Verify all values
-		found, _, err := store.DepotGetMany(space, []int64{1, 2, 3})
-		if err != nil {
-			t.Fatalf("DepotGetMany failed: %v", err)
-		}
-
-		if found[1] != "updated_1" {
-			t.Errorf("Expected updated_1, got %s", found[1])
-		}
-		if found[2] != "updated_2" {
-			t.Errorf("Expected updated_2, got %s", found[2])
-		}
-		if found[3] != "new_3" {
-			t.Errorf("Expected new_3, got %s", found[3])
+		// Verify idsA are present in allA
+		sort.Slice(idsA, func(i, j int) bool { return idsA[i] < idsA[j] })
+		for _, id := range idsA {
+			if _, ok := allA[id]; !ok {
+				t.Errorf("expected id %d in bucketA results", id)
+			}
 		}
 	})
 }

@@ -38,20 +38,17 @@ type TrackStore interface {
 }
 
 type DepotStore interface {
-	DepotPut(space TenancySpace, key int64, value string) error
-	DepotGet(space TenancySpace, key int64) (string, error)
-	DepotDelete(space TenancySpace, key int64) error
-	DepotPutMany(space TenancySpace, items []model.DepotKeyValueItem) error
-	DepotGetMany(space TenancySpace, keys []int64) (map[int64]string, []int64, error)
-	DepotGetAll(space TenancySpace) (map[int64]string, error)
-}
+	DepotCreate(space TenancySpace, bucketID int32, value string) (int64, error)
+	DepotCreateMany(space TenancySpace, bucketID int32, values []string) ([]int64, error)
 
-type QuickDepotStore interface {
-	QuickDepotUpsertMany(space TenancySpace, bucketID int32, values map[string]string) error
-	QuickDepotDeleteMany(space TenancySpace, bucketID int32, keys []string) error
-	QuickDepotAllBuckets(space TenancySpace) []int32
-	QuickDepotAllKeysForBucket(space TenancySpace, bucketID int32) ([]string, error)
-	QuickDepotFetch(space TenancySpace, bucketID int32, keys []string) (map[string]string, error)
+	DepotUpdate(space TenancySpace, id int64, value string) error
+
+	DepotGet(space TenancySpace, id int64) (string, error)
+	DepotGetMany(space TenancySpace, ids []int64) (map[int64]string, []int64, error)
+
+	DepotDelete(space TenancySpace, id int64) error
+	DepotDeleteByBucket(space TenancySpace, bucketID int32) error
+	DepotGetAllByBucket(space TenancySpace, bucketID int32) (map[int64]string, error) //VX:Note this wants to become paginated at some point.
 }
 
 // using its own ids, wayfinder uses track and depot to provide a query to payload interface.

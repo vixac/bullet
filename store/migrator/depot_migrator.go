@@ -1,9 +1,6 @@
 package migrator
 
 import (
-	"fmt"
-
-	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -13,6 +10,7 @@ type DepotMigrator struct {
 	Tenancy     store_interface.TenancySpace
 }
 
+/*
 // Migrate migrates the specified keys from source to target depot
 func (d *DepotMigrator) Migrate(keys []int64) error {
 	if len(keys) == 0 {
@@ -53,3 +51,4 @@ func (d *DepotMigrator) Migrate(keys []int64) error {
 	fmt.Printf("Depot: successfully migrated %d items\n", len(items))
 	return nil
 }
+*/

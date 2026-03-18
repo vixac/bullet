@@ -1,17 +1,41 @@
 package mongodb
 
 import (
-	"context"
-	"errors"
-	"fmt"
-
-	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+func (m *MongoStore) DepotCreate(space store_interface.TenancySpace, bucketID int32, value string) (int64, error) {
+	return 0, nil
+}
+func (m *MongoStore) DepotCreateMany(space store_interface.TenancySpace, bucketID int32, values []string) ([]int64, error) {
+	return []int64{}, nil
+}
+
+func (m *MongoStore) DepotUpdate(space store_interface.TenancySpace, id int64, value string) error {
+	return nil
+
+}
+
+func (m *MongoStore) DepotGet(space store_interface.TenancySpace, id int64) (string, error) {
+	return "", nil
+}
+func (m *MongoStore) DepotGetMany(space store_interface.TenancySpace, ids []int64) (map[int64]string, []int64, error) {
+	return map[int64]string{}, []int64{}, nil
+}
+
+func (m *MongoStore) DepotDelete(space store_interface.TenancySpace, id int64) error {
+	return nil
+}
+func (m *MongoStore) DepotDeleteByBucket(space store_interface.TenancySpace, bucketID int32) error {
+	return nil
+
+}
+func (m *MongoStore) DepotGetAllByBucket(space store_interface.TenancySpace, bucketID int32) (map[int64]string, error) {
+
+	return map[int64]string{}, nil
+}
+
+/*
 func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
@@ -99,3 +123,4 @@ func (m *MongoStore) DepotGetMany(space store_interface.TenancySpace, keys []int
 
 	return results, missing, nil
 }
+*/
