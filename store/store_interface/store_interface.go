@@ -46,6 +46,14 @@ type DepotStore interface {
 	DepotGetAll(space TenancySpace) (map[int64]string, error)
 }
 
+type QuickDepotStore interface {
+	QuickDepotUpsertMany(space TenancySpace, bucketID int32, values map[string]string) error
+	QuickDepotDeleteMany(space TenancySpace, bucketID int32, keys []string) error
+	QuickDepotAllBuckets(space TenancySpace) []int32
+	QuickDepotAllKeysForBucket(space TenancySpace, bucketID int32) ([]string, error)
+	QuickDepotFetch(space TenancySpace, bucketID int32, keys []string) (map[string]string, error)
+}
+
 // using its own ids, wayfinder uses track and depot to provide a query to payload interface.
 type WayFinderStore interface {
 	WayFinderPut(space TenancySpace, bucketID int32, key string, payload string, tag *int64, metric *float64) (int64, error)
@@ -205,6 +213,5 @@ type GroveStore interface {
 type Store interface {
 	TrackStore
 	DepotStore
-	WayFinderStore
 	GroveStore
 }

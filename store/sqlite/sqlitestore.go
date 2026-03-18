@@ -64,17 +64,6 @@ func (s *SQLiteStore) initSchema() error {
 			PRIMARY KEY (app_id, tenancy_id, key)
 		);`,
 
-		`CREATE TABLE IF NOT EXISTS wayfinder (
-			item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-			app_id INTEGER,
-			tenancy_id INTEGER,
-			bucket_id INTEGER,
-			key TEXT,
-			payload TEXT,
-			tag INTEGER,
-			metric REAL
-		);`,
-
 		// Grove tables
 		`CREATE TABLE IF NOT EXISTS grove_nodes (
 			app_id INTEGER,

@@ -1,14 +1,7 @@
 package api
 
-import (
-	"fmt"
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/vixac/bullet/model"
-	store_interface "github.com/vixac/bullet/store/store_interface"
-)
-
+/*
+// VX:TODO wayfinder is paused/retired
 var wayFinderStore store_interface.WayFinderStore
 
 func SetupWayFinderRouter(store store_interface.WayFinderStore, prefix string, engine *gin.Engine) *gin.Engine {
@@ -143,3 +136,4 @@ func wayFinderGetOneHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"item": item})
 }
+*/
