@@ -16,12 +16,18 @@ type nodeData struct {
 	depth    int // absolute depth from tree root
 }
 
+type depotEntry struct {
+	value    string
+	bucketID int32
+}
+
 type RamStore struct {
 	mu sync.RWMutex
 
-	tracks  map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
-	depots  map[store_interface.TenancySpace]map[int64]string                      // appID -> key -> value
-	wayfind map[store_interface.TenancySpace]map[int32]map[string]model.WayFinderQueryItem
+	tracks       map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
+	depots       map[store_interface.TenancySpace]map[int64]depotEntry                  // space -> id -> entry
+	depotNextIDs map[store_interface.TenancySpace]int64                                 // space -> next auto-increment id
+	wayfind      map[store_interface.TenancySpace]map[int32]map[string]model.WayFinderQueryItem
 
 	// Grove data structures (with TreeID for logical tree separation)
 	groveNodes        map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
@@ -35,8 +41,9 @@ type RamStore struct {
 // NewRamStore returns a new empty in-memory store
 func NewRamStore() *RamStore {
 	return &RamStore{
-		tracks:  make(map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue),
-		depots:  make(map[store_interface.TenancySpace]map[int64]string),
-		wayfind: make(map[store_interface.TenancySpace]map[int32]map[string]model.WayFinderQueryItem),
+		tracks:       make(map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue),
+		depots:       make(map[store_interface.TenancySpace]map[int64]depotEntry),
+		depotNextIDs: make(map[store_interface.TenancySpace]int64),
+		wayfind:      make(map[store_interface.TenancySpace]map[int32]map[string]model.WayFinderQueryItem),
 	}
 }

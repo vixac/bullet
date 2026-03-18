@@ -57,12 +57,15 @@ func (s *SQLiteStore) initSchema() error {
 		 ON track(app_id, tenancy_id, bucket_id, key);`,
 
 		`CREATE TABLE IF NOT EXISTS depot (
-			app_id INTEGER,
-			tenancy_id INTEGER,
-			key INTEGER,
-			value TEXT,
-			PRIMARY KEY (app_id, tenancy_id, key)
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			app_id INTEGER NOT NULL,
+			tenancy_id INTEGER NOT NULL,
+			bucket_id INTEGER NOT NULL,
+			value TEXT NOT NULL
 		);`,
+
+		`CREATE INDEX IF NOT EXISTS depot_space_bucket_idx
+		 ON depot(app_id, tenancy_id, bucket_id);`,
 
 		// Grove tables
 		`CREATE TABLE IF NOT EXISTS grove_nodes (
