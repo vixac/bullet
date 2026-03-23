@@ -51,19 +51,6 @@ type DepotStore interface {
 	DepotGetAllByBucket(space TenancySpace, bucketID int32) (map[int64]string, error) //VX:Note this wants to become paginated at some point.
 }
 
-// using its own ids, wayfinder uses track and depot to provide a query to payload interface.
-type WayFinderStore interface {
-	WayFinderPut(space TenancySpace, bucketID int32, key string, payload string, tag *int64, metric *float64) (int64, error)
-	WayFinderGetByPrefix(space TenancySpace, bucketID int32,
-		prefix string,
-		tags []int64, // optional slice of tags
-		metricValue *float64, // optional metric value
-		metricIsGt bool, // "gt" or "lt"
-	) ([]model.WayFinderQueryItem, error)
-
-	WayFinderGetOne(space TenancySpace, bucketID int32, key string) (*model.WayFinderGetResponse, error)
-}
-
 // Grove types
 type TreeID string
 type NodeID string

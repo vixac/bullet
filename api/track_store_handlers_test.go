@@ -145,7 +145,7 @@ func TestTrackInsertOneAndGetOne(t *testing.T) {
 	}
 }
 
-//VX:Note this test suite doesnt test all of track,yet, but wayfinder tests will cover alot of the functionality.
+//VX:Note this test suite doesnt test all of track,yet,
 
 func testTrackInsertOneAndGetOne(client store_interface.Store, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
