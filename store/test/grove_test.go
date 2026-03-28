@@ -420,6 +420,144 @@ func TestGroveTreeIsolation(t *testing.T) {
 	}
 }
 
+func TestGroveGetAncestorsBulk(t *testing.T) {
+	for name, store := range groveStores {
+		testGroveGetAncestorsBulk(store, name, t)
+	}
+}
+
+func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 8, TenancyId: 1}
+		treeID := store_interface.TreeID("tree8")
+
+		// Tree:
+		//       root
+		//      /    \
+		//     a      b
+		//    / \
+		//   c   d
+
+		root := store_interface.NodeID("root8")
+		a := store_interface.NodeID("a8")
+		b := store_interface.NodeID("b8")
+		c := store_interface.NodeID("c8")
+		d := store_interface.NodeID("d8")
+
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, a, &root, nil, nil)
+		store.CreateNode(space, treeID, b, &root, nil, nil)
+		store.CreateNode(space, treeID, c, &a, nil, nil)
+		store.CreateNode(space, treeID, d, &a, nil, nil)
+
+		t.Run("bulk lookup of leaf nodes", func(t *testing.T) {
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{c, d})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			// c's ancestors: a, root (root-first order)
+			cAnc := result[c]
+			if len(cAnc) != 2 {
+				t.Errorf("c: expected 2 ancestors, got %d: %v", len(cAnc), cAnc)
+			} else if cAnc[0] != root || cAnc[1] != a {
+				t.Errorf("c: expected [root, a], got %v", cAnc)
+			}
+			// d's ancestors: a, root (root-first order)
+			dAnc := result[d]
+			if len(dAnc) != 2 {
+				t.Errorf("d: expected 2 ancestors, got %d: %v", len(dAnc), dAnc)
+			} else if dAnc[0] != root || dAnc[1] != a {
+				t.Errorf("d: expected [root, a], got %v", dAnc)
+			}
+		})
+
+		t.Run("root node has no ancestors", func(t *testing.T) {
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{root})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			ancestors, ok := result[root]
+			if !ok {
+				t.Fatal("root should be present in result map")
+			}
+			if len(ancestors) != 0 {
+				t.Errorf("root should have 0 ancestors, got %v", ancestors)
+			}
+		})
+
+		t.Run("mixed found and not found", func(t *testing.T) {
+			missing := store_interface.NodeID("doesNotExist8")
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{c, missing})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 1 || notFound[0] != missing {
+				t.Errorf("expected [%s] in notFound, got %v", missing, notFound)
+			}
+			if _, ok := result[missing]; ok {
+				t.Error("missing node should not appear in result map")
+			}
+			if _, ok := result[c]; !ok {
+				t.Error("found node c should appear in result map")
+			}
+		})
+
+		t.Run("empty input", func(t *testing.T) {
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result) != 0 {
+				t.Errorf("expected empty result, got %v", result)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+		})
+
+		t.Run("all nodes not found", func(t *testing.T) {
+			x := store_interface.NodeID("x8")
+			y := store_interface.NodeID("y8")
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{x, y})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result) != 0 {
+				t.Errorf("expected empty result, got %v", result)
+			}
+			if len(notFound) != 2 {
+				t.Errorf("expected 2 missing nodes, got %v", notFound)
+			}
+		})
+
+		t.Run("mixed depths in single call", func(t *testing.T) {
+			// b is at depth 1, c is at depth 2
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{b, c, root})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			if len(result[b]) != 1 || result[b][0] != root {
+				t.Errorf("b: expected [root], got %v", result[b])
+			}
+			if len(result[c]) != 2 {
+				t.Errorf("c: expected 2 ancestors, got %d", len(result[c]))
+			}
+			if len(result[root]) != 0 {
+				t.Errorf("root: expected 0 ancestors, got %v", result[root])
+			}
+		})
+	})
+}
+
 func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 7, TenancyId: 1}

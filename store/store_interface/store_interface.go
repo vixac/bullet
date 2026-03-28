@@ -150,6 +150,10 @@ type GroveStore interface {
 	GetNodeInfo(space TenancySpace, treeID TreeID, node NodeID) (*NodeInfo, error)
 	GetChildren(space TenancySpace, treeID TreeID, node NodeID, pagination *PaginationParams) ([]NodeID, *PaginationResult, error)
 	GetAncestors(space TenancySpace, treeID TreeID, node NodeID, pagination *PaginationParams) ([]NodeID, *PaginationResult, error)
+	// GetAncestorsBulk returns ancestors for multiple nodes in a single call.
+	// The returned map contains found nodes (key = node, value = ancestors ordered root-first).
+	// The second return value lists node IDs that were not found.
+	GetAncestorsBulk(space TenancySpace, treeID TreeID, nodes []NodeID) (map[NodeID][]NodeID, []NodeID, error)
 	GetDescendants(space TenancySpace, treeID TreeID, node NodeID, opts *DescendantOptions) ([]NodeWithDepth, *PaginationResult, error)
 }
 

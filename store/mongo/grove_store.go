@@ -36,6 +36,10 @@ func (m *MongoStore) GetAncestors(space store_interface.TenancySpace, treeID sto
 	return nil, nil, ErrGroveNotImplemented
 }
 
+func (m *MongoStore) GetAncestorsBulk(space store_interface.TenancySpace, treeID store_interface.TreeID, nodes []store_interface.NodeID) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+	return nil, nil, ErrGroveNotImplemented
+}
+
 func (m *MongoStore) GetDescendants(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, opts *store_interface.DescendantOptions) ([]store_interface.NodeWithDepth, *store_interface.PaginationResult, error) {
 	return nil, nil, ErrGroveNotImplemented
 }

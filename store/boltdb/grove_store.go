@@ -589,6 +589,66 @@ func (b *BoltStore) GetAncestors(
 	return ancestors, &store_interface.PaginationResult{NextCursor: nil}, err
 }
 
+// GetAncestorsBulk gets ancestors for multiple nodes.
+func (b *BoltStore) GetAncestorsBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+	result := make(map[store_interface.NodeID][]store_interface.NodeID)
+	var notFound []store_interface.NodeID
+
+	err := b.db.View(func(tx *bbolt.Tx) error {
+		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
+		closureBkt := tx.Bucket(groveClosureBucket(space, treeID))
+
+		for _, node := range nodes {
+			if nodesBkt == nil || nodesBkt.Get([]byte(node)) == nil {
+				notFound = append(notFound, node)
+				continue
+			}
+
+			if closureBkt == nil {
+				result[node] = []store_interface.NodeID{}
+				continue
+			}
+
+			type ancestorEntry struct {
+				id    store_interface.NodeID
+				depth int
+			}
+			var entries []ancestorEntry
+
+			c := closureBkt.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				var entry closureEntry
+				if err := json.Unmarshal(v, &entry); err != nil {
+					continue
+				}
+				if entry.DescendantID == string(node) && entry.AncestorID != string(node) {
+					entries = append(entries, ancestorEntry{
+						id:    store_interface.NodeID(entry.AncestorID),
+						depth: entry.Depth,
+					})
+				}
+			}
+
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].depth > entries[j].depth
+			})
+
+			ancestors := make([]store_interface.NodeID, len(entries))
+			for i, e := range entries {
+				ancestors[i] = e.id
+			}
+			result[node] = ancestors
+		}
+		return nil
+	})
+
+	return result, notFound, err
+}
+
 // GetDescendants gets all descendants of a node
 func (b *BoltStore) GetDescendants(
 	space store_interface.TenancySpace,
