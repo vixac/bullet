@@ -154,6 +154,10 @@ type GroveStore interface {
 	// The returned map contains found nodes (key = node, value = ancestors ordered root-first).
 	// The second return value lists node IDs that were not found.
 	GetAncestorsBulk(space TenancySpace, treeID TreeID, nodes []NodeID) (map[NodeID][]NodeID, []NodeID, error)
+	// GetNodeLocalAggregatesBulk returns local aggregates for multiple nodes in a single call.
+	// The returned map contains found nodes (key = node, value = aggregates map).
+	// The second return value lists node IDs that were not found.
+	GetNodeLocalAggregatesBulk(space TenancySpace, treeID TreeID, nodes []NodeID) (map[NodeID]map[AggregateKey]AggregateValue, []NodeID, error)
 	GetDescendants(space TenancySpace, treeID TreeID, node NodeID, opts *DescendantOptions) ([]NodeWithDepth, *PaginationResult, error)
 }
 

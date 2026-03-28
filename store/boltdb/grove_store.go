@@ -803,6 +803,50 @@ func (b *BoltStore) GetNodeLocalAggregates(
 	return result, err
 }
 
+// GetNodeLocalAggregatesBulk gets local aggregates for multiple nodes.
+// Returns a map of node -> aggregates and a slice of not-found node IDs.
+func (b *BoltStore) GetNodeLocalAggregatesBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	if len(nodes) == 0 {
+		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+	}
+
+	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+	var notFound []store_interface.NodeID
+
+	err := b.db.View(func(tx *bbolt.Tx) error {
+		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
+		aggregatesBkt := tx.Bucket(groveAggregatesBucket(space, treeID))
+
+		for _, node := range nodes {
+			if nodesBkt == nil || nodesBkt.Get([]byte(node)) == nil {
+				notFound = append(notFound, node)
+				continue
+			}
+			aggs := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+			if aggregatesBkt != nil {
+				c := aggregatesBkt.Cursor()
+				prefix := []byte(fmt.Sprintf("%s:", node))
+				for k, v := c.Seek(prefix); k != nil && len(k) >= len(prefix) && string(k[:len(prefix)]) == string(prefix); k, v = c.Next() {
+					keyStr := string(k[len(prefix):])
+					var value int64
+					if err := json.Unmarshal(v, &value); err != nil {
+						return err
+					}
+					aggs[store_interface.AggregateKey(keyStr)] = store_interface.AggregateValue(value)
+				}
+			}
+			result[node] = aggs
+		}
+		return nil
+	})
+
+	return result, notFound, err
+}
+
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (b *BoltStore) GetNodeWithDescendantsAggregates(
 	space store_interface.TenancySpace,
