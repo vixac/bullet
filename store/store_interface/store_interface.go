@@ -136,7 +136,6 @@ type GroveStore interface {
 	DeleteNode(space TenancySpace, treeID TreeID, node NodeID, soft bool) error
 	MoveNode(space TenancySpace, treeID TreeID, node NodeID, newParent *NodeID, newPosition *ChildPosition) error
 
-	// Aggregates (clarified semantics)
 	ApplyAggregateMutation(
 		space TenancySpace,
 		treeID TreeID,
@@ -146,52 +145,12 @@ type GroveStore interface {
 	) error
 	GetNodeLocalAggregates(space TenancySpace, treeID TreeID, node NodeID) (map[AggregateKey]AggregateValue, error)           // Node only
 	GetNodeWithDescendantsAggregates(space TenancySpace, treeID TreeID, node NodeID) (map[AggregateKey]AggregateValue, error) // Node + all descendants
+
 	Exists(space TenancySpace, treeID TreeID, node NodeID) (bool, error)
 	GetNodeInfo(space TenancySpace, treeID TreeID, node NodeID) (*NodeInfo, error)
 	GetChildren(space TenancySpace, treeID TreeID, node NodeID, pagination *PaginationParams) ([]NodeID, *PaginationResult, error)
 	GetAncestors(space TenancySpace, treeID TreeID, node NodeID, pagination *PaginationParams) ([]NodeID, *PaginationResult, error)
 	GetDescendants(space TenancySpace, treeID TreeID, node NodeID, opts *DescendantOptions) ([]NodeWithDepth, *PaginationResult, error)
-
-	//TODO: Restore	RestoreNode(space TenancySpace, treeID TreeID, node NodeID) error
-
-	/*
-		// Batch operations
-		CreateNodes(space TenancySpace, treeID TreeID, nodes []NodeCreation) error
-		DeleteNodes(space TenancySpace, treeID TreeID, nodes []NodeID, soft bool) error
-		MoveNodes(space TenancySpace, treeID TreeID, moves []NodeMove) error
-		ExistsMany(space TenancySpace, treeID TreeID, nodes []NodeID) (map[NodeID]bool, error)
-	*/
-	// Node queries
-
-	//GetParent(space TenancySpace, treeID TreeID, node NodeID) (*NodeID, error)
-
-	// Child ordering
-	//TODO: Restore	ReorderChild(space TenancySpace, treeID TreeID, node NodeID, newPosition ChildPosition) error
-
-	// Tree traversal (with pagination)
-
-	/*
-		// Path and relationship queries
-		GetPath(space TenancySpace, treeID TreeID, node NodeID) ([]NodeID, error) // Path from root to node
-		GetDepth(space TenancySpace, treeID TreeID, node NodeID) (int, error)     // Depth from root
-		IsAncestor(space TenancySpace, treeID TreeID, ancestor NodeID, descendant NodeID) (bool, error)
-	*/
-	// Advanced queries
-	//	FindNodes(space TenancySpace, treeID TreeID, filter NodeFilter, pagination *PaginationParams) ([]NodeInfo, *PaginationResult, error)
-	//ListDeleted(space TenancySpace, treeID TreeID, pagination *PaginationParams) ([]NodeID, *PaginationResult, error)
-
-	// Metadata operations
-	//	GetNodeMetadata(space TenancySpace, treeID TreeID, node NodeID) (*NodeMetadata, error)
-	//	UpdateNodeMetadata(space TenancySpace, treeID TreeID, node NodeID, metadata NodeMetadata) error
-	// Statistics
-	//	GetTreeStats(space TenancySpace, treeID TreeID, root NodeID) (*TreeStats, error)
-
-	//Not needed yet
-	/*
-	   RegisterAggregate(key AggregateKey) error
-	   UnregisterAggregate(key AggregateKey) error
-	   ListAggregates() ([]AggregateKey, error)
-	*/
 }
 
 type Store interface {
@@ -199,3 +158,46 @@ type Store interface {
 	DepotStore
 	GroveStore
 }
+
+//Some extra Grove ideas
+
+//TODO: Restore	RestoreNode(space TenancySpace, treeID TreeID, node NodeID) error
+
+/*
+	// Batch operations
+	CreateNodes(space TenancySpace, treeID TreeID, nodes []NodeCreation) error
+	DeleteNodes(space TenancySpace, treeID TreeID, nodes []NodeID, soft bool) error
+	MoveNodes(space TenancySpace, treeID TreeID, moves []NodeMove) error
+	ExistsMany(space TenancySpace, treeID TreeID, nodes []NodeID) (map[NodeID]bool, error)
+*/
+// Node queries
+
+//GetParent(space TenancySpace, treeID TreeID, node NodeID) (*NodeID, error)
+
+// Child ordering
+//TODO: Restore	ReorderChild(space TenancySpace, treeID TreeID, node NodeID, newPosition ChildPosition) error
+
+// Tree traversal (with pagination)
+
+/*
+	// Path and relationship queries
+	GetPath(space TenancySpace, treeID TreeID, node NodeID) ([]NodeID, error) // Path from root to node
+	GetDepth(space TenancySpace, treeID TreeID, node NodeID) (int, error)     // Depth from root
+	IsAncestor(space TenancySpace, treeID TreeID, ancestor NodeID, descendant NodeID) (bool, error)
+*/
+// Advanced queries
+//	FindNodes(space TenancySpace, treeID TreeID, filter NodeFilter, pagination *PaginationParams) ([]NodeInfo, *PaginationResult, error)
+//ListDeleted(space TenancySpace, treeID TreeID, pagination *PaginationParams) ([]NodeID, *PaginationResult, error)
+
+// Metadata operations
+//	GetNodeMetadata(space TenancySpace, treeID TreeID, node NodeID) (*NodeMetadata, error)
+//	UpdateNodeMetadata(space TenancySpace, treeID TreeID, node NodeID, metadata NodeMetadata) error
+// Statistics
+//	GetTreeStats(space TenancySpace, treeID TreeID, root NodeID) (*TreeStats, error)
+
+//Not needed yet
+/*
+   RegisterAggregate(key AggregateKey) error
+   UnregisterAggregate(key AggregateKey) error
+   ListAggregates() ([]AggregateKey, error)
+*/
