@@ -418,6 +418,58 @@ func (r *RamStore) GetAncestors(
 	return ancestors, &store_interface.PaginationResult{NextCursor: nil}, nil
 }
 
+// GetAncestorsBulk gets ancestors for multiple nodes.
+func (r *RamStore) GetAncestorsBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[store_interface.NodeID][]store_interface.NodeID)
+	var notFound []store_interface.NodeID
+
+	for _, node := range nodes {
+		if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
+			notFound = append(notFound, node)
+			continue
+		}
+		if _, exists := r.groveNodes[space][treeID][node]; !exists {
+			notFound = append(notFound, node)
+			continue
+		}
+
+		type ancestorEntry struct {
+			id    store_interface.NodeID
+			depth int
+		}
+		var entries []ancestorEntry
+		for ancestor, descendants := range r.groveClosure[space][treeID] {
+			if depth, isAnc := descendants[node]; isAnc && ancestor != node {
+				entries = append(entries, ancestorEntry{id: ancestor, depth: depth})
+			}
+		}
+
+		// Sort by depth descending so root comes first (highest depth = farthest ancestor)
+		for i := 0; i < len(entries); i++ {
+			for j := i + 1; j < len(entries); j++ {
+				if entries[j].depth > entries[i].depth {
+					entries[i], entries[j] = entries[j], entries[i]
+				}
+			}
+		}
+
+		ancestors := make([]store_interface.NodeID, len(entries))
+		for i, e := range entries {
+			ancestors[i] = e.id
+		}
+		result[node] = ancestors
+	}
+
+	return result, notFound, nil
+}
+
 // GetDescendants gets all descendants of a node (with pagination stub)
 func (r *RamStore) GetDescendants(
 	space store_interface.TenancySpace,

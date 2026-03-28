@@ -3,6 +3,7 @@ package sqlite_store
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 
 	"github.com/vixac/bullet/store/store_interface"
 )
@@ -457,6 +458,70 @@ func (s *SQLiteStore) GetAncestors(
 	}
 
 	return ancestors, &store_interface.PaginationResult{NextCursor: nil}, nil
+}
+
+// GetAncestorsBulk gets ancestors for multiple nodes in a single query.
+// Returns a map of node -> ancestors (ordered root-first) and a slice of not-found node IDs.
+func (s *SQLiteStore) GetAncestorsBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+	if len(nodes) == 0 {
+		return map[store_interface.NodeID][]store_interface.NodeID{}, nil, nil
+	}
+
+	placeholders := make([]string, len(nodes))
+	args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
+	for i, node := range nodes {
+		placeholders[i] = "?"
+		args = append(args, string(node))
+	}
+
+	// Include self-references so we can detect which nodes exist vs which are missing.
+	// Self-references (depth=0, ancestor_id=descendant_id) are excluded from ancestors
+	// but their presence tells us the node exists.
+	query := `
+		SELECT descendant_id, ancestor_id FROM grove_closure
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ?
+		AND descendant_id IN (` + strings.Join(placeholders, ",") + `)
+		ORDER BY descendant_id, depth DESC`
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[store_interface.NodeID][]store_interface.NodeID)
+	seen := make(map[store_interface.NodeID]bool)
+
+	for rows.Next() {
+		var descID, ancID string
+		if err := rows.Scan(&descID, &ancID); err != nil {
+			return nil, nil, err
+		}
+		nodeID := store_interface.NodeID(descID)
+		seen[nodeID] = true
+		if ancID != descID {
+			result[nodeID] = append(result[nodeID], store_interface.NodeID(ancID))
+		} else if _, ok := result[nodeID]; !ok {
+			// Root node: exists but has no ancestors; ensure key is present
+			result[nodeID] = []store_interface.NodeID{}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	var notFound []store_interface.NodeID
+	for _, node := range nodes {
+		if !seen[node] {
+			notFound = append(notFound, node)
+		}
+	}
+
+	return result, notFound, nil
 }
 
 // GetDescendants gets all descendants of a node
