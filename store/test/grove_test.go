@@ -558,6 +558,148 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 	})
 }
 
+func TestGroveGetNodeLocalAggregatesBulk(t *testing.T) {
+	for name, store := range groveStores {
+		testGroveGetNodeLocalAggregatesBulk(store, name, t)
+	}
+}
+
+func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 9, TenancyId: 1}
+		treeID := store_interface.TreeID("tree9")
+
+		// Tree:
+		//       root
+		//      /    \
+		//     a      b
+		//    /
+		//   c
+
+		root := store_interface.NodeID("root9")
+		a := store_interface.NodeID("a9")
+		b := store_interface.NodeID("b9")
+		c := store_interface.NodeID("c9")
+
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, a, &root, nil, nil)
+		store.CreateNode(space, treeID, b, &root, nil, nil)
+		store.CreateNode(space, treeID, c, &a, nil, nil)
+
+		// Apply aggregates: a has count=5,value=100; b has count=3
+		store.ApplyAggregateMutation(space, treeID, "m1", a, store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 5,
+			store_interface.AggregateKey("value"): 100,
+		})
+		store.ApplyAggregateMutation(space, treeID, "m2", b, store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 3,
+		})
+		// root and c have no aggregates
+
+		t.Run("bulk lookup returns correct aggregates", func(t *testing.T) {
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{a, b})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			if result[a][store_interface.AggregateKey("count")] != 5 {
+				t.Errorf("a: expected count=5, got %d", result[a][store_interface.AggregateKey("count")])
+			}
+			if result[a][store_interface.AggregateKey("value")] != 100 {
+				t.Errorf("a: expected value=100, got %d", result[a][store_interface.AggregateKey("value")])
+			}
+			if result[b][store_interface.AggregateKey("count")] != 3 {
+				t.Errorf("b: expected count=3, got %d", result[b][store_interface.AggregateKey("count")])
+			}
+		})
+
+		t.Run("node with no aggregates returns empty map", func(t *testing.T) {
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{root, c})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			if _, ok := result[root]; !ok {
+				t.Error("root should be present in result map")
+			}
+			if len(result[root]) != 0 {
+				t.Errorf("root: expected empty aggregates, got %v", result[root])
+			}
+			if len(result[c]) != 0 {
+				t.Errorf("c: expected empty aggregates, got %v", result[c])
+			}
+		})
+
+		t.Run("mixed found and not found", func(t *testing.T) {
+			missing := store_interface.NodeID("doesNotExist9")
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{a, missing})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 1 || notFound[0] != missing {
+				t.Errorf("expected [%s] in notFound, got %v", missing, notFound)
+			}
+			if _, ok := result[missing]; ok {
+				t.Error("missing node should not appear in result map")
+			}
+			if _, ok := result[a]; !ok {
+				t.Error("found node a should appear in result map")
+			}
+		})
+
+		t.Run("empty input", func(t *testing.T) {
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result) != 0 {
+				t.Errorf("expected empty result, got %v", result)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+		})
+
+		t.Run("all nodes not found", func(t *testing.T) {
+			x := store_interface.NodeID("x9")
+			y := store_interface.NodeID("y9")
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{x, y})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result) != 0 {
+				t.Errorf("expected empty result, got %v", result)
+			}
+			if len(notFound) != 2 {
+				t.Errorf("expected 2 missing nodes, got %v", notFound)
+			}
+		})
+
+		t.Run("mixed nodes with and without aggregates", func(t *testing.T) {
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{a, b, c, root})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			if len(result) != 4 {
+				t.Errorf("expected 4 nodes in result, got %d", len(result))
+			}
+			if result[a][store_interface.AggregateKey("count")] != 5 {
+				t.Errorf("a: expected count=5, got %d", result[a][store_interface.AggregateKey("count")])
+			}
+			if len(result[c]) != 0 {
+				t.Errorf("c: expected empty aggregates, got %v", result[c])
+			}
+		})
+	})
+}
+
 func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
 		space := store_interface.TenancySpace{AppId: 7, TenancyId: 1}

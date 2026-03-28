@@ -600,6 +600,45 @@ func (r *RamStore) GetNodeLocalAggregates(
 	return result, nil
 }
 
+// GetNodeLocalAggregatesBulk gets local aggregates for multiple nodes.
+// Returns a map of node -> aggregates and a slice of not-found node IDs.
+func (r *RamStore) GetNodeLocalAggregatesBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	if len(nodes) == 0 {
+		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+	var notFound []store_interface.NodeID
+
+	for _, node := range nodes {
+		if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
+			notFound = append(notFound, node)
+			continue
+		}
+		if _, exists := r.groveNodes[space][treeID][node]; !exists {
+			notFound = append(notFound, node)
+			continue
+		}
+		aggs := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+		if r.groveAggregates != nil && r.groveAggregates[space] != nil &&
+			r.groveAggregates[space][treeID] != nil && r.groveAggregates[space][treeID][node] != nil {
+			for k, v := range r.groveAggregates[space][treeID][node] {
+				aggs[k] = v
+			}
+		}
+		result[node] = aggs
+	}
+
+	return result, notFound, nil
+}
+
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (r *RamStore) GetNodeWithDescendantsAggregates(
 	space store_interface.TenancySpace,

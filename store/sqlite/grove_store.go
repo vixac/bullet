@@ -678,6 +678,77 @@ func (s *SQLiteStore) GetNodeLocalAggregates(
 	return result, nil
 }
 
+// GetNodeLocalAggregatesBulk gets local aggregates for multiple nodes in a single query.
+// Returns a map of node -> aggregates and a slice of not-found node IDs.
+func (s *SQLiteStore) GetNodeLocalAggregatesBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	if len(nodes) == 0 {
+		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+	}
+
+	placeholders := make([]string, len(nodes))
+	args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
+	for i, node := range nodes {
+		placeholders[i] = "?"
+		args = append(args, string(node))
+	}
+
+	// LEFT JOIN so nodes with zero aggregates still appear (with NULL key/value),
+	// letting us distinguish "node exists but has no aggregates" from "node not found".
+	query := `
+		SELECT gn.node_id, ga.aggregate_key, ga.aggregate_value
+		FROM grove_nodes gn
+		LEFT JOIN grove_aggregates ga
+		  ON  gn.app_id     = ga.app_id
+		  AND gn.tenancy_id = ga.tenancy_id
+		  AND gn.tree_id    = ga.tree_id
+		  AND gn.node_id    = ga.node_id
+		WHERE gn.app_id     = ?
+		  AND gn.tenancy_id = ?
+		  AND gn.tree_id    = ?
+		  AND gn.node_id    IN (` + strings.Join(placeholders, ",") + `)
+		  AND gn.is_deleted = 0`
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+
+	for rows.Next() {
+		var nodeStr string
+		var aggKey *string
+		var aggVal *int64
+		if err := rows.Scan(&nodeStr, &aggKey, &aggVal); err != nil {
+			return nil, nil, err
+		}
+		nodeID := store_interface.NodeID(nodeStr)
+		if _, ok := result[nodeID]; !ok {
+			result[nodeID] = make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+		}
+		if aggKey != nil {
+			result[nodeID][store_interface.AggregateKey(*aggKey)] = store_interface.AggregateValue(*aggVal)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	var notFound []store_interface.NodeID
+	for _, node := range nodes {
+		if _, ok := result[node]; !ok {
+			notFound = append(notFound, node)
+		}
+	}
+
+	return result, notFound, nil
+}
+
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (s *SQLiteStore) GetNodeWithDescendantsAggregates(
 	space store_interface.TenancySpace,
