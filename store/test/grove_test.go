@@ -804,3 +804,138 @@ func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *te
 		}
 	})
 }
+
+func TestGroveGetNodeWithDescendantsAggregatesBulk(t *testing.T) {
+	for name, store := range groveStores {
+		if name == "boltdb" {
+			continue
+		}
+		testGroveGetNodeWithDescendantsAggregatesBulk(store, name, t)
+	}
+}
+
+func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 10, TenancyId: 1}
+		treeID := store_interface.TreeID("tree10")
+
+		// Tree:
+		//       root
+		//      /    \
+		//     a      b
+		//    /
+		//   c
+		//
+		// Aggregates: a=count:5,value:100  b=count:3  c=count:2  root=none
+
+		root := store_interface.NodeID("root10")
+		a := store_interface.NodeID("a10")
+		b := store_interface.NodeID("b10")
+		c := store_interface.NodeID("c10")
+
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, a, &root, nil, nil)
+		store.CreateNode(space, treeID, b, &root, nil, nil)
+		store.CreateNode(space, treeID, c, &a, nil, nil)
+
+		store.ApplyAggregateMutation(space, treeID, "m1", a, store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 5,
+			store_interface.AggregateKey("value"): 100,
+		})
+		store.ApplyAggregateMutation(space, treeID, "m2", b, store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 3,
+		})
+		store.ApplyAggregateMutation(space, treeID, "m3", c, store_interface.AggregateDeltas{
+			store_interface.AggregateKey("count"): 2,
+		})
+
+		t.Run("subtree sums are correct", func(t *testing.T) {
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{root, a, b})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			// root subtree: a(5)+b(3)+c(2)=10 count, a(100) value
+			if result[root][store_interface.AggregateKey("count")] != 10 {
+				t.Errorf("root: expected count=10, got %d", result[root][store_interface.AggregateKey("count")])
+			}
+			if result[root][store_interface.AggregateKey("value")] != 100 {
+				t.Errorf("root: expected value=100, got %d", result[root][store_interface.AggregateKey("value")])
+			}
+			// a subtree: a(5)+c(2)=7 count, a(100) value
+			if result[a][store_interface.AggregateKey("count")] != 7 {
+				t.Errorf("a: expected count=7, got %d", result[a][store_interface.AggregateKey("count")])
+			}
+			if result[a][store_interface.AggregateKey("value")] != 100 {
+				t.Errorf("a: expected value=100, got %d", result[a][store_interface.AggregateKey("value")])
+			}
+			// b subtree: b(3) count only
+			if result[b][store_interface.AggregateKey("count")] != 3 {
+				t.Errorf("b: expected count=3, got %d", result[b][store_interface.AggregateKey("count")])
+			}
+		})
+
+		t.Run("node with no aggregates returns empty map not notFound", func(t *testing.T) {
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{root})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			// root exists so must not be in notFound even though it has no local aggregates
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			if _, ok := result[root]; !ok {
+				t.Error("root should be present in result map")
+			}
+		})
+
+		t.Run("non-existent node goes to notFound", func(t *testing.T) {
+			missing := store_interface.NodeID("doesNotExist10")
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{a, missing})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 1 || notFound[0] != missing {
+				t.Errorf("expected [%s] in notFound, got %v", missing, notFound)
+			}
+			if _, ok := result[missing]; ok {
+				t.Error("missing node should not appear in result map")
+			}
+			if _, ok := result[a]; !ok {
+				t.Error("found node a should appear in result map")
+			}
+		})
+
+		t.Run("empty input", func(t *testing.T) {
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result) != 0 {
+				t.Errorf("expected empty result, got %v", result)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+		})
+
+		t.Run("overlapping subtrees are independent", func(t *testing.T) {
+			// root and a have overlapping subtrees; each should reflect its own subtree sum
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{root, a})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(notFound) != 0 {
+				t.Errorf("expected no missing nodes, got %v", notFound)
+			}
+			if result[root][store_interface.AggregateKey("count")] != 10 {
+				t.Errorf("root: expected count=10, got %d", result[root][store_interface.AggregateKey("count")])
+			}
+			if result[a][store_interface.AggregateKey("count")] != 7 {
+				t.Errorf("a: expected count=7, got %d", result[a][store_interface.AggregateKey("count")])
+			}
+		})
+	})
+}

@@ -59,3 +59,7 @@ func (m *MongoStore) GetNodeWithDescendantsAggregates(space store_interface.Tena
 func (m *MongoStore) GetNodeLocalAggregatesBulk(space store_interface.TenancySpace, treeID store_interface.TreeID, nodes []store_interface.NodeID) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
 	return nil, nil, ErrGroveNotImplemented
 }
+
+func (m *MongoStore) GetNodeWithDescendantsAggregatesBulk(space store_interface.TenancySpace, treeID store_interface.TreeID, nodes []store_interface.NodeID) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	return nil, nil, ErrGroveNotImplemented
+}
