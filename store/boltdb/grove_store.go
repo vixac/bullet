@@ -847,6 +847,15 @@ func (b *BoltStore) GetNodeLocalAggregatesBulk(
 	return result, notFound, err
 }
 
+// GetNodeWithDescendantsAggregatesBulk is not yet implemented for BoltDB.
+func (b *BoltStore) GetNodeWithDescendantsAggregatesBulk(
+	space store_interface.TenancySpace,
+	treeID store_interface.TreeID,
+	nodes []store_interface.NodeID,
+) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	return nil, nil, fmt.Errorf("GetNodeWithDescendantsAggregatesBulk not implemented for BoltDB")
+}
+
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (b *BoltStore) GetNodeWithDescendantsAggregates(
 	space store_interface.TenancySpace,

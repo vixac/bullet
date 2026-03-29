@@ -145,6 +145,7 @@ type GroveStore interface {
 	) error
 	GetNodeLocalAggregates(space TenancySpace, treeID TreeID, node NodeID) (map[AggregateKey]AggregateValue, error)           // Node only
 	GetNodeWithDescendantsAggregates(space TenancySpace, treeID TreeID, node NodeID) (map[AggregateKey]AggregateValue, error) // Node + all descendants
+	GetNodeWithDescendantsAggregatesBulk(space TenancySpace, treeID TreeID, nodes []NodeID) (map[NodeID]map[AggregateKey]AggregateValue, []NodeID, error)
 
 	Exists(space TenancySpace, treeID TreeID, node NodeID) (bool, error)
 	GetNodeInfo(space TenancySpace, treeID TreeID, node NodeID) (*NodeInfo, error)
