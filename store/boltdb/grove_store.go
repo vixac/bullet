@@ -304,7 +304,14 @@ func (b *BoltStore) MoveNode(
 			}
 		}
 
-		// Remove old ancestor relationships (except self-references)
+		// Remove ancestor relationships that are external to the moved subtree.
+		// We preserve intra-subtree relationships (e.g. C→D when moving C with child D),
+		// and only remove relationships whose ancestor is outside the subtree.
+		subtreeSet := make(map[string]bool, len(descendants))
+		for _, desc := range descendants {
+			subtreeSet[desc.id] = true
+		}
+
 		var keysToDelete [][]byte
 		c = closureBkt.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
@@ -312,12 +319,9 @@ func (b *BoltStore) MoveNode(
 			if err := json.Unmarshal(v, &entry); err != nil {
 				continue
 			}
-			// Delete if descendant is in our list and ancestor != descendant
-			for _, desc := range descendants {
-				if entry.DescendantID == desc.id && entry.AncestorID != entry.DescendantID {
-					keysToDelete = append(keysToDelete, append([]byte(nil), k...))
-					break
-				}
+			// Delete if descendant is in the subtree and ancestor is NOT in the subtree
+			if subtreeSet[entry.DescendantID] && !subtreeSet[entry.AncestorID] {
+				keysToDelete = append(keysToDelete, append([]byte(nil), k...))
 			}
 		}
 		for _, k := range keysToDelete {
