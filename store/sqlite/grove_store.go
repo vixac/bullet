@@ -266,15 +266,25 @@ func (s *SQLiteStore) MoveNode(
 	}
 	rows.Close()
 
-	// Remove old ancestor relationships (except self-references)
-	for _, desc := range descendants {
-		_, err = tx.Exec(`
-			DELETE FROM grove_closure
-			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND descendant_id = ? AND ancestor_id != ?`,
-			space.AppId, space.TenancyId, string(treeID), desc.id, desc.id)
-		if err != nil {
-			return err
-		}
+	// Remove ancestor relationships that are external to the moved subtree.
+	// We preserve intra-subtree relationships (e.g. C→D when moving C with child D),
+	// and only remove relationships whose ancestor is outside the subtree.
+	_, err = tx.Exec(`
+		DELETE FROM grove_closure
+		WHERE app_id = ? AND tenancy_id = ? AND tree_id = ?
+		AND descendant_id IN (
+			SELECT descendant_id FROM grove_closure
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND ancestor_id = ?
+		)
+		AND ancestor_id NOT IN (
+			SELECT descendant_id FROM grove_closure
+			WHERE app_id = ? AND tenancy_id = ? AND tree_id = ? AND ancestor_id = ?
+		)`,
+		space.AppId, space.TenancyId, string(treeID),
+		space.AppId, space.TenancyId, string(treeID), string(node),
+		space.AppId, space.TenancyId, string(treeID), string(node))
+	if err != nil {
+		return err
 	}
 
 	// Update node's parent and position (depth is now derived from closure table)

@@ -259,6 +259,155 @@ func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing
 	})
 }
 
+func TestGroveMoveNodeWithDescendants(t *testing.T) {
+	for name, store := range groveStores {
+		testGroveMoveNodeWithDescendants(store, name, t)
+	}
+}
+
+func testGroveMoveNodeWithDescendants(store store_interface.GroveStore, name string, t *testing.T) {
+	t.Run(name, func(t *testing.T) {
+		space := store_interface.TenancySpace{AppId: 11, TenancyId: 1}
+		treeID := store_interface.TreeID("tree11")
+
+		// Create tree:
+		//     root
+		//     /  \
+		//    A    Z
+		//   / \
+		//  B   C
+		//     / \
+		//    D   E
+
+		root := store_interface.NodeID("root11")
+		A := store_interface.NodeID("A11")
+		B := store_interface.NodeID("B11")
+		C := store_interface.NodeID("C11")
+		D := store_interface.NodeID("D11")
+		E := store_interface.NodeID("E11")
+		Z := store_interface.NodeID("Z11")
+
+		store.CreateNode(space, treeID, root, nil, nil, nil)
+		store.CreateNode(space, treeID, A, &root, nil, nil)
+		store.CreateNode(space, treeID, B, &A, nil, nil)
+		store.CreateNode(space, treeID, C, &A, nil, nil)
+		store.CreateNode(space, treeID, D, &C, nil, nil)
+		store.CreateNode(space, treeID, E, &C, nil, nil)
+		store.CreateNode(space, treeID, Z, &root, nil, nil)
+
+		// Move C (with its descendants D and E) from A to Z.
+		// Expected tree after move:
+		//     root
+		//     /  \
+		//    A    Z
+		//    |    |
+		//    B    C
+		//        / \
+		//       D   E
+
+		err := store.MoveNode(space, treeID, C, &Z, nil)
+		if err != nil {
+			t.Fatalf("Failed to move node: %v", err)
+		}
+
+		// C should now be a child of Z at depth 2
+		cInfo, err := store.GetNodeInfo(space, treeID, C)
+		if err != nil {
+			t.Fatalf("Failed to get C info: %v", err)
+		}
+		if *cInfo.Parent != Z {
+			t.Errorf("Expected C's parent to be Z, got %s", *cInfo.Parent)
+		}
+		if cInfo.Depth != 2 {
+			t.Errorf("Expected C's depth to be 2, got %d", cInfo.Depth)
+		}
+
+		// D should still be a child of C (not a child of Z)
+		dInfo, err := store.GetNodeInfo(space, treeID, D)
+		if err != nil {
+			t.Fatalf("Failed to get D info: %v", err)
+		}
+		if *dInfo.Parent != C {
+			t.Errorf("Expected D's parent to still be C after move, got %s", *dInfo.Parent)
+		}
+		if dInfo.Depth != 3 {
+			t.Errorf("Expected D's depth to be 3, got %d", dInfo.Depth)
+		}
+
+		// E should still be a child of C (not a child of Z)
+		eInfo, err := store.GetNodeInfo(space, treeID, E)
+		if err != nil {
+			t.Fatalf("Failed to get E info: %v", err)
+		}
+		if *eInfo.Parent != C {
+			t.Errorf("Expected E's parent to still be C after move, got %s", *eInfo.Parent)
+		}
+		if eInfo.Depth != 3 {
+			t.Errorf("Expected E's depth to be 3, got %d", eInfo.Depth)
+		}
+
+		// C's descendants should be exactly D and E (at relative depth 1)
+		cDescendants, _, err := store.GetDescendants(space, treeID, C, nil)
+		if err != nil {
+			t.Fatalf("Failed to get descendants of C: %v", err)
+		}
+		if len(cDescendants) != 2 {
+			t.Errorf("Expected C to have 2 descendants (D, E), got %d", len(cDescendants))
+		}
+		for _, desc := range cDescendants {
+			if desc.NodeID != D && desc.NodeID != E {
+				t.Errorf("Unexpected descendant of C: %s", desc.NodeID)
+			}
+			if desc.Depth != 1 {
+				t.Errorf("Expected D/E to be at relative depth 1 under C, got %d for %s", desc.Depth, desc.NodeID)
+			}
+		}
+
+		// Z's descendants should be C (depth 1), D (depth 2), and E (depth 2)
+		zDescendants, _, err := store.GetDescendants(space, treeID, Z, nil)
+		if err != nil {
+			t.Fatalf("Failed to get descendants of Z: %v", err)
+		}
+		if len(zDescendants) != 3 {
+			t.Errorf("Expected Z to have 3 descendants (C, D, E), got %d", len(zDescendants))
+		}
+		zDescMap := make(map[store_interface.NodeID]int)
+		for _, desc := range zDescendants {
+			zDescMap[desc.NodeID] = desc.Depth
+		}
+		if zDescMap[C] != 1 {
+			t.Errorf("Expected C at depth 1 under Z, got %d", zDescMap[C])
+		}
+		if zDescMap[D] != 2 {
+			t.Errorf("Expected D at depth 2 under Z, got %d", zDescMap[D])
+		}
+		if zDescMap[E] != 2 {
+			t.Errorf("Expected E at depth 2 under Z, got %d", zDescMap[E])
+		}
+
+		// A's descendants should only be B — C, D, E were moved away
+		aDescendants, _, err := store.GetDescendants(space, treeID, A, nil)
+		if err != nil {
+			t.Fatalf("Failed to get descendants of A: %v", err)
+		}
+		if len(aDescendants) != 1 {
+			t.Errorf("Expected A to have 1 descendant (B only), got %d", len(aDescendants))
+		}
+		if len(aDescendants) == 1 && aDescendants[0].NodeID != B {
+			t.Errorf("Expected A's only descendant to be B, got %s", aDescendants[0].NodeID)
+		}
+
+		// D's ancestors should be C, Z, root (in root-first order)
+		dAncestors, _, err := store.GetAncestors(space, treeID, D, nil)
+		if err != nil {
+			t.Fatalf("Failed to get ancestors of D: %v", err)
+		}
+		if len(dAncestors) != 3 {
+			t.Errorf("Expected D to have 3 ancestors (root, Z, C), got %d: %v", len(dAncestors), dAncestors)
+		}
+	})
+}
+
 func TestGroveAggregates(t *testing.T) {
 	for name, store := range groveStores {
 		testGroveAggregates(store, name, t)

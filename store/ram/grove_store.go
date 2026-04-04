@@ -211,14 +211,20 @@ func (r *RamStore) MoveNode(
 		}
 	}
 
-	// Update closure table: remove old ancestor relationships
+	// Update closure table: remove ancestor relationships that are external to the moved subtree.
+	// We preserve intra-subtree relationships (e.g. C→D when moving C with child D),
+	// and only remove relationships whose ancestor is outside the subtree.
 	descendants := r.getDescendantsInternal(space, treeID, node)
 	descendants = append(descendants, node) // include node itself
 
+	subtreeSet := make(map[store_interface.NodeID]bool, len(descendants))
 	for _, desc := range descendants {
-		// Remove all old ancestors (except self-reference)
+		subtreeSet[desc] = true
+	}
+
+	for _, desc := range descendants {
 		for ancestor := range r.groveClosure[space][treeID] {
-			if ancestor != desc {
+			if !subtreeSet[ancestor] {
 				delete(r.groveClosure[space][treeID][ancestor], desc)
 			}
 		}
