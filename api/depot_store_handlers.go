@@ -2,129 +2,135 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
-var depotStore store_interface.DepotStore
+type depotHandler struct {
+	store store_interface.DepotStore
+}
 
+// SetupDepotRouter registers all depot endpoints under the given prefix.
+//
+// Endpoints:
+//
+//	POST   {prefix}/items            — create one
+//	POST   {prefix}/items/batch      — create many
+//	PUT    {prefix}/items/:id        — update
+//	GET    {prefix}/items/:id        — get one
+//	POST   {prefix}/items/batch-get  — get many (IDs in body)
+//	DELETE {prefix}/items/:id        — delete one
+//	DELETE {prefix}/bucket/:bucketId — delete by bucket
+//	GET    {prefix}/bucket/:bucketId — get all by bucket
 func SetupDepotRouter(store store_interface.DepotStore, prefix string, engine *gin.Engine) *gin.Engine {
-	depotStore = store
-	engine.POST(prefix+"/create-one", depotCreateHandler)
-	engine.POST(prefix+"/create-many", depotCreateManyHandler)
-	engine.POST(prefix+"/update", depotUpdateHandler)
-	engine.POST(prefix+"/get-one", depotGetHandler)
-	engine.POST(prefix+"/get-many", depotGetManyHandler)
-	engine.POST(prefix+"/delete-one", depotDeleteHandler)
-	engine.POST(prefix+"/delete-by-bucket", depotDeleteByBucketHandler)
-	engine.POST(prefix+"/get-all-by-bucket", depotGetAllByBucketHandler)
+	h := &depotHandler{store: store}
+	g := engine.Group(prefix)
+	g.POST("/items", h.createOne)
+	g.POST("/items/batch", h.createMany)
+	g.PUT("/items/:id", h.update)
+	g.GET("/items/:id", h.getOne)
+	g.POST("/items/batch-get", h.getMany)
+	g.DELETE("/items/:id", h.deleteOne)
+	g.DELETE("/bucket/:bucketId", h.deleteByBucket)
+	g.GET("/bucket/:bucketId", h.getAllByBucket)
 	return engine
 }
 
-func depotCreateHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) createOne(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
 	var req model.DepotCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	id, err := depotStore.DepotCreate(space, req.BucketID, req.Value)
+	id, err := h.store.DepotCreate(space, req.BucketID, req.Value)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, model.DepotCreateResponse{ID: id})
+	c.JSON(http.StatusCreated, model.DepotCreateResponse{ID: id})
 }
 
-func depotCreateManyHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) createMany(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
 	var req model.DepotCreateManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	ids, err := depotStore.DepotCreateMany(space, req.BucketID, req.Values)
+	ids, err := h.store.DepotCreateMany(space, req.BucketID, req.Values)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, model.DepotCreateManyResponse{IDs: ids})
+	c.JSON(http.StatusCreated, model.DepotCreateManyResponse{IDs: ids})
 }
 
-func depotUpdateHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) update(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	var req model.DepotUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	if err := depotStore.DepotUpdate(space, req.ID, req.Value); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := h.store.DepotUpdate(space, id, req.Value); err != nil {
+		respondError(c, err)
 		return
 	}
 	c.Status(http.StatusOK)
 }
 
-func depotGetHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) getOne(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
-	var req model.DepotGetRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	value, err := depotStore.DepotGet(space, req.ID)
+	value, err := h.store.DepotGet(space, id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, model.DepotGetResponse{Value: value})
 }
 
-func depotGetManyHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) getMany(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
 	var req model.DepotGetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	values, missing, err := depotStore.DepotGetMany(space, req.IDs)
+	values, missing, err := h.store.DepotGetMany(space, req.IDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -132,63 +138,54 @@ func depotGetManyHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, model.DepotGetManyResponse{Values: values, Missing: missing})
 }
 
-func depotDeleteHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) deleteOne(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
-	var req model.DepotDeleteRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	if err := h.store.DepotDelete(space, id); err != nil {
+		respondError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
 
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	if err := depotStore.DepotDelete(space, req.ID); err != nil {
+func (h *depotHandler) deleteByBucket(c *gin.Context) {
+	space, err := extractSpace(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	bucketID, err := strconv.ParseInt(c.Param("bucketId"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucketId"})
+		return
+	}
+	if err := h.store.DepotDeleteByBucket(space, int32(bucketID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.Status(http.StatusOK)
+	c.Status(http.StatusNoContent)
 }
 
-func depotDeleteByBucketHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *depotHandler) getAllByBucket(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-
-	var req model.DepotBucketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	if err := depotStore.DepotDeleteByBucket(space, req.BucketID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.Status(http.StatusOK)
-}
-
-func depotGetAllByBucketHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+	bucketID, err := strconv.ParseInt(c.Param("bucketId"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucketId"})
 		return
 	}
-
-	var req model.DepotBucketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	space := store_interface.TenancySpace{AppId: appId, TenancyId: 0}
-	values, err := depotStore.DepotGetAllByBucket(space, req.BucketID)
+	values, err := h.store.DepotGetAllByBucket(space, int32(bucketID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

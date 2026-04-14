@@ -1,8 +1,6 @@
 package ram
 
 import (
-	"fmt"
-
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -52,7 +50,7 @@ func (m *RamStore) DepotUpdate(space store_interface.TenancySpace, id int64, val
 			return nil
 		}
 	}
-	return fmt.Errorf("depot item %d not found", id)
+	return store_interface.ErrNodeNotFound
 }
 
 func (m *RamStore) DepotGet(space store_interface.TenancySpace, id int64) (string, error) {
@@ -64,7 +62,7 @@ func (m *RamStore) DepotGet(space store_interface.TenancySpace, id int64) (strin
 			return entry.value, nil
 		}
 	}
-	return "", fmt.Errorf("depot item %d not found", id)
+	return "", store_interface.ErrNodeNotFound
 }
 
 func (m *RamStore) DepotGetMany(space store_interface.TenancySpace, ids []int64) (map[int64]string, []int64, error) {

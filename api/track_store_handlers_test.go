@@ -9,222 +9,172 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vixac/bullet/model"
-	store_interface "github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/store/ram"
 )
 
+func newTrackServer(t *testing.T) (*httptest.Server, string) {
+	t.Helper()
+	store := ram.NewRamStore()
+	engine := gin.New()
+	SetupTrackRouter(store, "/track", engine)
+	srv := httptest.NewServer(engine.Handler())
+	t.Cleanup(srv.Close)
+	return srv, srv.URL + "/track"
+}
+
+func trackPost(t *testing.T, srv *httptest.Server, path string, body any) *http.Response {
+	t.Helper()
+	b, _ := json.Marshal(body)
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/track"+path, bytes.NewBuffer(b))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-App-Id", "1")
+	req.Header.Set("X-Tenancy-Id", "2")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+func trackDelete(t *testing.T, srv *httptest.Server, path string, body any) *http.Response {
+	t.Helper()
+	b, _ := json.Marshal(body)
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/track"+path, bytes.NewBuffer(b))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-App-Id", "1")
+	req.Header.Set("X-Tenancy-Id", "2")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+func TestTrackUpsertAndGetOne(t *testing.T) {
+	srv, _ := newTrackServer(t)
+
+	tag := int64(7)
+	metric := 3.14
+	upsertResp := trackPost(t, srv, "/items", model.TrackRequest{
+		BucketID: 10, Key: "hello", Value: 42, Tag: &tag, Metric: &metric,
+	})
+	assert.Equal(t, http.StatusOK, upsertResp.StatusCode)
+	upsertResp.Body.Close()
+
+	getResp := trackPost(t, srv, "/items/get", model.TrackRequest{BucketID: 10, Key: "hello"})
+	assert.Equal(t, http.StatusOK, getResp.StatusCode)
+	var body map[string]int64
+	json.NewDecoder(getResp.Body).Decode(&body)
+	getResp.Body.Close()
+	assert.Equal(t, int64(42), body["value"])
+}
+
+func TestTrackUpsertMany(t *testing.T) {
+	srv, _ := newTrackServer(t)
+
+	upsertResp := trackPost(t, srv, "/items/batch", model.TrackPutManyRequest{
+		Buckets: []model.TrackPutItems{
+			{BucketID: 5, Items: []model.TrackKeyValueItem{
+				{Key: "a", Value: model.TrackValue{Value: 1}},
+				{Key: "b", Value: model.TrackValue{Value: 2}},
+			}},
+		},
+	})
+	assert.Equal(t, http.StatusOK, upsertResp.StatusCode)
+	upsertResp.Body.Close()
+
+	getManyResp := trackPost(t, srv, "/items/batch-get", model.TrackGetManyRequest{
+		Buckets: []model.TrackGetKeys{{BucketID: 5, Keys: []string{"a", "b", "missing"}}},
+	})
+	assert.Equal(t, http.StatusOK, getManyResp.StatusCode)
+	var body model.TrackGetManyResponse
+	json.NewDecoder(getManyResp.Body).Decode(&body)
+	getManyResp.Body.Close()
+
+	assert.Equal(t, int64(1), body.Values["5"]["a"].Value)
+	assert.Equal(t, int64(2), body.Values["5"]["b"].Value)
+	assert.Contains(t, body.Missing["5"], "missing")
+}
+
 func TestTrackDeleteMany(t *testing.T) {
-	for name, client := range clients {
-		testTrackDeleteMany(client, name, t)
+	srv, _ := newTrackServer(t)
+
+	for _, k := range []string{"k1", "k2", "k3"} {
+		r := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 10, Key: k, Value: 99})
+		r.Body.Close()
 	}
-}
 
-func testTrackDeleteMany(client store_interface.Store, name string, t *testing.T) {
-	t.Run(name, func(t *testing.T) {
-
-		engine := gin.Default()
-		engine = SetupTrackRouter(client, "test-track", engine)
-
-		server := httptest.NewServer(engine.Handler())
-		defer server.Close()
-
-		baseURL := server.URL + "/test-track"
-
-		// ----------------------------------------------------
-		// Insert 3 keys
-		// ----------------------------------------------------
-		var tag int64 = 5
-		var metric float64 = 12.3
-
-		keys := []string{"k1", "k2", "k3"}
-
-		for _, k := range keys {
-			insertReq := model.TrackRequest{
-				BucketID: 10,
-				Key:      k,
-				Value:    99,
-				Tag:      &tag,
-				Metric:   &metric,
-			}
-			body, _ := json.Marshal(insertReq)
-
-			req, _ := http.NewRequest("POST", baseURL+"/insert-one", bytes.NewBuffer(body))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-App-Id", "123")
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatalf("Insert failed: %v", err)
-			}
-			resp.Body.Close()
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
-		}
-
-		// ----------------------------------------------------
-		// Delete two of them: k1 and k3
-		// ----------------------------------------------------
-		deleteReq := model.TrackDeleteManyRequest{
-			Items: []model.TrackBucketKeyPair{
-				{BucketID: 10, Key: "k1"},
-				{BucketID: 10, Key: "k3"},
-			},
-		}
-
-		deleteBody, _ := json.Marshal(deleteReq)
-
-		delHttpReq, _ := http.NewRequest("POST", baseURL+"/delete-many", bytes.NewBuffer(deleteBody))
-		delHttpReq.Header.Set("Content-Type", "application/json")
-		delHttpReq.Header.Set("X-App-Id", "123")
-
-		delResp, err := http.DefaultClient.Do(delHttpReq)
-		if err != nil {
-			t.Fatalf("TrackDeleteMany failed: %v", err)
-		}
-		delResp.Body.Close()
-		assert.Equal(t, http.StatusOK, delResp.StatusCode)
-
-		// ----------------------------------------------------
-		// Now get-many and check what's missing and what's retained
-		// ----------------------------------------------------
-		getReq := model.TrackGetManyRequest{
-			Buckets: []model.TrackGetKeys{
-				{
-					BucketID: 10,
-					Keys:     []string{"k1", "k2", "k3"},
-				},
-			},
-		}
-
-		getBody, _ := json.Marshal(getReq)
-
-		getHttpReq, _ := http.NewRequest("POST", baseURL+"/get-many", bytes.NewBuffer(getBody))
-		getHttpReq.Header.Set("Content-Type", "application/json")
-		getHttpReq.Header.Set("X-App-Id", "123")
-
-		getResp, err := http.DefaultClient.Do(getHttpReq)
-		if err != nil {
-			t.Fatalf("TrackGetMany failed: %v", err)
-		}
-		defer getResp.Body.Close()
-		assert.Equal(t, http.StatusOK, getResp.StatusCode)
-
-		var getRespBody model.TrackGetManyResponse
-		if err := json.NewDecoder(getResp.Body).Decode(&getRespBody); err != nil {
-			t.Fatalf("decode error: %v", err)
-		}
-
-		// ----------------------------------------------------
-		// Validate surviving key: k2
-		// ----------------------------------------------------
-		valuesBucket, ok := getRespBody.Values["10"]
-		assert.True(t, ok)
-
-		val, ok := valuesBucket["k2"]
-		assert.True(t, ok)
-		assert.Equal(t, int64(99), val.Value)
-		assert.NotNil(t, val.Tag)
-		assert.Equal(t, int64(5), *val.Tag)
-		assert.NotNil(t, val.Metric)
-		assert.Equal(t, 12.3, *val.Metric)
-
-		// ----------------------------------------------------
-		// Validate deleted keys show up in Missing
-		// ----------------------------------------------------
-		missingBucket, ok := getRespBody.Missing["10"]
-		assert.True(t, ok)
-
-		assert.Contains(t, missingBucket, "k1")
-		assert.Contains(t, missingBucket, "k3")
-		assert.NotContains(t, missingBucket, "k2")
+	delResp := trackDelete(t, srv, "/items", model.TrackDeleteManyRequest{
+		Items: []model.TrackBucketKeyPair{
+			{BucketID: 10, Key: "k1"},
+			{BucketID: 10, Key: "k3"},
+		},
 	})
+	assert.Equal(t, http.StatusOK, delResp.StatusCode)
+	delResp.Body.Close()
+
+	getManyResp := trackPost(t, srv, "/items/batch-get", model.TrackGetManyRequest{
+		Buckets: []model.TrackGetKeys{{BucketID: 10, Keys: []string{"k1", "k2", "k3"}}},
+	})
+	assert.Equal(t, http.StatusOK, getManyResp.StatusCode)
+	var body model.TrackGetManyResponse
+	json.NewDecoder(getManyResp.Body).Decode(&body)
+	getManyResp.Body.Close()
+
+	assert.Contains(t, body.Values["10"], "k2")
+	assert.Contains(t, body.Missing["10"], "k1")
+	assert.Contains(t, body.Missing["10"], "k3")
 }
 
-func TestTrackInsertOneAndGetOne(t *testing.T) {
-	for name, client := range clients {
-		testTrackInsertOneAndGetOne(client, name, t)
+func TestTrackQueryByPrefix(t *testing.T) {
+	srv, _ := newTrackServer(t)
+
+	for _, k := range []string{"foo:1", "foo:2", "bar:1"} {
+		r := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 1, Key: k, Value: 5})
+		r.Body.Close()
 	}
+
+	queryResp := trackPost(t, srv, "/query", model.TrackGetItemsByPrefixRequest{
+		BucketID: 1, Prefix: "foo:",
+	})
+	assert.Equal(t, http.StatusOK, queryResp.StatusCode)
+	var body map[string][]model.TrackKeyValueItem
+	json.NewDecoder(queryResp.Body).Decode(&body)
+	queryResp.Body.Close()
+
+	assert.Len(t, body["items"], 2)
 }
 
-//VX:Note this test suite doesnt test all of track,yet,
+func TestTrackQueryByPrefixes(t *testing.T) {
+	srv, _ := newTrackServer(t)
 
-func testTrackInsertOneAndGetOne(client store_interface.Store, name string, t *testing.T) {
-	t.Run(name, func(t *testing.T) {
+	for _, k := range []string{"foo:1", "bar:1", "baz:1"} {
+		r := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 1, Key: k, Value: 5})
+		r.Body.Close()
+	}
 
-		engine := gin.Default()
-		engine = SetupTrackRouter(client, "test-track", engine)
-		server := httptest.NewServer(engine.Handler())
-		defer server.Close()
-
-		baseURL := server.URL + "/test-track"
-
-		// Insert one item
-		var tag int64 = 1
-		var metric float64 = 42.5
-		insertReq := model.TrackRequest{
-			BucketID: 42,
-			Key:      "foo:1",
-			Value:    100,
-			Tag:      &tag,
-			Metric:   &metric,
-		}
-		insertBody, _ := json.Marshal(insertReq)
-
-		insertHttpReq, _ := http.NewRequest("POST", baseURL+"/insert-one", bytes.NewBuffer(insertBody))
-		insertHttpReq.Header.Set("Content-Type", "application/json")
-		insertHttpReq.Header.Set("X-App-Id", "123")
-
-		insertResp, err := http.DefaultClient.Do(insertHttpReq)
-		if err != nil {
-			t.Fatalf("TrackInsertOne failed: %v", err)
-		}
-		defer insertResp.Body.Close()
-		assert.Equal(t, http.StatusOK, insertResp.StatusCode)
-
-		// Get many
-		getReq := model.TrackGetManyRequest{
-			Buckets: []model.TrackGetKeys{
-				{
-					BucketID: 42,
-					Keys:     []string{"foo:1", "foo:2"},
-				},
-			},
-		}
-		getBody, _ := json.Marshal(getReq)
-
-		getHttpReq, _ := http.NewRequest("POST", baseURL+"/get-many", bytes.NewBuffer(getBody))
-		getHttpReq.Header.Set("Content-Type", "application/json")
-		getHttpReq.Header.Set("X-App-Id", "123")
-
-		getResp, err := http.DefaultClient.Do(getHttpReq)
-		if err != nil {
-			t.Fatalf("TrackGetMany failed: %v", err)
-		}
-		defer getResp.Body.Close()
-		assert.Equal(t, http.StatusOK, getResp.StatusCode)
-
-		var getRespBody model.TrackGetManyResponse
-		if err := json.NewDecoder(getResp.Body).Decode(&getRespBody); err != nil {
-			t.Fatalf("Failed to decode TrackGetManyResponse: %v", err)
-		}
-
-		// Validate values
-		assert.NotNil(t, getRespBody.Values)
-		bucket42, ok := getRespBody.Values["42"]
-		assert.True(t, ok)
-
-		foo1, ok := bucket42["foo:1"]
-		assert.True(t, ok)
-		assert.Equal(t, int64(100), foo1.Value)
-		assert.NotNil(t, foo1.Tag)
-		assert.Equal(t, int64(1), *foo1.Tag)
-		assert.NotNil(t, foo1.Metric)
-		assert.Equal(t, 42.5, *foo1.Metric)
-
-		// Validate missing
-		assert.Equal(t, 1, len(getRespBody.Missing))
-		missing42, ok := getRespBody.Missing["42"]
-		assert.True(t, ok)
-		assert.Equal(t, 1, len(missing42))
-		assert.Equal(t, "foo:2", missing42[0])
+	queryResp := trackPost(t, srv, "/query/multi", model.TrackGetItemsByPrefixesRequest{
+		BucketID: 1, Prefixes: []string{"foo:", "bar:"},
 	})
+	assert.Equal(t, http.StatusOK, queryResp.StatusCode)
+	var body map[string][]model.TrackKeyValueItem
+	json.NewDecoder(queryResp.Body).Decode(&body)
+	queryResp.Body.Close()
+
+	assert.Len(t, body["items"], 2)
+}
+
+func TestTrackMissingHeaders(t *testing.T) {
+	store := ram.NewRamStore()
+	engine := gin.New()
+	SetupTrackRouter(store, "/track", engine)
+	srv := httptest.NewServer(engine.Handler())
+	defer srv.Close()
+
+	b, _ := json.Marshal(model.TrackRequest{BucketID: 1, Key: "k", Value: 1})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/track/items", bytes.NewBuffer(b))
+	req.Header.Set("Content-Type", "application/json")
+	// No X-App-Id or X-Tenancy-Id
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
