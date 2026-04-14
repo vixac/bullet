@@ -1,45 +1,13 @@
 package store_test
 
 import (
-	"os"
 	"testing"
 
-	"github.com/vixac/bullet/store/boltdb"
-	"github.com/vixac/bullet/store/ram"
-	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
-// groveStores contains all Grove implementations to test
-// Add new implementations here as they're completed
-var groveStores = map[string]store_interface.GroveStore{
-	"ram": ram.NewRamStore(),
-}
-
-func init() {
-	// Create SQLite store for testing
-	sqliteStore, err := sqlite_store.NewSQLiteStore(":memory:")
-	if err != nil {
-		panic(err)
-	}
-	groveStores["sqlite"] = sqliteStore
-
-	// Create BoltDB store for testing
-	boltStore, err := boltdb.NewBoltStore("test-grove.db")
-	if err != nil {
-		panic(err)
-	}
-	groveStores["boltdb"] = boltStore
-}
-
-func TestMain(m *testing.M) {
-	code := m.Run()
-	// Clean up test databases
-	os.Remove("test-grove.db")
-	os.Remove("test-track.db")
-	os.Remove("test-depot.db")
-	os.Exit(code)
-}
+// groveStores is defined and populated in stores.go
+// TestMain is defined in stores.go
 
 func TestGroveBasicOperations(t *testing.T) {
 	for name, store := range groveStores {
