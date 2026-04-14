@@ -6,17 +6,19 @@ import (
 )
 
 type Config struct {
-	DBType   string
-	MongoURI string
-	BoltPath string
-	SqlPath  string
-	Port     string
+	DBType      string
+	MongoURI    string
+	BoltPath    string
+	SqlPath     string
+	PostgresDSN string
+	Port        string
 }
 
 const (
-	Mongo  = "mongodb"
-	Boltdb = "boltdb"
-	Sqlite = "sqlite"
+	Mongo      = "mongodb"
+	Boltdb     = "boltdb"
+	Sqlite     = "sqlite"
+	Postgresql = "postgresql"
 )
 
 func Load() *Config {
@@ -26,6 +28,7 @@ func Load() *Config {
 	mongoStr := flag.String("mongo", "", "mongodb endpoint") //mongodb://localhost:27017
 	boltStr := flag.String("bolt", "", "BoltDB file path")
 	sqlStr := flag.String("sqlite", "", "Sqlite file path")
+	postgresStr := flag.String("postgres", "", "PostgreSQL DSN (postgres://user:pass@host/db)")
 	dbType := flag.String("db-type", "", "mongo or boldtb mode")
 	flag.Parse()
 	if *port == "" {
@@ -33,8 +36,8 @@ func Load() *Config {
 	}
 	cfg.Port = *port
 
-	if *dbType != Mongo && *dbType != Boltdb && *dbType != Sqlite {
-		log.Fatal("invalid db-type:" + *dbType + ". needs to be either " + Mongo + " or " + Boltdb + " or " + Sqlite)
+	if *dbType != Mongo && *dbType != Boltdb && *dbType != Sqlite && *dbType != Postgresql {
+		log.Fatal("invalid db-type:" + *dbType + ". needs to be either " + Mongo + " or " + Boltdb + " or " + Sqlite + " or " + Postgresql)
 	}
 	if *dbType == Mongo && *mongoStr == "" {
 		log.Fatal("you asked for mongo db type but didnt provide a mongodb con string")
@@ -46,10 +49,14 @@ func Load() *Config {
 	if *dbType == Sqlite && *sqlStr == "" {
 		log.Fatal("you asked for sqlite but didnt provide a bolt path")
 	}
+	if *dbType == Postgresql && *postgresStr == "" {
+		log.Fatal("you asked for postgresql but didnt provide a DSN")
+	}
 
 	cfg.DBType = *dbType
 	cfg.MongoURI = *mongoStr
 	cfg.BoltPath = *boltStr
 	cfg.SqlPath = *sqlStr
+	cfg.PostgresDSN = *postgresStr
 	return &cfg
 }

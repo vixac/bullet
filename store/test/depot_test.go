@@ -4,25 +4,10 @@ import (
 	"sort"
 	"testing"
 
-	sqlite_store "github.com/vixac/bullet/store/sqlite"
-	"github.com/vixac/bullet/store/ram"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
-// depotStores contains all DepotStore implementations to test
-var depotStores = map[string]store_interface.DepotStore{
-	"ram": ram.NewRamStore(),
-}
-
-func init() {
-	sqliteStore, err := sqlite_store.NewSQLiteStore(":memory:")
-	if err != nil {
-		panic(err)
-	}
-	depotStores["sqlite"] = sqliteStore
-}
-
-// Note: TestMain is defined in grove_test.go and handles cleanup
+// depotStores is defined and populated in stores.go
 
 func TestDepotCreateAndGet(t *testing.T) {
 	for name, store := range depotStores {

@@ -5,36 +5,10 @@ import (
 	"testing"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/boltdb"
-	"github.com/vixac/bullet/store/ram"
-	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
-// trackStores contains all TrackStore implementations to test
-var trackStores = map[string]store_interface.TrackStore{
-	"ram": ram.NewRamStore(),
-}
-
-func init() {
-	// Create SQLite store for testing
-	sqliteStore, err := sqlite_store.NewSQLiteStore(":memory:")
-	if err != nil {
-		panic(err)
-	}
-	trackStores["sqlite"] = sqliteStore
-
-	// Create BoltDB store for testing
-	boltStore, err := boltdb.NewBoltStore("test-track.db")
-	if err != nil {
-		panic(err)
-	}
-	trackStores["boltdb"] = boltStore
-}
-
-// Note: TestMain is defined in grove_test.go
-// Cleanup for track test db happens in that TestMain via cleanup of test-grove.db
-// We use a separate db file for track tests
+// trackStores is defined and populated in stores.go
 
 func TestTrackBasicOperations(t *testing.T) {
 	for name, store := range trackStores {

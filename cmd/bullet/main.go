@@ -9,6 +9,7 @@ import (
 	"github.com/vixac/bullet/config"
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
+	"github.com/vixac/bullet/store/postgresql"
 	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
@@ -25,6 +26,8 @@ func main() {
 		kvStore, err = boltdb.NewBoltStore(cfg.BoltPath)
 	case config.Sqlite:
 		kvStore, err = sqlite_store.NewSQLiteStore(cfg.SqlPath)
+	case config.Postgresql:
+		kvStore, err = postgresql.NewPostgreSQLStore(cfg.PostgresDSN)
 	default:
 		log.Fatal("unsupported store type")
 	}
