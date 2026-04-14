@@ -39,8 +39,9 @@ func main() {
 
 	println("Creating gin routers.. on port: ", cfg.Port)
 	engine := gin.Default()
-	engine = api.SetupTrackRouter(kvStore, "track/", engine)
-	engine = api.SetupDepotRouter(kvStore, "depot/", engine)
+	engine = api.SetupTrackRouter(kvStore, "/track", engine)
+	engine = api.SetupDepotRouter(kvStore, "/depot", engine)
+	engine = api.SetupGroveRouter(kvStore, "/grove", engine)
 	fmt.Println("Bullet is Healthy, on port " + cfg.Port)
 	log.Fatal(engine.Run(":" + cfg.Port))
 }

@@ -1,52 +1,46 @@
 package api
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
 	store_interface "github.com/vixac/bullet/store/store_interface"
-
-	"github.com/gin-gonic/gin"
 )
 
-var trackStore store_interface.TrackStore
-
-// used by depot too
-func extractAppIDFromHeader(c *gin.Context) (int32, error) {
-	appIDStr := c.GetHeader("X-App-Id")
-	if appIDStr == "" {
-		return 0, errors.New("X-App-Id header missing")
-	}
-
-	appID64, err := strconv.ParseInt(appIDStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid X-App-Id header: %w", err)
-	}
-	fmt.Println("extracted appId is ", appID64)
-
-	return int32(appID64), nil
+type trackHandler struct {
+	store store_interface.TrackStore
 }
 
-// VX:TODO missing is get-by-many-prefixes
+// SetupTrackRouter registers all track endpoints under the given prefix.
+//
+// Endpoints:
+//
+//	POST   {prefix}/items          — upsert one
+//	POST   {prefix}/items/batch    — upsert many
+//	POST   {prefix}/items/get      — get one (key in body to support arbitrary key strings)
+//	POST   {prefix}/items/batch-get — get many
+//	DELETE {prefix}/items          — delete many
+//	POST   {prefix}/query          — prefix query
+//	POST   {prefix}/query/multi    — multi-prefix query
 func SetupTrackRouter(store store_interface.TrackStore, prefix string, engine *gin.Engine) *gin.Engine {
-	trackStore = store
-	engine.POST(prefix+"/insert-one", trackPutHandler)
-	engine.POST(prefix+"/insert-many", trackPutManyHandler)
-	engine.POST(prefix+"/get-many", trackGetManyHandler)
-
-	engine.POST(prefix+"/get-one", trackGetHandler)
-	engine.POST(prefix+"/delete-many", trackDeleteManyHandler)
-	engine.POST(prefix+"/get-query", handleGetItemsByPrefix)
+	h := &trackHandler{store: store}
+	g := engine.Group(prefix)
+	g.POST("/items", h.upsertOne)
+	g.POST("/items/batch", h.upsertMany)
+	g.POST("/items/get", h.getOne)
+	g.POST("/items/batch-get", h.getMany)
+	g.DELETE("/items", h.deleteMany)
+	g.POST("/query", h.queryByPrefix)
+	g.POST("/query/multi", h.queryByPrefixes)
 	return engine
 }
 
-func trackPutHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *trackHandler) upsertOne(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	var req model.TrackRequest
@@ -54,22 +48,17 @@ func trackPutHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	space := store_interface.TenancySpace{
-		AppId:     appId,
-		TenancyId: 0, //VX:TODO collect the tenancyId
-	}
-	if err := trackStore.TrackPut(space, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
+	if err := h.store.TrackPut(space, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
 }
 
-func trackPutManyHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *trackHandler) upsertMany(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	var req model.TrackPutManyRequest
@@ -77,29 +66,40 @@ func trackPutManyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	items := make(map[int32][]model.TrackKeyValueItem)
 	for _, bucket := range req.Buckets {
 		items[bucket.BucketID] = append(items[bucket.BucketID], bucket.Items...)
 	}
-
-	space := store_interface.TenancySpace{
-		AppId:     appId,
-		TenancyId: 0, //VX:TODO collect the tenancyId
-	}
-
-	if err := trackStore.TrackPutMany(space, items); err != nil {
+	if err := h.store.TrackPutMany(space, items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.Status(http.StatusOK)
 }
 
-func trackGetManyHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *trackHandler) getOne(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	var req model.TrackRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	value, err := h.store.TrackGet(space, req.BucketID, req.Key)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"value": value})
+}
+
+func (h *trackHandler) getMany(c *gin.Context) {
+	space, err := extractSpace(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	var req model.TrackGetManyRequest
@@ -111,52 +111,27 @@ func trackGetManyHandler(c *gin.Context) {
 	for _, bucket := range req.Buckets {
 		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
 	}
-
-	space := store_interface.TenancySpace{
-		AppId:     appId,
-		TenancyId: 0, //VX:TODO collect the tenancyId
-	}
-	values, missing, err := trackStore.TrackGetMany(space, keys)
+	values, missing, err := h.store.TrackGetMany(space, keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"values":  values,
-		"missing": missing,
-	})
+	// Convert int32 bucket keys to strings for JSON serialization.
+	strValues := make(map[string]map[string]model.TrackValue, len(values))
+	for bucketID, vals := range values {
+		strValues[strconv.Itoa(int(bucketID))] = vals
+	}
+	strMissing := make(map[string][]string, len(missing))
+	for bucketID, ks := range missing {
+		strMissing[strconv.Itoa(int(bucketID))] = ks
+	}
+	c.JSON(http.StatusOK, model.TrackGetManyResponse{Values: strValues, Missing: strMissing})
 }
 
-func trackGetHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *trackHandler) deleteMany(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
-		return
-	}
-	var req model.TrackRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	space := store_interface.TenancySpace{
-		AppId:     appId,
-		TenancyId: 0, //VX:TODO collect the tenancyId
-	}
-	value, err := trackStore.TrackGet(space, req.BucketID, req.Key)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"value": value})
-}
-
-// VX:TODO test
-func trackDeleteManyHandler(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	var req model.TrackDeleteManyRequest
@@ -164,22 +139,17 @@ func trackDeleteManyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	space := store_interface.TenancySpace{
-		AppId:     appId,
-		TenancyId: 0, //VX:TODO collect the tenancyId
-	}
-
-	if err := trackStore.TrackDeleteMany(space, req.Items); err != nil {
+	if err := h.store.TrackDeleteMany(space, req.Items); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
 }
 
-func handleGetItemsByPrefix(c *gin.Context) {
-	appId, err := extractAppIDFromHeader(c)
+func (h *trackHandler) queryByPrefix(c *gin.Context) {
+	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid app ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	var req model.TrackGetItemsByPrefixRequest
@@ -187,34 +157,41 @@ func handleGetItemsByPrefix(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	//Metric is the optional part, so we need to extract it.
-	var metricValue *float64 = nil
-	var isGt = false
-
+	var metricValue *float64
+	var isGt bool
 	if req.Metric != nil {
 		metricValue = &req.Metric.Value
 		isGt = req.Metric.Operator == "gt"
 	}
-
-	space := store_interface.TenancySpace{
-		AppId:     appId,
-		TenancyId: 0, //VX:TODO collect the tenancyId
-	}
-	items, err := trackStore.GetItemsByKeyPrefix(
-		space,
-		req.BucketID,
-		req.Prefix,
-		req.Tags,
-		metricValue,
-		isGt,
-	)
+	items, err := h.store.GetItemsByKeyPrefix(space, req.BucketID, req.Prefix, req.Tags, metricValue, isGt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "lookup failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
 
-	c.JSON(http.StatusOK, gin.H{
-		"items": items,
-	})
+func (h *trackHandler) queryByPrefixes(c *gin.Context) {
+	space, err := extractSpace(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	var req model.TrackGetItemsByPrefixesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var metricValue *float64
+	var isGt bool
+	if req.Metric != nil {
+		metricValue = &req.Metric.Value
+		isGt = req.Metric.Operator == "gt"
+	}
+	items, err := h.store.GetItemsByKeyPrefixes(space, req.BucketID, req.Prefixes, req.Tags, metricValue, isGt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
