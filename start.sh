@@ -1,7 +1,13 @@
 #!/bin/bash
 
 #examples:
+#  Build and run with sqlite
 # ./build.sh .bullet_bin && BULLET_PORT=80 BULLET_DB_TYPE=sqlite BOLT_PATH=data.db SQLITE_PATH=test-sqlite.sqlite ./start.sh .bullet_bin
+
+
+#  Build and run with postgres
+# ./build.sh .bullet_bin && BULLET_PORT=80 BULLET_DB_TYPE=postgresql BOLT_PATH=data.db SQLITE_PATH=test-sqlite.sqlite POSTGRESQL_DSN=postgres://postgres:mysecretpassword@localhost:5432/postgres ./start.sh .bullet_bin
+
 # to start: 
 #cd bullet then...
 # go run ./cmd/bullet -bolt boltdb -mongo $MONGO_PASS -db-type mongodb -port 10 
@@ -12,4 +18,4 @@ if [ -z "$1" ]
 fi
 echo "Bullet starting binary: '$1'"
 
-./$1 -port $BULLET_PORT -db-type $BULLET_DB_TYPE -mongo $MONGO_PASS -bolt $BOLT_PATH -sqlite $SQLITE_PATH
+./$1 -port $BULLET_PORT -db-type $BULLET_DB_TYPE -mongo $MONGO_PASS -bolt $BOLT_PATH -sqlite $SQLITE_PATH -postgres $POSTGRESQL_DSN
