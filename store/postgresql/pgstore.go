@@ -24,18 +24,22 @@ func placeholders(start, n int) string {
 }
 
 func NewPostgreSQLStore(dsn string) (*PostgreSQLStore, error) {
+	fmt.Printf("VX: staring new postres store with dsn %s\n", dsn)
 	if dsn == "" {
 		return nil, errors.New("postgresql DSN is empty")
 	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
+		fmt.Printf("VX: optn failed %s\n", err.Error())
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
+		fmt.Printf("VX: Ping failed %s\n", err.Error())
 		return nil, fmt.Errorf("postgresql ping failed: %w", err)
 	}
 	store := &PostgreSQLStore{db: db}
 	if err := store.initSchema(); err != nil {
+		fmt.Printf("VX: init schema failed %s\n", err.Error())
 		return nil, err
 	}
 	return store, nil
