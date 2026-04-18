@@ -31,7 +31,7 @@ func Load() *Config {
 	sqlStr := flag.String("sqlite", "", "Sqlite file path")
 	postgresStr := flag.String("postgres", "", "PostgreSQL DSN (postgres://user:pass@host/db)")
 	dbType := flag.String("db-type", "", "mongo or boldtb mode")
-	fmt.Printf("VX: Bullet fields are port: %s\n, mongo %s\n, bolt %s\n, sql %s\n, postgres %s\n, dbType %s\n", port, mongoStr, boltStr, sqlStr, postgresStr, dbType)
+	fmt.Printf("VX: Bullet fields are port: %s\n, mongo %s\n, bolt %s\n, sql %s\n, postgres %s\n, dbType %s\n", *port, *mongoStr, *boltStr, *sqlStr, *postgresStr, *dbType)
 	flag.Parse()
 	if *port == "" {
 		log.Fatal("missing port number")

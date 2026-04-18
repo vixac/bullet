@@ -28,20 +28,25 @@ func NewPostgreSQLStore(dsn string) (*PostgreSQLStore, error) {
 	if dsn == "" {
 		return nil, errors.New("postgresql DSN is empty")
 	}
+
+	fmt.Printf("VX: attampting to open \n")
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		fmt.Printf("VX: optn failed %s\n", err.Error())
 		return nil, err
 	}
+	fmt.Printf("VX:attempting to ping\n")
 	if err := db.Ping(); err != nil {
 		fmt.Printf("VX: Ping failed %s\n", err.Error())
 		return nil, fmt.Errorf("postgresql ping failed: %w", err)
 	}
 	store := &PostgreSQLStore{db: db}
+	fmt.Printf("VX:attempting to init\n")
 	if err := store.initSchema(); err != nil {
 		fmt.Printf("VX: init schema failed %s\n", err.Error())
 		return nil, err
 	}
+	fmt.Printf("Postgres store created.")
 	return store, nil
 }
 
