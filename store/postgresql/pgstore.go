@@ -24,7 +24,7 @@ func placeholders(start, n int) string {
 }
 
 func NewPostgreSQLStore(dsn string) (*PostgreSQLStore, error) {
-	fmt.Printf("VX: staring new postres store with dsn %s\n", dsn)
+	fmt.Printf("VX: staring new postres store with dsn <redacted lol> \n")
 	if dsn == "" {
 		return nil, errors.New("postgresql DSN is empty")
 	}
