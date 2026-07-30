@@ -759,9 +759,9 @@ func (s *SQLiteStore) GetNodeLocalAggregatesBulk(
 	return result, notFound, nil
 }
 
-// sqliteAggregateBulkChunkSize keeps the IN expression comfortably below
+// sqliteQueryChunkSize keeps dynamically-generated expressions comfortably below
 // SQLite's default maximum expression depth (1000).
-const sqliteAggregateBulkChunkSize = 500
+const sqliteQueryChunkSize = 500
 
 // GetNodeWithDescendantsAggregatesBulk gets subtree aggregates for multiple nodes.
 // Returns a map of node -> aggregates and a slice of not-found node IDs.
@@ -784,8 +784,8 @@ func (s *SQLiteStore) GetNodeWithDescendantsAggregatesBulk(
 	defer tx.Rollback()
 
 	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
-	for start := 0; start < len(nodes); start += sqliteAggregateBulkChunkSize {
-		end := start + sqliteAggregateBulkChunkSize
+	for start := 0; start < len(nodes); start += sqliteQueryChunkSize {
+		end := start + sqliteQueryChunkSize
 		if end > len(nodes) {
 			end = len(nodes)
 		}
