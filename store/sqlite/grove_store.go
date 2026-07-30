@@ -759,7 +759,11 @@ func (s *SQLiteStore) GetNodeLocalAggregatesBulk(
 	return result, notFound, nil
 }
 
-// GetNodeWithDescendantsAggregatesBulk gets subtree aggregates for multiple nodes in a single query.
+// sqliteAggregateBulkChunkSize keeps the IN expression comfortably below
+// SQLite's default maximum expression depth (1000).
+const sqliteAggregateBulkChunkSize = 500
+
+// GetNodeWithDescendantsAggregatesBulk gets subtree aggregates for multiple nodes.
 // Returns a map of node -> aggregates and a slice of not-found node IDs.
 // Nodes that exist but have no aggregates in their subtree appear in the map with an empty value map.
 func (s *SQLiteStore) GetNodeWithDescendantsAggregatesBulk(
@@ -771,54 +775,76 @@ func (s *SQLiteStore) GetNodeWithDescendantsAggregatesBulk(
 		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
 	}
 
-	placeholders := make([]string, len(nodes))
-	args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
-	for i, node := range nodes {
-		placeholders[i] = "?"
-		args = append(args, string(node))
-	}
-
-	// Drive from grove_closure so nodes that exist but have no aggregates still
-	// appear (with NULL key/value), letting us distinguish "node exists but has
-	// no aggregates" from "node not found".
-	query := `
-		SELECT gc.ancestor_id, ga.aggregate_key, SUM(ga.aggregate_value)
-		FROM grove_closure gc
-		LEFT JOIN grove_aggregates ga
-		  ON  ga.app_id     = gc.app_id
-		  AND ga.tenancy_id = gc.tenancy_id
-		  AND ga.tree_id    = gc.tree_id
-		  AND ga.node_id    = gc.descendant_id
-		WHERE gc.app_id     = ?
-		  AND gc.tenancy_id = ?
-		  AND gc.tree_id    = ?
-		  AND gc.ancestor_id IN (` + strings.Join(placeholders, ",") + `)
-		GROUP BY gc.ancestor_id, ga.aggregate_key`
-
-	rows, err := s.db.Query(query, args...)
+	// Keep every chunk in one read transaction so a concurrent writer cannot
+	// produce a mixed snapshot across chunks.
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
+	defer tx.Rollback()
 
 	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+	for start := 0; start < len(nodes); start += sqliteAggregateBulkChunkSize {
+		end := start + sqliteAggregateBulkChunkSize
+		if end > len(nodes) {
+			end = len(nodes)
+		}
 
-	for rows.Next() {
-		var nodeStr string
-		var aggKey *string
-		var aggVal *int64
-		if err := rows.Scan(&nodeStr, &aggKey, &aggVal); err != nil {
+		placeholders := make([]string, end-start)
+		args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
+		for i, node := range nodes[start:end] {
+			placeholders[i] = "?"
+			args = append(args, string(node))
+		}
+
+		// Drive from grove_closure so nodes that exist but have no aggregates still
+		// appear (with NULL key/value), letting us distinguish "node exists but has
+		// no aggregates" from "node not found".
+		query := `
+			SELECT gc.ancestor_id, ga.aggregate_key, SUM(ga.aggregate_value)
+			FROM grove_closure gc
+			LEFT JOIN grove_aggregates ga
+			  ON  ga.app_id     = gc.app_id
+			  AND ga.tenancy_id = gc.tenancy_id
+			  AND ga.tree_id    = gc.tree_id
+			  AND ga.node_id    = gc.descendant_id
+			WHERE gc.app_id     = ?
+			  AND gc.tenancy_id = ?
+			  AND gc.tree_id    = ?
+			  AND gc.ancestor_id IN (` + strings.Join(placeholders, ",") + `)
+			GROUP BY gc.ancestor_id, ga.aggregate_key`
+
+		rows, err := tx.Query(query, args...)
+		if err != nil {
 			return nil, nil, err
 		}
-		nodeID := store_interface.NodeID(nodeStr)
-		if _, ok := result[nodeID]; !ok {
-			result[nodeID] = make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+
+		for rows.Next() {
+			var nodeStr string
+			var aggKey *string
+			var aggVal *int64
+			if err := rows.Scan(&nodeStr, &aggKey, &aggVal); err != nil {
+				rows.Close()
+				return nil, nil, err
+			}
+			nodeID := store_interface.NodeID(nodeStr)
+			if _, ok := result[nodeID]; !ok {
+				result[nodeID] = make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+			}
+			if aggKey != nil {
+				result[nodeID][store_interface.AggregateKey(*aggKey)] = store_interface.AggregateValue(*aggVal)
+			}
 		}
-		if aggKey != nil {
-			result[nodeID][store_interface.AggregateKey(*aggKey)] = store_interface.AggregateValue(*aggVal)
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		if err := rows.Close(); err != nil {
+			return nil, nil, err
 		}
 	}
-	if err := rows.Err(); err != nil {
+
+	if err := tx.Commit(); err != nil {
 		return nil, nil, err
 	}
 

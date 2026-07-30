@@ -2,7 +2,7 @@
 
 #examples:
 #  Build and run with sqlite
-# ./build.sh .bullet_bin && BULLET_PORT=80 BULLET_DB_TYPE=sqlite BOLT_PATH=data.db SQLITE_PATH=test-sqlite.sqlite ./start.sh .bullet_bin
+# ./build.sh .bullet_bin && POSTGRESQL_DSN=hello BULLET_PORT=80 BULLET_DB_TYPE=sqlite BOLT_PATH=data.db SQLITE_PATH=test-sqlite.sqlite ./start.sh .bullet_bin
 
 
 #  Build and run with postgres
