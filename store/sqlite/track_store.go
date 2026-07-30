@@ -8,6 +8,10 @@ import (
 	"github.com/vixac/bullet/store/store_interface"
 )
 
+type sqlQueryer interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
 func (s *SQLiteStore) TrackGet(
 	space store_interface.TenancySpace,
 	bucketID int32,
@@ -36,54 +40,7 @@ func (s *SQLiteStore) GetItemsByKeyPrefix(
 	metricValue *float64,
 	metricIsGt bool,
 ) ([]model.TrackKeyValueItem, error) {
-
-	query := `
-		SELECT key, value, tag, metric
-		FROM track
-		WHERE app_id=? AND tenancy_id=? AND bucket_id=?
-		  AND key >= ? AND key < ?
-	`
-
-	args := []any{
-		space.AppId,
-		space.TenancyId,
-		bucketID,
-		prefix,
-		prefix + "\uffff",
-	}
-
-	if len(tags) > 0 {
-		query += " AND tag IN (" + placeholders(len(tags)) + ")"
-		for _, t := range tags {
-			args = append(args, t)
-		}
-	}
-
-	if metricValue != nil {
-		if metricIsGt {
-			query += " AND metric > ?"
-		} else {
-			query += " AND metric < ?"
-		}
-		args = append(args, *metricValue)
-	}
-
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []model.TrackKeyValueItem
-	for rows.Next() {
-		var item model.TrackKeyValueItem
-		err := rows.Scan(&item.Key, &item.Value.Value, &item.Value.Tag, &item.Value.Metric)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, item)
-	}
-	return out, nil
+	return s.getItemsByKeyPrefixChunks(space, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
 }
 
 func (s *SQLiteStore) GetItemsByKeyPrefixes(
@@ -99,30 +56,96 @@ func (s *SQLiteStore) GetItemsByKeyPrefixes(
 		return nil, nil
 	}
 
+	return s.getItemsByKeyPrefixChunks(space, bucketID, prefixes, tags, metricValue, metricIsGt)
+}
+
+// getItemsByKeyPrefixChunks splits caller-provided prefix and tag filters so
+// dynamically-generated OR and IN expressions stay below SQLite's expression
+// depth limit. Results are de-duplicated because overlapping prefix chunks can
+// match the same key.
+func (s *SQLiteStore) getItemsByKeyPrefixChunks(
+	space store_interface.TenancySpace,
+	bucketID int32,
+	prefixes []string,
+	tags []int64,
+	metricValue *float64,
+	metricIsGt bool,
+) ([]model.TrackKeyValueItem, error) {
+	prefixes = uniqueStrings(prefixes)
+	tags = uniqueInt64s(tags)
+
+	// Keep all chunks in one read snapshot.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var out []model.TrackKeyValueItem
+	seen := make(map[string]struct{})
+	for prefixStart := 0; prefixStart < len(prefixes); prefixStart += sqliteQueryChunkSize {
+		prefixEnd := prefixStart + sqliteQueryChunkSize
+		if prefixEnd > len(prefixes) {
+			prefixEnd = len(prefixes)
+		}
+
+		// A nil tag slice represents no tag filter, and thus one query for this
+		// prefix chunk rather than zero queries.
+		for tagStart := 0; tagStart < max(1, len(tags)); tagStart += sqliteQueryChunkSize {
+			tagEnd := tagStart + sqliteQueryChunkSize
+			if tagEnd > len(tags) {
+				tagEnd = len(tags)
+			}
+			chunkTags := tags[tagStart:tagEnd]
+
+			items, err := getItemsByKeyPrefixQuery(tx, space, bucketID, prefixes[prefixStart:prefixEnd], chunkTags, metricValue, metricIsGt)
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range items {
+				if _, ok := seen[item.Key]; ok {
+					continue
+				}
+				seen[item.Key] = struct{}{}
+				out = append(out, item)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func getItemsByKeyPrefixQuery(
+	db sqlQueryer,
+	space store_interface.TenancySpace,
+	bucketID int32,
+	prefixes []string,
+	tags []int64,
+	metricValue *float64,
+	metricIsGt bool,
+) ([]model.TrackKeyValueItem, error) {
 	query := `
 		SELECT key, value, tag, metric
 		FROM track
-		WHERE app_id=? AND tenancy_id=? AND bucket_id=?
-		  AND (
-	`
+		WHERE app_id=? AND tenancy_id=? AND bucket_id=? AND (`
 	args := []any{space.AppId, space.TenancyId, bucketID}
-
-	for i, p := range prefixes {
+	for i, prefix := range prefixes {
 		if i > 0 {
 			query += " OR "
 		}
 		query += "(key >= ? AND key < ?)"
-		args = append(args, p, p+"\uffff")
+		args = append(args, prefix, prefix+"\uffff")
 	}
 	query += ")"
 
 	if len(tags) > 0 {
 		query += " AND tag IN (" + placeholders(len(tags)) + ")"
-		for _, t := range tags {
-			args = append(args, t)
+		for _, tag := range tags {
+			args = append(args, tag)
 		}
 	}
-
 	if metricValue != nil {
 		if metricIsGt {
 			query += " AND metric > ?"
@@ -132,7 +155,7 @@ func (s *SQLiteStore) GetItemsByKeyPrefixes(
 		args = append(args, *metricValue)
 	}
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -141,13 +164,38 @@ func (s *SQLiteStore) GetItemsByKeyPrefixes(
 	var out []model.TrackKeyValueItem
 	for rows.Next() {
 		var item model.TrackKeyValueItem
-		err := rows.Scan(&item.Key, &item.Value.Value, &item.Value.Tag, &item.Value.Metric)
-		if err != nil {
+		if err := rows.Scan(&item.Key, &item.Value.Value, &item.Value.Tag, &item.Value.Metric); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
 	}
-	return out, nil
+	return out, rows.Err()
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
+}
+
+func uniqueInt64s(values []int64) []int64 {
+	seen := make(map[int64]struct{}, len(values))
+	unique := make([]int64, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func (s *SQLiteStore) TrackClose() error {
@@ -241,26 +289,16 @@ func (s *SQLiteStore) TrackGetMany(
 	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
+	// Keep a single read snapshot while querying multiple buckets and chunks.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tx.Rollback()
+
 	for bucketID, bucketKeys := range keys {
 		if len(bucketKeys) == 0 {
 			continue
-		}
-
-		query := `
-			SELECT key, value, tag, metric
-			FROM track
-			WHERE app_id=? AND tenancy_id=? AND bucket_id=?
-			  AND key IN (` + placeholders(len(bucketKeys)) + `)
-		`
-
-		args := []any{space.AppId, space.TenancyId, bucketID}
-		for _, k := range bucketKeys {
-			args = append(args, k)
-		}
-
-		rows, err := s.db.Query(query, args...)
-		if err != nil {
-			return nil, nil, err
 		}
 
 		found := make(map[string]struct{})
@@ -268,17 +306,45 @@ func (s *SQLiteStore) TrackGetMany(
 			values[bucketID] = make(map[string]model.TrackValue)
 		}
 
-		for rows.Next() {
-			var key string
-			var tv model.TrackValue
-			if err := rows.Scan(&key, &tv.Value, &tv.Tag, &tv.Metric); err != nil {
+		for start := 0; start < len(bucketKeys); start += sqliteQueryChunkSize {
+			end := start + sqliteQueryChunkSize
+			if end > len(bucketKeys) {
+				end = len(bucketKeys)
+			}
+
+			query := `
+				SELECT key, value, tag, metric
+				FROM track
+				WHERE app_id=? AND tenancy_id=? AND bucket_id=?
+				  AND key IN (` + placeholders(end-start) + `)
+			`
+			args := []any{space.AppId, space.TenancyId, bucketID}
+			for _, key := range bucketKeys[start:end] {
+				args = append(args, key)
+			}
+
+			rows, err := tx.Query(query, args...)
+			if err != nil {
+				return nil, nil, err
+			}
+			for rows.Next() {
+				var key string
+				var tv model.TrackValue
+				if err := rows.Scan(&key, &tv.Value, &tv.Tag, &tv.Metric); err != nil {
+					rows.Close()
+					return nil, nil, err
+				}
+				values[bucketID][key] = tv
+				found[key] = struct{}{}
+			}
+			if err := rows.Err(); err != nil {
 				rows.Close()
 				return nil, nil, err
 			}
-			values[bucketID][key] = tv
-			found[key] = struct{}{}
+			if err := rows.Close(); err != nil {
+				return nil, nil, err
+			}
 		}
-		rows.Close()
 
 		for _, k := range bucketKeys {
 			if _, ok := found[k]; !ok {
@@ -287,6 +353,9 @@ func (s *SQLiteStore) TrackGetMany(
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return nil, nil, err
+	}
 	return values, missing, nil
 }
 
