@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/api"
 	"github.com/vixac/bullet/config"
+	"github.com/vixac/bullet/metrics"
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
 	"github.com/vixac/bullet/store/postgresql"
@@ -39,6 +40,7 @@ func main() {
 
 	println("Creating gin routers.. on port: ", cfg.Port)
 	engine := gin.Default()
+	api.SetupMetricsRouter(metrics.NewMetrics(), engine)
 	engine = api.SetupTrackRouter(kvStore, "/track", engine)
 	engine = api.SetupDepotRouter(kvStore, "/depot", engine)
 	engine = api.SetupGroveRouter(kvStore, "/grove", engine)
