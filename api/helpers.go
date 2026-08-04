@@ -19,6 +19,7 @@ func extractSpace(c *gin.Context) (store_interface.TenancySpace, error) {
 	if err != nil {
 		return store_interface.TenancySpace{}, fmt.Errorf("invalid X-App-Id: %w", err)
 	}
+	c.Set(appIDContextKey, strconv.FormatInt(appID64, 10))
 
 	tenancyIDStr := c.GetHeader("X-Tenancy-Id")
 	if tenancyIDStr == "" {

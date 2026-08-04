@@ -55,6 +55,7 @@ func (h *depotHandler) createOne(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "depot", "written", 1)
 	c.JSON(http.StatusCreated, model.DepotCreateResponse{ID: id})
 }
 
@@ -74,6 +75,7 @@ func (h *depotHandler) createMany(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "depot", "written", len(ids))
 	c.JSON(http.StatusCreated, model.DepotCreateManyResponse{IDs: ids})
 }
 
@@ -97,6 +99,7 @@ func (h *depotHandler) update(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "depot", "written", 1)
 	c.Status(http.StatusOK)
 }
 
@@ -116,6 +119,7 @@ func (h *depotHandler) getOne(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "depot", "read", 1)
 	c.JSON(http.StatusOK, model.DepotGetResponse{Value: value})
 }
 
@@ -135,6 +139,7 @@ func (h *depotHandler) getMany(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "depot", "read", len(values))
 	c.JSON(http.StatusOK, model.DepotGetManyResponse{Values: values, Missing: missing})
 }
 
@@ -190,5 +195,6 @@ func (h *depotHandler) getAllByBucket(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "depot", "read", len(values))
 	c.JSON(http.StatusOK, model.DepotGetAllByBucketResponse{Values: values})
 }

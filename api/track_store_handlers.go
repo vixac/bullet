@@ -52,6 +52,7 @@ func (h *trackHandler) upsertOne(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "track", "written", 1)
 	c.Status(http.StatusOK)
 }
 
@@ -74,6 +75,11 @@ func (h *trackHandler) upsertMany(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	count := 0
+	for _, bucketItems := range items {
+		count += len(bucketItems)
+	}
+	incrementObjects(c, "track", "written", count)
 	c.Status(http.StatusOK)
 }
 
@@ -93,6 +99,7 @@ func (h *trackHandler) getOne(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "track", "read", 1)
 	c.JSON(http.StatusOK, gin.H{"value": value})
 }
 
@@ -116,6 +123,11 @@ func (h *trackHandler) getMany(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	count := 0
+	for _, bucketValues := range values {
+		count += len(bucketValues)
+	}
+	incrementObjects(c, "track", "read", count)
 	// Convert int32 bucket keys to strings for JSON serialization.
 	strValues := make(map[string]map[string]model.TrackValue, len(values))
 	for bucketID, vals := range values {
@@ -168,6 +180,7 @@ func (h *trackHandler) queryByPrefix(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "track", "read", len(items))
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
@@ -193,5 +206,6 @@ func (h *trackHandler) queryByPrefixes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "track", "read", len(items))
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }

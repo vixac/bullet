@@ -81,6 +81,7 @@ func (h *groveHandler) createNode(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "written", 1)
 	c.Status(http.StatusCreated)
 }
 
@@ -127,6 +128,7 @@ func (h *groveHandler) moveNode(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "written", 1)
 	c.Status(http.StatusOK)
 }
 
@@ -143,6 +145,7 @@ func (h *groveHandler) getNodeInfo(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "read", 1)
 	resp := model.GroveNodeInfoResponse{
 		ID:    string(info.ID),
 		Depth: info.Depth,
@@ -174,6 +177,7 @@ func (h *groveHandler) exists(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "grove", "read", 1)
 	c.JSON(http.StatusOK, model.GroveExistsResponse{Exists: ok})
 }
 
@@ -190,6 +194,7 @@ func (h *groveHandler) getChildren(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "read", len(children))
 	strs := make([]string, len(children))
 	for i, ch := range children {
 		strs[i] = string(ch)
@@ -210,6 +215,7 @@ func (h *groveHandler) getAncestors(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "read", len(ancestors))
 	strs := make([]string, len(ancestors))
 	for i, a := range ancestors {
 		strs[i] = string(a)
@@ -230,6 +236,7 @@ func (h *groveHandler) getDescendants(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "read", len(descendants))
 	items := make([]model.GroveNodeWithDepth, len(descendants))
 	for i, d := range descendants {
 		items[i] = model.GroveNodeWithDepth{NodeID: string(d.NodeID), Depth: d.Depth}
@@ -258,6 +265,7 @@ func (h *groveHandler) applyMutation(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "written", 1)
 	c.Status(http.StatusOK)
 }
 
@@ -274,6 +282,7 @@ func (h *groveHandler) getSubtreeAggregates(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "read", 1)
 	c.JSON(http.StatusOK, model.GroveAggregatesResponse{Aggregates: aggregatesToMap(aggs)})
 }
 
@@ -290,6 +299,7 @@ func (h *groveHandler) getLocalAggregates(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
+	incrementObjects(c, "grove", "read", 1)
 	c.JSON(http.StatusOK, model.GroveAggregatesResponse{Aggregates: aggregatesToMap(aggs)})
 }
 
@@ -311,6 +321,7 @@ func (h *groveHandler) getAncestorsBulk(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "grove", "read", len(ancestorsMap))
 	result := make(map[string][]string, len(ancestorsMap))
 	for node, ancestors := range ancestorsMap {
 		strs := make([]string, len(ancestors))
@@ -343,6 +354,7 @@ func (h *groveHandler) getSubtreeAggregatesBulk(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "grove", "read", len(aggsMap))
 	c.JSON(http.StatusOK, model.GroveAggregatesBulkResponse{
 		Aggregates: aggregatesBulkToMap(aggsMap),
 		Missing:    nodeIDsToStrings(missing),
@@ -367,6 +379,7 @@ func (h *groveHandler) getLocalAggregatesBulk(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	incrementObjects(c, "grove", "read", len(aggsMap))
 	c.JSON(http.StatusOK, model.GroveAggregatesBulkResponse{
 		Aggregates: aggregatesBulkToMap(aggsMap),
 		Missing:    nodeIDsToStrings(missing),
