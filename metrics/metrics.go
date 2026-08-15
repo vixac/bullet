@@ -1,17 +1,16 @@
 package metrics
 
 import (
-	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // Metrics collects server metrics that can be added without changing Server.
-// Counter values are always numbers; highlights are stored as display strings.
+// Counters are cumulative values; gauges are values that may move up or down.
 type Metrics struct {
-	counters   sync.Map // map[string]*atomic.Uint64
-	highlights sync.Map // map[string]string
+	counters sync.Map // map[string]*atomic.Uint64
+	gauges   sync.Map // map[string]*atomic.Uint64 containing float64 bits
 
 	appsMu      sync.Mutex
 	appCounters map[string]*counterSet
@@ -25,9 +24,7 @@ type counterSet struct {
 }
 
 func NewMetrics() *Metrics {
-	m := &Metrics{appCounters: make(map[string]*counterSet)}
-	m.SetHighlight("server_started_at", time.Now().UTC().Format(time.RFC3339))
-	return m
+	return &Metrics{appCounters: make(map[string]*counterSet)}
 }
 
 // IncrementCounter adds one to the counter identified by key, creating it on
@@ -75,59 +72,28 @@ func addCounter(counters *sync.Map, key string, delta uint64) {
 	value.(*atomic.Uint64).Add(delta)
 }
 
-// SetHighlight stores a display value for key. Values are converted to strings
-// so callers can conveniently pass values such as room counts as well as text.
-func (m *Metrics) SetHighlight(key string, value any) {
-	m.highlights.Store(key, fmt.Sprint(value))
+// SetGauge sets the current value of a gauge. It is safe to call concurrently.
+func (m *Metrics) SetGauge(key string, value float64) {
+	gauge, _ := m.gauges.LoadOrStore(key, &atomic.Uint64{})
+	gauge.(*atomic.Uint64).Store(math.Float64bits(value))
 }
 
-// SetHiglight is retained as an alias for the originally suggested spelling.
-// New code should use SetHighlight.
-func (m *Metrics) SetHiglight(key string, value any) {
-	m.SetHighlight(key, value)
-}
-
-// Values returns a point-in-time snapshot suitable for JSON encoding. Counter
-// and highlight names share the same namespace; a highlight takes precedence
-// if the same name is used by both collections.
-func (m *Metrics) Values() map[string]any {
-	values := make(map[string]any)
-	m.counters.Range(func(key, value any) bool {
-		values[key.(string)] = value.(*atomic.Uint64).Load()
-		return true
-	})
-	m.highlights.Range(func(key, value any) bool {
-		values[key.(string)] = value.(string)
-		return true
-	})
-	return values
-}
-
-// Snapshot returns separate counter and highlight collections for JSON APIs.
+// Snapshot returns the observations API response.
 // It is a point-in-time view; counters may continue changing after it returns.
 func (m *Metrics) Snapshot() Snapshot {
-	snapshot := Snapshot{
-		Counters:   make(map[string]uint64),
-		Highlights: make(map[string]string),
-		Apps:       make(map[string]map[string]uint64),
+	bullet := Namespace{
+		Counters: make(map[string]uint64),
+		Gauges:   make(map[string]float64),
 	}
 	m.counters.Range(func(key, value any) bool {
-		snapshot.Counters[key.(string)] = value.(*atomic.Uint64).Load()
+		bullet.Counters[key.(string)] = value.(*atomic.Uint64).Load()
 		return true
 	})
-	m.highlights.Range(func(key, value any) bool {
-		snapshot.Highlights[key.(string)] = value.(string)
+	m.gauges.Range(func(key, value any) bool {
+		bullet.Gauges[key.(string)] = math.Float64frombits(value.(*atomic.Uint64).Load())
 		return true
 	})
-	m.appsMu.Lock()
-	for appID, counters := range m.appCounters {
-		snapshot.Apps[appID] = counters.snapshot()
-	}
-	if other := m.otherApps.snapshot(); len(other) > 0 {
-		snapshot.Apps["other"] = other
-	}
-	m.appsMu.Unlock()
-	return snapshot
+	return Snapshot{Namespaces: map[string]Namespace{"bullet": bullet}}
 }
 
 func (c *counterSet) snapshot() map[string]uint64 {
@@ -139,9 +105,12 @@ func (c *counterSet) snapshot() map[string]uint64 {
 	return snapshot
 }
 
-// Snapshot is the response shape for the metrics endpoint.
+// Snapshot is the response shape for the observations endpoint.
 type Snapshot struct {
-	Counters   map[string]uint64            `json:"counters"`
-	Highlights map[string]string            `json:"highlights"`
-	Apps       map[string]map[string]uint64 `json:"apps"`
+	Namespaces map[string]Namespace `json:"namespaces"`
+}
+
+type Namespace struct {
+	Counters map[string]uint64  `json:"counters"`
+	Gauges   map[string]float64 `json:"gauges"`
 }
