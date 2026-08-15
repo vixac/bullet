@@ -40,7 +40,7 @@ func main() {
 
 	println("Creating gin routers.. on port: ", cfg.Port)
 	engine := gin.Default()
-	api.SetupMetricsRouter(metrics.NewMetrics(), engine)
+	api.SetupObservationsRouter(metrics.NewMetrics(), engine)
 	engine = api.SetupTrackRouter(kvStore, "/track", engine)
 	engine = api.SetupDepotRouter(kvStore, "/depot", engine)
 	engine = api.SetupGroveRouter(kvStore, "/grove", engine)

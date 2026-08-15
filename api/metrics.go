@@ -10,9 +10,9 @@ import (
 const metricsContextKey = "bullet.metrics"
 const appIDContextKey = "bullet.metrics.app_id"
 
-// SetupMetricsRouter adds the server-lifetime metrics endpoint and records one
+// SetupObservationsRouter adds the server-lifetime observations endpoint and records one
 // request for every route subsequently registered on engine.
-func SetupMetricsRouter(m *metrics.Metrics, engine *gin.Engine) *gin.Engine {
+func SetupObservationsRouter(m *metrics.Metrics, engine *gin.Engine) *gin.Engine {
 	engine.Use(func(c *gin.Context) {
 		c.Set(metricsContextKey, m)
 		c.Next()
@@ -22,7 +22,7 @@ func SetupMetricsRouter(m *metrics.Metrics, engine *gin.Engine) *gin.Engine {
 			incrementAppCounter(c, key, 1)
 		}
 	})
-	engine.GET("/metrics", func(c *gin.Context) {
+	engine.GET("/observations", func(c *gin.Context) {
 		c.JSON(http.StatusOK, m.Snapshot())
 	})
 	return engine
