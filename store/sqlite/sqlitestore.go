@@ -67,6 +67,32 @@ func (s *SQLiteStore) initSchema() error {
 		`CREATE INDEX IF NOT EXISTS depot_space_bucket_idx
 		 ON depot(app_id, tenancy_id, bucket_id);`,
 
+		`CREATE TABLE IF NOT EXISTS ledger_positions (
+			app_id INTEGER NOT NULL,
+			tenancy_id INTEGER NOT NULL,
+			next_position INTEGER NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id)
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS ledger (
+			app_id INTEGER NOT NULL,
+			tenancy_id INTEGER NOT NULL,
+			ledger_id TEXT NOT NULL,
+			position INTEGER NOT NULL,
+			append_id TEXT NOT NULL,
+			created_at_ns INTEGER NOT NULL,
+			payload TEXT NOT NULL,
+			payload_hash BLOB NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id, position),
+			UNIQUE (app_id, tenancy_id, ledger_id, append_id)
+		);`,
+
+		`CREATE INDEX IF NOT EXISTS ledger_space_ledger_position_idx
+		 ON ledger(app_id, tenancy_id, ledger_id, position);`,
+
+		`CREATE INDEX IF NOT EXISTS ledger_space_position_idx
+		 ON ledger(app_id, tenancy_id, position);`,
+
 		// Grove tables
 		`CREATE TABLE IF NOT EXISTS grove_nodes (
 			app_id INTEGER,

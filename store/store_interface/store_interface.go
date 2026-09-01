@@ -2,9 +2,68 @@ package store_interface
 
 import (
 	"errors"
+	"time"
 
 	"github.com/vixac/bullet/model"
 )
+
+const (
+	LedgerMaxPayloadBytes = 256 * 1024
+	LedgerMaxPageSize     = 1000
+	LedgerMaxSelected     = 100
+)
+
+type LedgerID string
+type LedgerAppendID string
+type LedgerPosition int64
+
+type LedgerAppendItem struct {
+	AppendID LedgerAppendID
+	Payload  string
+}
+
+type LedgerRecord struct {
+	LedgerID  LedgerID
+	Position  LedgerPosition
+	AppendID  LedgerAppendID
+	CreatedAt time.Time
+	Payload   string
+}
+
+// LedgerSelector selects either all ledgers in a tenancy space or an explicit
+// set of ledgers. Exactly one of All and LedgerIDs must be supplied.
+type LedgerSelector struct {
+	All       bool
+	LedgerIDs []LedgerID
+}
+
+type LedgerPage struct {
+	Records    []LedgerRecord
+	NextCursor *string
+}
+
+var (
+	ErrLedgerUnsupported     = errors.New("ledger is not supported by this store")
+	ErrLedgerInvalidID       = errors.New("invalid ledger id")
+	ErrLedgerInvalidAppendID = errors.New("invalid ledger append id")
+	ErrLedgerPayloadTooLarge = errors.New("ledger payload is too large")
+	ErrLedgerAppendConflict  = errors.New("ledger append id already exists with a different payload")
+	ErrLedgerBatchConflict   = errors.New("ledger batch mixes existing and new append ids")
+	ErrLedgerInvalidSelector = errors.New("invalid ledger selector")
+	ErrLedgerInvalidPageSize = errors.New("invalid ledger page size")
+	ErrLedgerInvalidCursor   = errors.New("invalid ledger cursor")
+)
+
+type LedgerStore interface {
+	LedgerAppend(space TenancySpace, ledgerID LedgerID, appendID LedgerAppendID, payload string) (LedgerRecord, error)
+	LedgerAppendMany(space TenancySpace, ledgerID LedgerID, items []LedgerAppendItem) ([]LedgerRecord, error)
+	LedgerReadBackward(space TenancySpace, selector LedgerSelector, cursor *string, limit int) (LedgerPage, error)
+	// LedgerReadForward returns records in ascending position order. after is
+	// exclusive. A nil through position makes the read live; otherwise through
+	// is an inclusive upper boundary.
+	LedgerReadForward(space TenancySpace, selector LedgerSelector, after LedgerPosition, through *LedgerPosition, limit int) ([]LedgerRecord, error)
+	LedgerDelete(space TenancySpace, ledgerID LedgerID) error
+}
 
 type TenancySpace struct {
 	AppId     int32
@@ -166,6 +225,7 @@ type Store interface {
 	TrackStore
 	DepotStore
 	GroveStore
+	LedgerStore
 }
 
 //Some extra Grove ideas
