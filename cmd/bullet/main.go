@@ -44,6 +44,7 @@ func main() {
 	engine = api.SetupTrackRouter(kvStore, "/track", engine)
 	engine = api.SetupDepotRouter(kvStore, "/depot", engine)
 	engine = api.SetupGroveRouter(kvStore, "/grove", engine)
+	engine = api.SetupLedgerRouter(kvStore, "/ledger", engine)
 	fmt.Println("Bullet is Healthy, on port " + cfg.Port)
 	log.Fatal(engine.Run(":" + cfg.Port))
 }

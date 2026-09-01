@@ -168,6 +168,10 @@ func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledge
 		return nil, err
 	}
 	defer tx.Rollback()
+	first, err := allocateLedgerPositions(tx, space, len(items))
+	if err != nil {
+		return nil, err
+	}
 
 	existing := make([]store_interface.LedgerRecord, len(items))
 	existingCount := 0
@@ -193,10 +197,6 @@ func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledge
 		return nil, store_interface.ErrLedgerBatchConflict
 	}
 
-	first, err := allocateLedgerPositions(tx, space, len(items))
-	if err != nil {
-		return nil, err
-	}
 	createdAt := time.Now().UTC()
 	records := make([]store_interface.LedgerRecord, len(items))
 	for i, item := range items {

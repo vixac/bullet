@@ -77,6 +77,32 @@ func (s *PostgreSQLStore) initSchema() error {
 		`CREATE INDEX IF NOT EXISTS depot_space_bucket_idx
 		 ON depot(app_id, tenancy_id, bucket_id);`,
 
+		`CREATE TABLE IF NOT EXISTS ledger_positions (
+			app_id INTEGER NOT NULL,
+			tenancy_id BIGINT NOT NULL,
+			next_position BIGINT NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id)
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS ledger (
+			app_id INTEGER NOT NULL,
+			tenancy_id BIGINT NOT NULL,
+			ledger_id TEXT NOT NULL,
+			position BIGINT NOT NULL,
+			append_id TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL,
+			payload TEXT NOT NULL,
+			payload_hash BYTEA NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id, position),
+			UNIQUE (app_id, tenancy_id, ledger_id, append_id)
+		);`,
+
+		`CREATE INDEX IF NOT EXISTS ledger_space_ledger_position_idx
+		 ON ledger(app_id, tenancy_id, ledger_id, position);`,
+
+		`CREATE INDEX IF NOT EXISTS ledger_space_position_idx
+		 ON ledger(app_id, tenancy_id, position);`,
+
 		`CREATE TABLE IF NOT EXISTS grove_nodes (
 			app_id INTEGER,
 			tenancy_id BIGINT,

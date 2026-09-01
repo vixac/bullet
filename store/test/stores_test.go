@@ -19,12 +19,14 @@ import (
 var trackStores = map[string]store_interface.TrackStore{}
 var depotStores = map[string]store_interface.DepotStore{}
 var groveStores = map[string]store_interface.GroveStore{}
+var ledgerStores = map[string]store_interface.LedgerStore{}
 
 func init() {
 	ramStore := ram.NewRamStore()
 	trackStores["ram"] = ramStore
 	depotStores["ram"] = ramStore
 	groveStores["ram"] = ramStore
+	ledgerStores["ram"] = ramStore
 
 	sqliteStore, err := sqlite_store.NewSQLiteStore(":memory:")
 	if err != nil {
@@ -33,6 +35,7 @@ func init() {
 	trackStores["sqlite"] = sqliteStore
 	depotStores["sqlite"] = sqliteStore
 	groveStores["sqlite"] = sqliteStore
+	ledgerStores["sqlite"] = sqliteStore
 
 	boltStore, err := boltdb.NewBoltStore("test-grove.db")
 	if err != nil {
@@ -92,6 +95,7 @@ func runTests(m *testing.M) int {
 	trackStores["postgresql"] = pgStore
 	depotStores["postgresql"] = pgStore
 	groveStores["postgresql"] = pgStore
+	ledgerStores["postgresql"] = pgStore
 
 	code := m.Run()
 
