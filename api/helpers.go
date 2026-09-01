@@ -36,9 +36,21 @@ func extractSpace(c *gin.Context) (store_interface.TenancySpace, error) {
 	}, nil
 }
 
-// respondError maps well-known grove store errors to appropriate HTTP status codes.
+// respondError maps well-known store errors to appropriate HTTP status codes.
 func respondError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, store_interface.ErrLedgerInvalidID),
+		errors.Is(err, store_interface.ErrLedgerInvalidAppendID),
+		errors.Is(err, store_interface.ErrLedgerPayloadTooLarge),
+		errors.Is(err, store_interface.ErrLedgerInvalidSelector),
+		errors.Is(err, store_interface.ErrLedgerInvalidPageSize),
+		errors.Is(err, store_interface.ErrLedgerInvalidCursor):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, store_interface.ErrLedgerAppendConflict),
+		errors.Is(err, store_interface.ErrLedgerBatchConflict):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, store_interface.ErrLedgerUnsupported):
+		c.JSON(http.StatusNotImplemented, gin.H{"error": err.Error()})
 	case errors.Is(err, store_interface.ErrNodeNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, store_interface.ErrNodeAlreadyExists):

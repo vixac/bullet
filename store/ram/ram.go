@@ -27,6 +27,7 @@ type RamStore struct {
 	tracks       map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
 	depots       map[store_interface.TenancySpace]map[int64]depotEntry                  // space -> id -> entry
 	depotNextIDs map[store_interface.TenancySpace]int64                                 // space -> next auto-increment id
+	ledgers      map[store_interface.TenancySpace]*ledgerSpaceData
 
 	// Grove data structures (with TreeID for logical tree separation)
 	groveNodes        map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
@@ -43,5 +44,6 @@ func NewRamStore() *RamStore {
 		tracks:       make(map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue),
 		depots:       make(map[store_interface.TenancySpace]map[int64]depotEntry),
 		depotNextIDs: make(map[store_interface.TenancySpace]int64),
+		ledgers:      make(map[store_interface.TenancySpace]*ledgerSpaceData),
 	}
 }
