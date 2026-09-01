@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# POSTGRESQL_DSN=hello BULLET_PORT=80 BULLET_DB_TYPE=sqlite BOLT_PATH=data.db SQLITE_PATH=test-sqlite.sqlite  ./run_unit.sh
+# POSTGRESQL_DSN=hello BULLET_PORT=100 BULLET_DB_TYPE=sqlite BOLT_PATH=data.db SQLITE_PATH=test-sqlite.sqlite  ./run_unit.sh
  unit_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
  cd "$unit_dir"
 
