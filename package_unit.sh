@@ -11,7 +11,7 @@ output_dir="$FIRBOLG_OUTPUT_DIR"
 
 # Firbolg creates and validates this directory before invoking the script.
 if [[ ! -d "$output_dir" ]]; then
-  echo "Output directory does not exist: $output_dir" >&2
+  echo "Bullet: Output directory does not exist: $output_dir" >&2
   exit 1
 fi
 
