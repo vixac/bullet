@@ -11,6 +11,10 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+func (b *BoltStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+	return store_interface.TrackMutationResult{}, store_interface.ErrTrackMutationUnsupported
+}
+
 func oldTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
 	return []byte(fmt.Sprintf("app_%d_bucket_%d", space.AppId, bucketID))
 }

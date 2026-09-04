@@ -24,10 +24,11 @@ type depotEntry struct {
 type RamStore struct {
 	mu sync.RWMutex
 
-	tracks       map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
-	depots       map[store_interface.TenancySpace]map[int64]depotEntry                  // space -> id -> entry
-	depotNextIDs map[store_interface.TenancySpace]int64                                 // space -> next auto-increment id
-	ledgers      map[store_interface.TenancySpace]*ledgerSpaceData
+	tracks         map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
+	trackMutations map[store_interface.MutationID]struct{}
+	depots         map[store_interface.TenancySpace]map[int64]depotEntry // space -> id -> entry
+	depotNextIDs   map[store_interface.TenancySpace]int64                // space -> next auto-increment id
+	ledgers        map[store_interface.TenancySpace]*ledgerSpaceData
 
 	// Grove data structures (with TreeID for logical tree separation)
 	groveNodes        map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
@@ -41,9 +42,10 @@ type RamStore struct {
 // NewRamStore returns a new empty in-memory store
 func NewRamStore() *RamStore {
 	return &RamStore{
-		tracks:       make(map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue),
-		depots:       make(map[store_interface.TenancySpace]map[int64]depotEntry),
-		depotNextIDs: make(map[store_interface.TenancySpace]int64),
-		ledgers:      make(map[store_interface.TenancySpace]*ledgerSpaceData),
+		tracks:         make(map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue),
+		trackMutations: make(map[store_interface.MutationID]struct{}),
+		depots:         make(map[store_interface.TenancySpace]map[int64]depotEntry),
+		depotNextIDs:   make(map[store_interface.TenancySpace]int64),
+		ledgers:        make(map[store_interface.TenancySpace]*ledgerSpaceData),
 	}
 }

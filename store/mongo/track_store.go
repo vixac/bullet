@@ -10,6 +10,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+func (m *MongoStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+	return store_interface.TrackMutationResult{}, store_interface.ErrTrackMutationUnsupported
+}
+
 func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
 	if len(items) == 0 {
 		return nil

@@ -1,12 +1,61 @@
 package store_test
 
 import (
+	"errors"
 	"sort"
 	"testing"
 
 	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
+
+func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
+	for name, trackStore := range trackStores {
+		t.Run(name, func(t *testing.T) {
+			space := store_interface.TenancySpace{AppId: 901, TenancyId: 902}
+			if err := trackStore.TrackPut(space, 1, "delete-me", 1, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+
+			req := store_interface.TrackMutation{
+				MutationID: store_interface.MutationID("track-mutation-test-901-902"),
+				Puts: []store_interface.TrackPut{
+					{Space: space, BucketID: 1, Key: "put-me", Value: 42},
+				},
+				Deletes: []store_interface.TrackKey{{Space: space, BucketID: 1, Key: "delete-me"}},
+			}
+			result, err := trackStore.TrackMutate(req)
+			if errors.Is(err, store_interface.ErrTrackMutationUnsupported) {
+				t.Skip("track mutations are intentionally unsupported")
+			}
+			if err != nil {
+				t.Fatalf("first mutation: %v", err)
+			}
+			if !result.Applied {
+				t.Fatal("first mutation was not applied")
+			}
+			if got, err := trackStore.TrackGet(space, 1, "put-me"); err != nil || got != 42 {
+				t.Fatalf("put result: got %d, err %v", got, err)
+			}
+			if _, err := trackStore.TrackGet(space, 1, "delete-me"); err == nil {
+				t.Fatal("delete was not applied")
+			}
+
+			// Changing the replay proves the mutation body is not executed twice.
+			req.Puts[0].Value = 99
+			result, err = trackStore.TrackMutate(req)
+			if err != nil {
+				t.Fatalf("replayed mutation: %v", err)
+			}
+			if result.Applied {
+				t.Fatal("replayed mutation reported Applied")
+			}
+			if got, err := trackStore.TrackGet(space, 1, "put-me"); err != nil || got != 42 {
+				t.Fatalf("replay changed value: got %d, err %v", got, err)
+			}
+		})
+	}
+}
 
 // trackStores is defined and populated in stores.go
 
