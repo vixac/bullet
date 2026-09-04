@@ -56,6 +56,10 @@ func (s *SQLiteStore) initSchema() error {
 		`CREATE INDEX IF NOT EXISTS track_prefix_idx
 		 ON track(app_id, tenancy_id, bucket_id, key);`,
 
+		`CREATE TABLE IF NOT EXISTS track_mutations (
+			mutation_id TEXT PRIMARY KEY
+		);`,
+
 		`CREATE TABLE IF NOT EXISTS depot (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			app_id INTEGER NOT NULL,
