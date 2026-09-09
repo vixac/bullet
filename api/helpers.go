@@ -39,6 +39,14 @@ func extractSpace(c *gin.Context) (store_interface.TenancySpace, error) {
 // respondError maps well-known store errors to appropriate HTTP status codes.
 func respondError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, store_interface.ErrWarehouseUnsupported):
+		c.JSON(http.StatusNotImplemented, gin.H{"error": err.Error()})
+	case errors.Is(err, store_interface.ErrWarehouseInvalidPutID):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, store_interface.ErrWarehousePutConflict):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, store_interface.ErrBlobNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, store_interface.ErrLedgerInvalidID),
 		errors.Is(err, store_interface.ErrLedgerInvalidAppendID),
 		errors.Is(err, store_interface.ErrLedgerPayloadTooLarge),

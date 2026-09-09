@@ -16,6 +16,7 @@ type Config struct {
 }
 
 const (
+	Ram        = "ram"
 	Mongo      = "mongodb"
 	Boltdb     = "boltdb"
 	Sqlite     = "sqlite"
@@ -30,7 +31,7 @@ func Load() *Config {
 	boltStr := flag.String("bolt", "", "BoltDB file path")
 	sqlStr := flag.String("sqlite", "", "Sqlite file path")
 	postgresStr := flag.String("postgres", "", "PostgreSQL DSN (postgres://user:pass@host/db)")
-	dbType := flag.String("db-type", "", "mongo or boldtb mode")
+	dbType := flag.String("db-type", "", "ram, mongodb, boltdb, sqlite or postgresql")
 	flag.Parse()
 	fmt.Printf("VX: Bullet fields are port: %s\n, mongo %s\n, bolt %s\n, sql %s\n, postgres %s\n, dbType %s\n", *port, *mongoStr, *boltStr, *sqlStr, *postgresStr, *dbType)
 	if *port == "" {
@@ -38,8 +39,8 @@ func Load() *Config {
 	}
 	cfg.Port = *port
 
-	if *dbType != Mongo && *dbType != Boltdb && *dbType != Sqlite && *dbType != Postgresql {
-		log.Fatal("invalid db-type:" + *dbType + ". needs to be either " + Mongo + " or " + Boltdb + " or " + Sqlite + " or " + Postgresql)
+	if *dbType != Ram && *dbType != Mongo && *dbType != Boltdb && *dbType != Sqlite && *dbType != Postgresql {
+		log.Fatal("invalid db-type:" + *dbType + ". needs to be either " + Ram + " or " + Mongo + " or " + Boltdb + " or " + Sqlite + " or " + Postgresql)
 	}
 	if *dbType == Mongo && *mongoStr == "" {
 		log.Fatal("you asked for mongo db type but didnt provide a mongodb con string")

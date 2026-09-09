@@ -22,7 +22,8 @@ type depotEntry struct {
 }
 
 type RamStore struct {
-	mu sync.RWMutex
+	mu        sync.RWMutex
+	warehouse map[store_interface.TenancySpace]*warehouseSpace
 
 	tracks         map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
 	trackMutations map[store_interface.MutationID]struct{}
