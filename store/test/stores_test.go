@@ -16,6 +16,8 @@ import (
 	"github.com/vixac/bullet/store/store_interface"
 )
 
+var warehousePostgresDSN string
+
 var trackStores = map[string]store_interface.TrackStore{}
 var depotStores = map[string]store_interface.DepotStore{}
 var groveStores = map[string]store_interface.GroveStore{}
@@ -86,6 +88,7 @@ func runTests(m *testing.M) int {
 	}
 
 	dsn := fmt.Sprintf("postgres://test:test@%s:%s/test?sslmode=disable", host, port.Port())
+	warehousePostgresDSN = dsn
 	pgStore, err := postgresql.NewPostgreSQLStore(dsn)
 	if err != nil {
 		fmt.Printf("Failed to create PostgreSQL store: %v\n", err)

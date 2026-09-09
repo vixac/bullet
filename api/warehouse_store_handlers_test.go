@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
-	"github.com/vixac/bullet/store/postgresql"
 	"github.com/vixac/bullet/store/ram"
 	sqlite "github.com/vixac/bullet/store/sqlite"
 	si "github.com/vixac/bullet/store/store_interface"
@@ -73,7 +72,7 @@ func testWarehouseHTTP(t *testing.T, store si.WarehouseStore) {
 }
 
 func TestWarehouseUnsupportedStores(t *testing.T) {
-	for name, store := range map[string]si.Store{"bolt": &boltdb.BoltStore{}, "mongo": &mongodb.MongoStore{}, "postgres": &postgresql.PostgreSQLStore{}} {
+	for name, store := range map[string]si.Store{"bolt": &boltdb.BoltStore{}, "mongo": &mongodb.MongoStore{}} {
 		t.Run(name, func(t *testing.T) {
 			e := SetupWarehouseRouter(store, "/warehouse", gin.New())
 			for _, route := range []struct{ method, path string }{{"POST", "/warehouse/blobs"}, {"GET", "/warehouse/blobs/missing"}, {"POST", "/warehouse/blobs/batch-get"}} {

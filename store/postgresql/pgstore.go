@@ -107,6 +107,20 @@ func (s *PostgreSQLStore) initSchema() error {
 		`CREATE INDEX IF NOT EXISTS ledger_space_position_idx
 		 ON ledger(app_id, tenancy_id, position);`,
 
+		// Store nanoseconds explicitly to preserve the original creation timestamp.
+		`CREATE TABLE IF NOT EXISTS warehouse (
+            app_id INTEGER NOT NULL,
+            tenancy_id BIGINT NOT NULL,
+            id TEXT NOT NULL,
+            put_id TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            value BYTEA,
+            checksum TEXT NOT NULL,
+            created_at_ns BIGINT NOT NULL,
+            PRIMARY KEY (app_id, tenancy_id, id),
+            UNIQUE (app_id, tenancy_id, put_id)
+        );`,
+
 		`CREATE TABLE IF NOT EXISTS grove_nodes (
 			app_id INTEGER,
 			tenancy_id BIGINT,
