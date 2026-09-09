@@ -1,7 +1,7 @@
 # Warehouse
 
-Warehouse stores immutable binary blobs independently of Depot. RAM is currently
-implemented; SQLite, PostgreSQL, MongoDB and BoltDB return
+Warehouse stores immutable binary blobs independently of Depot. RAM and SQLite are
+implemented; PostgreSQL, MongoDB and BoltDB return
 `ErrWarehouseUnsupported` (HTTP 501). RAM data disappears when the process exits.
 
 Run a RAM server:
@@ -9,6 +9,17 @@ Run a RAM server:
 ```sh
 go run ./cmd/bullet -db-type ram -port 8080
 ```
+
+Run a persistent SQLite server:
+
+```sh
+go run ./cmd/bullet -db-type sqlite -sqlite warehouse.db -port 8080
+```
+
+SQLite creates its Warehouse table automatically, including when opening an
+existing Bullet database. Blob data and idempotency keys survive reopening.
+Concurrent retries are arbitrated by a unique constraint scoped to the space.
+Large batch reads are split internally to stay within SQLite parameter limits.
 
 All routes require `X-App-Id` and `X-Tenancy-Id`, using the existing tenancy model:
 

@@ -32,8 +32,14 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		return nil, err
 	}
 
+	// Each connection to :memory: has its own database. Keep one connection so
+	// concurrent operations see the schema and data initialized below.
+	if path == ":memory:" {
+		db.SetMaxOpenConns(1)
+	}
 	store := &SQLiteStore{db: db}
 	if err := store.initSchema(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
@@ -96,6 +102,21 @@ func (s *SQLiteStore) initSchema() error {
 
 		`CREATE INDEX IF NOT EXISTS ledger_space_position_idx
 		 ON ledger(app_id, tenancy_id, position);`,
+
+		// Warehouse is independent of Depot. Nullable value preserves nil bytes;
+		// nil and empty blobs compare equally for idempotency.
+		`CREATE TABLE IF NOT EXISTS warehouse (
+            app_id INTEGER NOT NULL,
+            tenancy_id INTEGER NOT NULL,
+            id TEXT NOT NULL,
+            put_id TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            value BLOB,
+            checksum TEXT NOT NULL,
+            created_at_ns INTEGER NOT NULL,
+            PRIMARY KEY (app_id, tenancy_id, id),
+            UNIQUE (app_id, tenancy_id, put_id)
+        );`,
 
 		// Grove tables
 		`CREATE TABLE IF NOT EXISTS grove_nodes (

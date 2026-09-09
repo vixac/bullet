@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +34,16 @@ func warehouseRequest(t *testing.T, e *gin.Engine, method, path string, body any
 }
 
 func TestWarehouseHTTP(t *testing.T) {
-	e := SetupWarehouseRouter(ram.NewRamStore(), "/warehouse", gin.New())
+	store, err := sqlite.NewSQLiteStore(filepath.Join(t.TempDir(), "warehouse.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.TrackClose()) })
+	for name, store := range map[string]si.WarehouseStore{"ram": ram.NewRamStore(), "sqlite": store} {
+		t.Run(name, func(t *testing.T) { testWarehouseHTTP(t, store) })
+	}
+}
+
+func testWarehouseHTTP(t *testing.T, store si.WarehouseStore) {
+	e := SetupWarehouseRouter(store, "/warehouse", gin.New())
 	req := si.PutBlobRequest{PutID: "retry", Value: []byte{0, 255}, ContentType: "application/octet-stream", Checksum: "unchecked"}
 	w := warehouseRequest(t, e, "POST", "/warehouse/blobs", req, true)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
@@ -63,7 +73,7 @@ func TestWarehouseHTTP(t *testing.T) {
 }
 
 func TestWarehouseUnsupportedStores(t *testing.T) {
-	for name, store := range map[string]si.Store{"bolt": &boltdb.BoltStore{}, "mongo": &mongodb.MongoStore{}, "postgres": &postgresql.PostgreSQLStore{}, "sqlite": &sqlite.SQLiteStore{}} {
+	for name, store := range map[string]si.Store{"bolt": &boltdb.BoltStore{}, "mongo": &mongodb.MongoStore{}, "postgres": &postgresql.PostgreSQLStore{}} {
 		t.Run(name, func(t *testing.T) {
 			e := SetupWarehouseRouter(store, "/warehouse", gin.New())
 			for _, route := range []struct{ method, path string }{{"POST", "/warehouse/blobs"}, {"GET", "/warehouse/blobs/missing"}, {"POST", "/warehouse/blobs/batch-get"}} {
