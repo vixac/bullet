@@ -9,6 +9,32 @@ import (
 	"github.com/vixac/bullet/store/store_interface"
 )
 
+func (r *RamStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.trackMutations[req.MutationID]; exists {
+		return store_interface.TrackMutationResult{Applied: false}, nil
+	}
+
+	for _, put := range req.Puts {
+		if r.tracks[put.Space] == nil {
+			r.tracks[put.Space] = make(map[int32]map[string]model.TrackValue)
+		}
+		if r.tracks[put.Space][put.BucketID] == nil {
+			r.tracks[put.Space][put.BucketID] = make(map[string]model.TrackValue)
+		}
+		r.tracks[put.Space][put.BucketID][put.Key] = model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}
+	}
+	for _, key := range req.Deletes {
+		if bucket := r.tracks[key.Space][key.BucketID]; bucket != nil {
+			delete(bucket, key.Key)
+		}
+	}
+	r.trackMutations[req.MutationID] = struct{}{}
+	return store_interface.TrackMutationResult{Applied: true}, nil
+}
+
 func (r *RamStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

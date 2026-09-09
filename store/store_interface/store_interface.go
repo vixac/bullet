@@ -69,7 +69,40 @@ type TenancySpace struct {
 	AppId     int32
 	TenancyId int64
 }
+
+type TrackKey struct {
+	Space    TenancySpace
+	BucketID int32
+	Key      string
+}
+
+type TrackPut struct {
+	Space    TenancySpace
+	BucketID int32
+	Key      string
+	Value    int64
+	Tag      *int64
+	Metric   *float64
+}
+
+type TrackMutation struct {
+	MutationID MutationID
+	Puts       []TrackPut
+	Deletes    []TrackKey
+}
+
+type TrackMutationResult struct {
+	Applied bool
+}
+
+type TrackClientInterface interface {
+	TrackMutate(req TrackMutation) (TrackMutationResult, error)
+}
+
+var ErrTrackMutationUnsupported = errors.New("track mutations are not supported by this store")
+
 type TrackStore interface {
+	TrackClientInterface
 	TrackPut(space TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error
 	TrackGet(space TenancySpace, bucketID int32, key string) (int64, error)
 

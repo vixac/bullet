@@ -10,6 +10,57 @@ import (
 	"github.com/vixac/bullet/store/store_interface"
 )
 
+func (s *PostgreSQLStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`INSERT INTO track_mutations (mutation_id) VALUES ($1) ON CONFLICT DO NOTHING`, req.MutationID)
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	if rows == 0 {
+		return store_interface.TrackMutationResult{Applied: false}, nil
+	}
+
+	putStmt, err := tx.Prepare(`
+		INSERT INTO track (app_id, tenancy_id, bucket_id, key, value, tag, metric)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT(app_id, tenancy_id, bucket_id, key) DO UPDATE SET
+			value=excluded.value, tag=excluded.tag, metric=excluded.metric`)
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	defer putStmt.Close()
+	for _, put := range req.Puts {
+		if _, err := putStmt.Exec(put.Space.AppId, put.Space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric); err != nil {
+			return store_interface.TrackMutationResult{}, err
+		}
+	}
+
+	deleteStmt, err := tx.Prepare(`DELETE FROM track WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4`)
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	defer deleteStmt.Close()
+	for _, key := range req.Deletes {
+		if _, err := deleteStmt.Exec(key.Space.AppId, key.Space.TenancyId, key.BucketID, key.Key); err != nil {
+			return store_interface.TrackMutationResult{}, err
+		}
+
+	}
+	if err := tx.Commit(); err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	return store_interface.TrackMutationResult{Applied: true}, nil
+}
+
 func (s *PostgreSQLStore) TrackGet(
 	space store_interface.TenancySpace,
 	bucketID int32,

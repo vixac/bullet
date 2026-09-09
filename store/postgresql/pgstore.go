@@ -66,6 +66,10 @@ func (s *PostgreSQLStore) initSchema() error {
 		`CREATE INDEX IF NOT EXISTS track_prefix_idx
 		 ON track(app_id, tenancy_id, bucket_id, key);`,
 
+		`CREATE TABLE IF NOT EXISTS track_mutations (
+			mutation_id TEXT PRIMARY KEY
+		);`,
+
 		`CREATE TABLE IF NOT EXISTS depot (
 			id BIGSERIAL PRIMARY KEY,
 			app_id INTEGER NOT NULL,
