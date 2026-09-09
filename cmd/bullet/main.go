@@ -11,6 +11,7 @@ import (
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
 	"github.com/vixac/bullet/store/postgresql"
+	"github.com/vixac/bullet/store/ram"
 	sqlite_store "github.com/vixac/bullet/store/sqlite"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
@@ -21,6 +22,8 @@ func main() {
 	var err error
 
 	switch cfg.DBType {
+	case config.Ram:
+		kvStore = ram.NewRamStore()
 	case config.Mongo:
 		kvStore, err = mongodb.NewMongoStore(cfg.MongoURI)
 	case config.Boltdb:
@@ -45,6 +48,7 @@ func main() {
 	engine = api.SetupDepotRouter(kvStore, "/depot", engine)
 	engine = api.SetupGroveRouter(kvStore, "/grove", engine)
 	engine = api.SetupLedgerRouter(kvStore, "/ledger", engine)
+	engine = api.SetupWarehouseRouter(kvStore, "/warehouse", engine)
 	fmt.Println("Bullet is Healthy, on port " + cfg.Port)
 	log.Fatal(engine.Run(":" + cfg.Port))
 }

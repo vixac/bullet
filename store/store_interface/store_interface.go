@@ -255,6 +255,7 @@ type GroveStore interface {
 }
 
 type Store interface {
+	WarehouseStore
 	TrackStore
 	DepotStore
 	GroveStore
