@@ -178,3 +178,64 @@ func TestTrackMissingHeaders(t *testing.T) {
 	resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
+
+func TestTrackMutate(t *testing.T) {
+	srv, _ := newTrackServer(t)
+	seed := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 10, Key: "old", Value: 1})
+	require.Equal(t, http.StatusOK, seed.StatusCode)
+	seed.Body.Close()
+
+	tag, metric := int64(7), 3.14
+	req := model.TrackMutateRequest{
+		MutationID: "mutation-1",
+		Puts:       []model.TrackRequest{{BucketID: 20, Key: "new", Value: 9007199254740993, Tag: &tag, Metric: &metric}},
+		Deletes:    []model.TrackBucketKeyPair{{BucketID: 10, Key: "old"}},
+	}
+	for _, applied := range []bool{true, false} {
+		resp := trackPost(t, srv, "/mutate", req)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var result model.TrackMutateResponse
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+		resp.Body.Close()
+		assert.Equal(t, applied, result.Applied)
+		// A retry with changed values must not apply again.
+		req.Puts[0].Value = 2
+	}
+	resp := trackPost(t, srv, "/items/batch-get", model.TrackGetManyRequest{
+		Buckets: []model.TrackGetKeys{{BucketID: 10, Keys: []string{"old"}}, {BucketID: 20, Keys: []string{"new"}}},
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var result model.TrackGetManyResponse
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+	assert.Contains(t, result.Missing["10"], "old")
+	assert.Equal(t, model.TrackValue{Value: 9007199254740993, Tag: &tag, Metric: &metric}, result.Values["20"]["new"])
+}
+
+func TestTrackMutateInvalidRequests(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		body    string
+		headers bool
+		status  int
+	}{
+		{"missing headers", `{"mutationId":"m"}`, false, http.StatusUnauthorized},
+		{"malformed JSON", `{`, true, http.StatusBadRequest},
+		{"missing mutation ID", `{"puts":[]}`, true, http.StatusBadRequest},
+		{"invalid value", `{"mutationId":"m","puts":[{"value":"invalid"}]}`, true, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := gin.New()
+			SetupTrackRouter(ram.NewRamStore(), "/track", engine)
+			req := httptest.NewRequest(http.MethodPost, "/track/mutate", bytes.NewBufferString(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.headers {
+				req.Header.Set("X-App-Id", "1")
+				req.Header.Set("X-Tenancy-Id", "2")
+			}
+			resp := httptest.NewRecorder()
+			engine.ServeHTTP(resp, req)
+			assert.Equal(t, tc.status, resp.Code)
+		})
+	}
+}

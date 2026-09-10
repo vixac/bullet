@@ -7,7 +7,9 @@ import (
 	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 func (m *MongoStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
@@ -36,8 +38,9 @@ func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items [
 		"$or": orFilters,
 	}
 
-	_, err := m.trackCollection.DeleteMany(context.TODO(), filter)
-	return err
+	return m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
+		return m.trackCollection.DeleteMany(ctx, filter)
+	})
 }
 
 func (m *MongoStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
@@ -87,26 +90,49 @@ func (m *MongoStore) TrackClose() error {
 }
 
 func (m *MongoStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
-	var docs []interface{}
+	var writes []mongo.WriteModel
 
 	for bucketID, kvItems := range items {
 		for _, kv := range kvItems {
-			doc := bson.M{
+			filter := bson.M{
 				"appId":     space.AppId,
 				"tenancyId": space.TenancyId,
 				"bucketId":  bucketID,
 				"key":       kv.Key,
-				"value":     kv.Value,
 			}
-			docs = append(docs, doc)
+			doc := bson.M{
+				"appId": space.AppId, "tenancyId": space.TenancyId,
+				"bucketId": bucketID, "key": kv.Key, "value": kv.Value.Value,
+			}
+			if kv.Value.Tag != nil {
+				doc["tag"] = *kv.Value.Tag
+			}
+			if kv.Value.Metric != nil {
+				doc["metric"] = *kv.Value.Metric
+			}
+			writes = append(writes, mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(doc).SetUpsert(true))
 		}
 	}
 
-	if len(docs) == 0 {
+	if len(writes) == 0 {
 		return nil
 	}
 
-	_, err := m.trackCollection.InsertMany(context.TODO(), docs, options.InsertMany().SetOrdered(false))
+	return m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
+		return m.trackCollection.BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(true))
+	})
+}
+
+// trackTransaction requires a replica set or sharded cluster. Never fall back to
+// nontransactional writes: unsupported deployments must fail without a partial batch.
+func (m *MongoStore) trackTransaction(fn func(mongo.SessionContext) (interface{}, error)) error {
+	ctx := context.Background()
+	session, err := m.client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(ctx, fn, options.Transaction().SetWriteConcern(writeconcern.Majority()))
 	return err
 }
 

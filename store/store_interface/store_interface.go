@@ -108,8 +108,16 @@ type TrackStore interface {
 	TrackPut(space TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error
 	TrackGet(space TenancySpace, bucketID int32, key string) (int64, error)
 
+	// TrackDeleteMany atomically deletes the entire batch, including across buckets:
+	// either all deletions commit or none do. No partial batch is committed.
+	// A commit/transport error can leave the caller uncertain whether all or none
+	// committed; an error does not necessarily mean nothing changed.
 	TrackDeleteMany(space TenancySpace, items []model.TrackBucketKeyPair) error
 	TrackClose() error
+	// TrackPutMany atomically upserts the entire batch, including across buckets:
+	// either all updates commit or none do. No partial batch is committed.
+	// A commit/transport error can leave the caller uncertain whether all or none
+	// committed; an error does not necessarily mean nothing changed.
 	TrackPutMany(space TenancySpace, items map[int32][]model.TrackKeyValueItem) error
 	TrackGetMany(space TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error)
 	GetItemsByKeyPrefix(

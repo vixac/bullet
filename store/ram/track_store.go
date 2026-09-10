@@ -105,11 +105,18 @@ func (r *RamStore) TrackClose() error {
 }
 
 func (r *RamStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	for bucketID, kvList := range items {
 		for _, kv := range kvList {
-			if err := r.TrackPut(space, bucketID, kv.Key, kv.Value.Value, kv.Value.Tag, kv.Value.Metric); err != nil {
-				return err
+			if r.tracks[space] == nil {
+				r.tracks[space] = make(map[int32]map[string]model.TrackValue)
 			}
+			if r.tracks[space][bucketID] == nil {
+				r.tracks[space][bucketID] = make(map[string]model.TrackValue)
+			}
+			r.tracks[space][bucketID][kv.Key] = kv.Value
 		}
 	}
 	return nil
