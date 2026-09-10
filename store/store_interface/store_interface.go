@@ -113,7 +113,7 @@ type TrackStore interface {
 	// A commit/transport error can leave the caller uncertain whether all or none
 	// committed; an error does not necessarily mean nothing changed.
 	TrackDeleteMany(space TenancySpace, items []model.TrackBucketKeyPair) error
-	TrackClose() error
+
 	// TrackPutMany atomically upserts the entire batch, including across buckets:
 	// either all updates commit or none do. No partial batch is committed.
 	// A commit/transport error can leave the caller uncertain whether all or none
