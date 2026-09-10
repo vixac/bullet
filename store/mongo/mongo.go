@@ -40,6 +40,15 @@ func NewMongoStore(uri string) (*MongoStore, error) {
 		depotCollection: database.Collection("depot"),
 	}
 
+	// Snapshot transactions cannot create collections. Create the mutation
+	// journal up front; its built-in unique _id index deduplicates mutation IDs.
+	if err := database.CreateCollection(ctx, "track_mutations"); err != nil {
+		if commandErr, ok := err.(mongo.CommandError); !ok || commandErr.Code != 48 { // NamespaceExists
+			client.Disconnect(context.Background())
+			return nil, err
+		}
+	}
+
 	//bucket index
 	model := mongo.IndexModel{
 		Keys: bson.D{

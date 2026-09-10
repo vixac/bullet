@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -17,6 +18,7 @@ type trackHandler struct {
 //
 // Endpoints:
 //
+//	POST   {prefix}/mutate         — atomically apply idempotent puts and deletes
 //	POST   {prefix}/items          — upsert one
 //	POST   {prefix}/items/batch    — upsert many
 //	POST   {prefix}/items/get      — get one (key in body to support arbitrary key strings)
@@ -27,6 +29,7 @@ type trackHandler struct {
 func SetupTrackRouter(store store_interface.TrackStore, prefix string, engine *gin.Engine) *gin.Engine {
 	h := &trackHandler{store: store}
 	g := engine.Group(prefix)
+	g.POST("/mutate", h.mutate)
 	g.POST("/items", h.upsertOne)
 	g.POST("/items/batch", h.upsertMany)
 	g.POST("/items/get", h.getOne)
@@ -35,6 +38,44 @@ func SetupTrackRouter(store store_interface.TrackStore, prefix string, engine *g
 	g.POST("/query", h.queryByPrefix)
 	g.POST("/query/multi", h.queryByPrefixes)
 	return engine
+}
+
+func (h *trackHandler) mutate(c *gin.Context) {
+	space, err := extractSpace(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	var req model.TrackMutateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	mutation := store_interface.TrackMutation{MutationID: store_interface.MutationID(req.MutationID)}
+	for _, put := range req.Puts {
+		mutation.Puts = append(mutation.Puts, store_interface.TrackPut{
+			Space: space, BucketID: put.BucketID, Key: put.Key,
+			Value: put.Value, Tag: put.Tag, Metric: put.Metric,
+		})
+	}
+	for _, key := range req.Deletes {
+		mutation.Deletes = append(mutation.Deletes, store_interface.TrackKey{
+			Space: space, BucketID: key.BucketID, Key: key.Key,
+		})
+	}
+	result, err := h.store.TrackMutate(mutation)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, store_interface.ErrTrackMutationUnsupported) {
+			status = http.StatusNotImplemented
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	if result.Applied {
+		incrementObjects(c, "track", "written", len(req.Puts))
+	}
+	c.JSON(http.StatusOK, model.TrackMutateResponse{Applied: result.Applied})
 }
 
 func (h *trackHandler) upsertOne(c *gin.Context) {

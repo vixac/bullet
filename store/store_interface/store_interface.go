@@ -98,20 +98,50 @@ type TrackMutationResult struct {
 }
 
 type TrackClientInterface interface {
+	// TrackMutate atomically applies all puts, then all deletes, across every
+	// requested space and bucket, and records MutationID in the same commit.
+	// Either the entire mutation commits or none of it does. Mutation IDs are
+	// store-wide: replaying an ID returns Applied=false without applying changes.
+	// On success Applied=true means this call committed the mutation. A commit
+	// or transport error can leave the outcome unknown; retry with the same ID.
 	TrackMutate(req TrackMutation) (TrackMutationResult, error)
 }
 
 var ErrTrackMutationUnsupported = errors.New("track mutations are not supported by this store")
 
+// TrackStore provides atomic data operations within one backing store. Writes
+// commit all changes or none; successful reads return complete results from one
+// consistent snapshot, including all buckets, query chunks, and cursor batches.
+// Read errors return no partial results. Atomicity applies to each call, not to
+// a sequence of calls, and does not imply that reads use the latest snapshot.
+// Callers must not modify inputs during a call; returned data is caller-owned.
 type TrackStore interface {
 	TrackClientInterface
+
+	// TrackPut atomically upserts the value, tag, and metric for one key.
+	// A commit or transport error can leave the caller unsure whether it committed.
 	TrackPut(space TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error
+
+	// TrackGet atomically reads one key's value from a consistent snapshot.
 	TrackGet(space TenancySpace, bucketID int32, key string) (int64, error)
 
+	// TrackDeleteMany atomically deletes the entire batch, including across buckets:
+	// either all deletions commit or none do. No partial batch is committed.
+	// A commit/transport error can leave the caller uncertain whether all or none
+	// committed; an error does not necessarily mean nothing changed.
 	TrackDeleteMany(space TenancySpace, items []model.TrackBucketKeyPair) error
-	TrackClose() error
+
+	// TrackPutMany atomically upserts the entire batch, including across buckets:
+	// either all updates commit or none do. No partial batch is committed.
+	// A commit/transport error can leave the caller uncertain whether all or none
+	// committed; an error does not necessarily mean nothing changed.
 	TrackPutMany(space TenancySpace, items map[int32][]model.TrackKeyValueItem) error
+
+	// TrackGetMany atomically reads all requested keys from one snapshot across
+	// all buckets. Values and missing keys describe that same snapshot.
 	TrackGetMany(space TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error)
+
+	// GetItemsByKeyPrefix atomically reads all matching items from one snapshot.
 	GetItemsByKeyPrefix(
 		space TenancySpace,
 		bucketID int32,
@@ -121,7 +151,8 @@ type TrackStore interface {
 		metricIsGt bool, // "gt" or "lt"
 	) ([]model.TrackKeyValueItem, error)
 
-	//Slower. Advisable to keep the number of prefix strings < 30 as it is implemented via  $or clause
+	// GetItemsByKeyPrefixes atomically reads all matching items from one snapshot
+	// shared by every prefix, including when the query is split into chunks.
 	GetItemsByKeyPrefixes(space TenancySpace,
 		bucketID int32,
 		prefixes []string,

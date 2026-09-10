@@ -1,5 +1,15 @@
 package model
 
+type TrackMutateRequest struct {
+	MutationID string               `json:"mutationId" binding:"required"`
+	Puts       []TrackRequest       `json:"puts"`
+	Deletes    []TrackBucketKeyPair `json:"deletes"`
+}
+
+type TrackMutateResponse struct {
+	Applied bool `json:"applied"`
+}
+
 type TrackRequest struct {
 	BucketID int32    `json:"bucketId"`
 	Key      string   `json:"key"`

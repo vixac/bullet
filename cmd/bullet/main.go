@@ -18,7 +18,11 @@ import (
 
 func main() {
 	cfg := config.Load()
-	var kvStore store_interface.Store
+	// The application owns cleanup; data-store interfaces do not require it.
+	var kvStore interface {
+		store_interface.Store
+		TrackClose() error
+	}
 	var err error
 
 	switch cfg.DBType {

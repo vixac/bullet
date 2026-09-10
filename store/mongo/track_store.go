@@ -7,11 +7,47 @@ import (
 	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 func (m *MongoStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
-	return store_interface.TrackMutationResult{}, store_interface.ErrTrackMutationUnsupported
+	mutations := m.trackCollection.Database().Collection("track_mutations")
+	var applied bool
+	err := m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
+		// WithTransaction can retry the callback; never keep an earlier attempt's result.
+		applied = false
+		marker, err := mutations.UpdateOne(ctx, bson.M{"_id": string(req.MutationID)},
+			bson.M{"$setOnInsert": bson.M{"applied": true}}, options.Update().SetUpsert(true))
+		if err != nil {
+			return nil, err
+		}
+		if marker.UpsertedCount == 0 {
+			return nil, nil
+		}
+		writes := make([]mongo.WriteModel, 0, len(req.Puts)+len(req.Deletes))
+		for _, put := range req.Puts {
+			writes = append(writes, trackPutModel(put.Space, put.BucketID, put.Key,
+				model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}))
+		}
+		for _, key := range req.Deletes {
+			writes = append(writes, mongo.NewDeleteOneModel().SetFilter(trackKeyFilter(key.Space, key.BucketID, key.Key)))
+		}
+		if len(writes) > 0 {
+			if _, err := m.trackCollection.BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(true)); err != nil {
+				return nil, err
+			}
+		}
+		applied = true
+		return nil, nil
+	})
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	return store_interface.TrackMutationResult{Applied: applied}, nil
 }
 
 func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
@@ -36,36 +72,14 @@ func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items [
 		"$or": orFilters,
 	}
 
-	_, err := m.trackCollection.DeleteMany(context.TODO(), filter)
-	return err
+	return m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
+		return m.trackCollection.DeleteMany(ctx, filter)
+	})
 }
 
 func (m *MongoStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
-	filter := bson.M{
-		"appId":     space.AppId,
-		"tenancyId": space.TenancyId,
-		"bucketId":  bucketID,
-		"key":       key,
-	}
-
-	// Build the update document
-	updateFields := bson.M{
-		"value": value,
-	}
-
-	if tag != nil {
-		updateFields["tag"] = *tag
-	}
-
-	if metric != nil {
-		updateFields["metric"] = *metric
-	}
-
-	update := bson.M{
-		"$set": updateFields,
-	}
-
-	_, err := m.trackCollection.UpdateOne(context.TODO(), filter, update, options.Update().SetUpsert(true))
+	put := trackPutModel(space, bucketID, key, model.TrackValue{Value: value, Tag: tag, Metric: metric})
+	_, err := m.trackCollection.ReplaceOne(context.TODO(), put.Filter, put.Replacement, options.Replace().SetUpsert(true))
 	return err
 }
 
@@ -73,7 +87,10 @@ func (m *MongoStore) TrackGet(space store_interface.TenancySpace, bucketID int32
 	var result struct{ Value int64 }
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
 	err := m.trackCollection.FindOne(context.TODO(), filter).Decode(&result)
-	return result.Value, err
+	if err != nil {
+		return 0, err
+	}
+	return result.Value, nil
 }
 
 func (m *MongoStore) TrackDelete(space store_interface.TenancySpace, bucketID int32, key string) error {
@@ -87,27 +104,81 @@ func (m *MongoStore) TrackClose() error {
 }
 
 func (m *MongoStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
-	var docs []interface{}
+	var writes []mongo.WriteModel
 
 	for bucketID, kvItems := range items {
 		for _, kv := range kvItems {
-			doc := bson.M{
-				"appId":     space.AppId,
-				"tenancyId": space.TenancyId,
-				"bucketId":  bucketID,
-				"key":       kv.Key,
-				"value":     kv.Value,
-			}
-			docs = append(docs, doc)
+			writes = append(writes, trackPutModel(space, bucketID, kv.Key, kv.Value))
 		}
 	}
 
-	if len(docs) == 0 {
+	if len(writes) == 0 {
 		return nil
 	}
 
-	_, err := m.trackCollection.InsertMany(context.TODO(), docs, options.InsertMany().SetOrdered(false))
+	return m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
+		return m.trackCollection.BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(true))
+	})
+}
+
+// trackTransaction provides one snapshot for reads and an all-or-nothing commit
+// for writes. It requires a replica set or sharded cluster and never falls back
+// to nontransactional operations on unsupported deployments.
+func (m *MongoStore) trackTransaction(fn func(mongo.SessionContext) (interface{}, error)) error {
+	ctx := context.Background()
+	session, err := m.client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(ctx, fn, options.Transaction().
+		SetReadConcern(readconcern.Snapshot()).
+		SetReadPreference(readpref.Primary()).
+		SetWriteConcern(writeconcern.Majority()))
 	return err
+}
+
+func trackKeyFilter(space store_interface.TenancySpace, bucketID int32, key string) bson.M {
+	return bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
+}
+
+func trackPutModel(space store_interface.TenancySpace, bucketID int32, key string, value model.TrackValue) *mongo.ReplaceOneModel {
+	doc := trackKeyFilter(space, bucketID, key)
+	doc["value"] = value.Value
+	if value.Tag != nil {
+		doc["tag"] = *value.Tag
+	}
+	if value.Metric != nil {
+		doc["metric"] = *value.Metric
+	}
+	return mongo.NewReplaceOneModel().SetFilter(trackKeyFilter(space, bucketID, key)).SetReplacement(doc).SetUpsert(true)
+}
+
+type trackDocument struct {
+	BucketID int32    `bson:"bucketId"`
+	Key      string   `bson:"key"`
+	Value    int64    `bson:"value"`
+	Tag      *int64   `bson:"tag,omitempty"`
+	Metric   *float64 `bson:"metric,omitempty"`
+}
+
+// trackFind consumes every cursor batch in one snapshot transaction. Results
+// from failed or retried attempts must not escape to the caller.
+func (m *MongoStore) trackFind(filter bson.M) ([]trackDocument, error) {
+	var documents []trackDocument
+	err := m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
+		documents = nil
+		cursor, err := m.trackCollection.Find(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		defer cursor.Close(ctx)
+		return nil, cursor.All(ctx, &documents)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return documents, nil
 }
 
 func (b *MongoStore) GetItemsByKeyPrefix(
@@ -140,26 +211,13 @@ func (m *MongoStore) TrackGetMany(space store_interface.TenancySpace, keys map[i
 		return values, missing, nil
 	}
 
-	cur, err := m.trackCollection.Find(context.TODO(), bson.M{"$or": orFilters})
+	documents, err := m.trackFind(bson.M{"$or": orFilters})
 	if err != nil {
 		return nil, nil, err
 	}
-	defer cur.Close(context.TODO())
 
 	foundKeys := make(map[int32]map[string]bool)
-
-	for cur.Next(context.TODO()) {
-		var result struct {
-			BucketID int32    `bson:"bucketId"`
-			Key      string   `bson:"key"`
-			Value    int64    `bson:"value"`
-			Tag      *int64   `bson:"tag,omitempty"`
-			Metric   *float64 `bson:"metric,omitempty"`
-		}
-		if err := cur.Decode(&result); err != nil {
-			return nil, nil, err
-		}
-
+	for _, result := range documents {
 		if _, ok := values[result.BucketID]; !ok {
 			values[result.BucketID] = make(map[string]model.TrackValue)
 			foundKeys[result.BucketID] = make(map[string]bool)
@@ -263,16 +321,16 @@ func (m *MongoStore) GetItemsByKeyPrefixes(
 		filter["metric"] = bson.M{op: *metricValue}
 	}
 
-	cursor, err := m.trackCollection.Find(context.TODO(), filter)
+	documents, err := m.trackFind(filter)
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(context.TODO())
-
 	var results []model.TrackKeyValueItem
-	if err := cursor.All(context.TODO(), &results); err != nil {
-		return nil, err
+	for _, doc := range documents {
+		results = append(results, model.TrackKeyValueItem{
+			Key:   doc.Key,
+			Value: model.TrackValue{Value: doc.Value, Tag: doc.Tag, Metric: doc.Metric},
+		})
 	}
-
 	return results, nil
 }
