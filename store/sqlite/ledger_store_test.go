@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 func newLedgerTestStore(t *testing.T) *SQLiteStore {
@@ -22,7 +22,7 @@ func newLedgerTestStore(t *testing.T) *SQLiteStore {
 
 func TestLedgerAppendIsOrderedAcrossLedgers(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 1, TenancyId: 10}
+	space := model.TenancySpace{AppId: 1, TenancyId: 10}
 
 	first, err := store.LedgerAppend(space, "orders", "order-1", `{"order":1}`)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestLedgerAppendIsOrderedAcrossLedgers(t *testing.T) {
 	if first.Position != 1 || second.Position != 2 || third.Position != 3 {
 		t.Fatalf("positions = %d, %d, %d; want 1, 2, 3", first.Position, second.Position, third.Position)
 	}
-	page, err := store.LedgerReadBackward(space, store_interface.LedgerSelector{All: true}, nil, 10)
+	page, err := store.LedgerReadBackward(space, model.LedgerSelector{All: true}, nil, 10)
 	if err != nil {
 		t.Fatalf("read all ledgers: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestLedgerAppendIsOrderedAcrossLedgers(t *testing.T) {
 
 func TestLedgerAppendIdempotencyAndConflict(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 2, TenancyId: 20}
+	space := model.TenancySpace{AppId: 2, TenancyId: 20}
 
 	original, err := store.LedgerAppend(space, "audit", "request-1", "same bytes")
 	if err != nil {
@@ -71,15 +71,15 @@ func TestLedgerAppendIdempotencyAndConflict(t *testing.T) {
 		t.Errorf("retry returned a different record: original=%+v retried=%+v", original, retried)
 	}
 	_, err = store.LedgerAppend(space, "audit", "request-1", "different bytes")
-	if !errors.Is(err, store_interface.ErrLedgerAppendConflict) {
+	if !errors.Is(err, model.ErrLedgerAppendConflict) {
 		t.Fatalf("different retry error = %v, want append conflict", err)
 	}
 }
 
 func TestLedgerAppendManyIsAtomicOrderedAndIdempotent(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 3, TenancyId: 30}
-	items := []store_interface.LedgerAppendItem{
+	space := model.TenancySpace{AppId: 3, TenancyId: 30}
+	items := []model.LedgerAppendItem{
 		{AppendID: "a", Payload: "one"},
 		{AppendID: "b", Payload: "two"},
 		{AppendID: "c", Payload: "three"},
@@ -89,7 +89,7 @@ func TestLedgerAppendManyIsAtomicOrderedAndIdempotent(t *testing.T) {
 		t.Fatalf("append many: %v", err)
 	}
 	for i, record := range records {
-		if record.Position != store_interface.LedgerPosition(i+1) {
+		if record.Position != model.LedgerPosition(i+1) {
 			t.Errorf("record %d position = %d, want %d", i, record.Position, i+1)
 		}
 	}
@@ -102,11 +102,11 @@ func TestLedgerAppendManyIsAtomicOrderedAndIdempotent(t *testing.T) {
 			t.Errorf("retry position %d = %d, want %d", i, retried[i].Position, records[i].Position)
 		}
 	}
-	_, err = store.LedgerAppendMany(space, "events", []store_interface.LedgerAppendItem{{AppendID: "a", Payload: "one"}, {AppendID: "new", Payload: "new"}})
-	if !errors.Is(err, store_interface.ErrLedgerBatchConflict) {
+	_, err = store.LedgerAppendMany(space, "events", []model.LedgerAppendItem{{AppendID: "a", Payload: "one"}, {AppendID: "new", Payload: "new"}})
+	if !errors.Is(err, model.ErrLedgerBatchConflict) {
 		t.Fatalf("mixed batch error = %v, want batch conflict", err)
 	}
-	page, err := store.LedgerReadBackward(space, store_interface.LedgerSelector{All: true}, nil, 10)
+	page, err := store.LedgerReadBackward(space, model.LedgerSelector{All: true}, nil, 10)
 	if err != nil {
 		t.Fatalf("read after conflict: %v", err)
 	}
@@ -117,13 +117,13 @@ func TestLedgerAppendManyIsAtomicOrderedAndIdempotent(t *testing.T) {
 
 func TestLedgerBackwardPaginationIsStatelessAndAnchored(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 4, TenancyId: 40}
+	space := model.TenancySpace{AppId: 4, TenancyId: 40}
 	for i := 1; i <= 5; i++ {
-		if _, err := store.LedgerAppend(space, "feed", store_interface.LedgerAppendID(fmt.Sprintf("id-%d", i)), fmt.Sprintf("payload-%d", i)); err != nil {
+		if _, err := store.LedgerAppend(space, "feed", model.LedgerAppendID(fmt.Sprintf("id-%d", i)), fmt.Sprintf("payload-%d", i)); err != nil {
 			t.Fatalf("append %d: %v", i, err)
 		}
 	}
-	selector := store_interface.LedgerSelector{LedgerIDs: []store_interface.LedgerID{"feed"}}
+	selector := model.LedgerSelector{LedgerIDs: []model.LedgerID{"feed"}}
 	first, err := store.LedgerReadBackward(space, selector, nil, 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
@@ -152,35 +152,35 @@ func TestLedgerBackwardPaginationIsStatelessAndAnchored(t *testing.T) {
 
 func TestLedgerCursorIsBoundToSelector(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 5, TenancyId: 50}
+	space := model.TenancySpace{AppId: 5, TenancyId: 50}
 	for i := 0; i < 2; i++ {
-		_, _ = store.LedgerAppend(space, "one", store_interface.LedgerAppendID(fmt.Sprintf("id-%d", i)), "x")
+		_, _ = store.LedgerAppend(space, "one", model.LedgerAppendID(fmt.Sprintf("id-%d", i)), "x")
 	}
-	page, err := store.LedgerReadBackward(space, store_interface.LedgerSelector{LedgerIDs: []store_interface.LedgerID{"one"}}, nil, 1)
+	page, err := store.LedgerReadBackward(space, model.LedgerSelector{LedgerIDs: []model.LedgerID{"one"}}, nil, 1)
 	if err != nil || page.NextCursor == nil {
 		t.Fatalf("get cursor: page=%+v err=%v", page, err)
 	}
-	_, err = store.LedgerReadBackward(space, store_interface.LedgerSelector{All: true}, page.NextCursor, 1)
-	if !errors.Is(err, store_interface.ErrLedgerInvalidCursor) {
+	_, err = store.LedgerReadBackward(space, model.LedgerSelector{All: true}, page.NextCursor, 1)
+	if !errors.Is(err, model.ErrLedgerInvalidCursor) {
 		t.Fatalf("selector mismatch error = %v, want invalid cursor", err)
 	}
 }
 
 func TestLedgerReadForwardAndTenantIsolation(t *testing.T) {
 	store := newLedgerTestStore(t)
-	spaceA := store_interface.TenancySpace{AppId: 6, TenancyId: 60}
-	spaceB := store_interface.TenancySpace{AppId: 6, TenancyId: 61}
+	spaceA := model.TenancySpace{AppId: 6, TenancyId: 60}
+	spaceB := model.TenancySpace{AppId: 6, TenancyId: 61}
 	for i := 1; i <= 4; i++ {
-		_, _ = store.LedgerAppend(spaceA, "events", store_interface.LedgerAppendID(fmt.Sprintf("a-%d", i)), fmt.Sprintf("a%d", i))
+		_, _ = store.LedgerAppend(spaceA, "events", model.LedgerAppendID(fmt.Sprintf("a-%d", i)), fmt.Sprintf("a%d", i))
 	}
 	_, _ = store.LedgerAppend(spaceB, "events", "b-1", "private")
-	through := store_interface.LedgerPosition(3)
-	records, err := store.LedgerReadForward(spaceA, store_interface.LedgerSelector{All: true}, 1, &through, 10)
+	through := model.LedgerPosition(3)
+	records, err := store.LedgerReadForward(spaceA, model.LedgerSelector{All: true}, 1, &through, 10)
 	if err != nil {
 		t.Fatalf("read forward: %v", err)
 	}
 	assertPositions(t, records, 2, 3)
-	other, err := store.LedgerReadForward(spaceB, store_interface.LedgerSelector{All: true}, 0, nil, 10)
+	other, err := store.LedgerReadForward(spaceB, model.LedgerSelector{All: true}, 0, nil, 10)
 	if err != nil {
 		t.Fatalf("read other tenant: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestLedgerReadForwardAndTenantIsolation(t *testing.T) {
 
 func TestLedgerDeleteIsScopedAndIdempotent(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 7, TenancyId: 70}
+	space := model.TenancySpace{AppId: 7, TenancyId: 70}
 	_, _ = store.LedgerAppend(space, "remove", "r-1", "remove")
 	_, _ = store.LedgerAppend(space, "keep", "k-1", "keep")
 	if err := store.LedgerDelete(space, "remove"); err != nil {
@@ -200,7 +200,7 @@ func TestLedgerDeleteIsScopedAndIdempotent(t *testing.T) {
 	if err := store.LedgerDelete(space, "remove"); err != nil {
 		t.Fatalf("repeat delete: %v", err)
 	}
-	page, err := store.LedgerReadBackward(space, store_interface.LedgerSelector{All: true}, nil, 10)
+	page, err := store.LedgerReadBackward(space, model.LedgerSelector{All: true}, nil, 10)
 	if err != nil {
 		t.Fatalf("read after delete: %v", err)
 	}
@@ -218,30 +218,30 @@ func TestLedgerDeleteIsScopedAndIdempotent(t *testing.T) {
 
 func TestLedgerValidation(t *testing.T) {
 	store := newLedgerTestStore(t)
-	space := store_interface.TenancySpace{AppId: 8, TenancyId: 80}
+	space := model.TenancySpace{AppId: 8, TenancyId: 80}
 	_, err := store.LedgerAppend(space, "bad ledger", "id", "payload")
-	if !errors.Is(err, store_interface.ErrLedgerInvalidID) {
+	if !errors.Is(err, model.ErrLedgerInvalidID) {
 		t.Errorf("invalid ledger error = %v", err)
 	}
 	_, err = store.LedgerAppend(space, "valid", "", "payload")
-	if !errors.Is(err, store_interface.ErrLedgerInvalidAppendID) {
+	if !errors.Is(err, model.ErrLedgerInvalidAppendID) {
 		t.Errorf("empty append id error = %v", err)
 	}
-	_, err = store.LedgerAppend(space, "valid", "large", strings.Repeat("x", store_interface.LedgerMaxPayloadBytes+1))
-	if !errors.Is(err, store_interface.ErrLedgerPayloadTooLarge) {
+	_, err = store.LedgerAppend(space, "valid", "large", strings.Repeat("x", model.LedgerMaxPayloadBytes+1))
+	if !errors.Is(err, model.ErrLedgerPayloadTooLarge) {
 		t.Errorf("large payload error = %v", err)
 	}
-	_, err = store.LedgerReadBackward(space, store_interface.LedgerSelector{}, nil, 10)
-	if !errors.Is(err, store_interface.ErrLedgerInvalidSelector) {
+	_, err = store.LedgerReadBackward(space, model.LedgerSelector{}, nil, 10)
+	if !errors.Is(err, model.ErrLedgerInvalidSelector) {
 		t.Errorf("empty selector error = %v", err)
 	}
-	_, err = store.LedgerReadBackward(space, store_interface.LedgerSelector{All: true}, nil, 0)
-	if !errors.Is(err, store_interface.ErrLedgerInvalidPageSize) {
+	_, err = store.LedgerReadBackward(space, model.LedgerSelector{All: true}, nil, 0)
+	if !errors.Is(err, model.ErrLedgerInvalidPageSize) {
 		t.Errorf("page size error = %v", err)
 	}
 }
 
-func assertPositions(t *testing.T, records []store_interface.LedgerRecord, want ...store_interface.LedgerPosition) {
+func assertPositions(t *testing.T, records []model.LedgerRecord, want ...model.LedgerPosition) {
 	t.Helper()
 	if len(records) != len(want) {
 		t.Fatalf("got %d records, want %d: %+v", len(records), len(want), records)

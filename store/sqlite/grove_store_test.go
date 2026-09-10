@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 )
 
 func TestGetNodeWithDescendantsAggregatesBulkChunksLargeRequests(t *testing.T) {
@@ -15,20 +14,20 @@ func TestGetNodeWithDescendantsAggregatesBulkChunksLargeRequests(t *testing.T) {
 	}
 	defer store.db.Close()
 
-	space := store_interface.TenancySpace{AppId: 1, TenancyId: 1}
-	treeID := store_interface.TreeID("bulk-chunks")
-	nodes := make([]store_interface.NodeID, sqliteQueryChunkSize*2+1)
+	space := model.TenancySpace{AppId: 1, TenancyId: 1}
+	treeID := model.TreeID("bulk-chunks")
+	nodes := make([]model.NodeID, sqliteQueryChunkSize*2+1)
 	for i := range nodes {
-		nodes[i] = store_interface.NodeID(fmt.Sprintf("node-%d", i))
+		nodes[i] = model.NodeID(fmt.Sprintf("node-%d", i))
 		if err := store.CreateNode(space, treeID, nodes[i], nil, nil, nil); err != nil {
 			t.Fatalf("create node %d: %v", i, err)
 		}
 	}
-	if err := store.ApplyAggregateMutation(space, treeID, "aggregate", nodes[sqliteQueryChunkSize], store_interface.AggregateDeltas{"count": 7}); err != nil {
+	if err := store.ApplyAggregateMutation(space, treeID, "aggregate", nodes[sqliteQueryChunkSize], model.AggregateDeltas{"count": 7}); err != nil {
 		t.Fatalf("apply aggregate: %v", err)
 	}
 
-	requested := append(nodes, store_interface.NodeID("missing"))
+	requested := append(nodes, model.NodeID("missing"))
 	result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, requested)
 	if err != nil {
 		t.Fatalf("bulk aggregates: %v", err)
@@ -51,7 +50,7 @@ func TestTrackQueriesChunkLargeFilters(t *testing.T) {
 	}
 	defer store.db.Close()
 
-	space := store_interface.TenancySpace{AppId: 1, TenancyId: 1}
+	space := model.TenancySpace{AppId: 1, TenancyId: 1}
 	const bucketID int32 = 1
 	const itemCount = sqliteQueryChunkSize*2 + 1
 	tag := int64(7)

@@ -1,11 +1,11 @@
 package postgresql
 
 import (
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 func (s *PostgreSQLStore) DepotCreate(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	value string,
 ) (int64, error) {
@@ -20,7 +20,7 @@ func (s *PostgreSQLStore) DepotCreate(
 }
 
 func (s *PostgreSQLStore) DepotDeleteByBucket(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 ) error {
 
@@ -32,7 +32,7 @@ func (s *PostgreSQLStore) DepotDeleteByBucket(
 }
 
 func (s *PostgreSQLStore) DepotCreateMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	values []string,
 ) ([]int64, error) {
@@ -69,7 +69,7 @@ func (s *PostgreSQLStore) DepotCreateMany(
 }
 
 func (s *PostgreSQLStore) DepotUpdate(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	id int64,
 	value string,
 ) error {
@@ -83,7 +83,7 @@ func (s *PostgreSQLStore) DepotUpdate(
 }
 
 func (s *PostgreSQLStore) DepotDelete(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	id int64,
 ) error {
 
@@ -95,7 +95,7 @@ func (s *PostgreSQLStore) DepotDelete(
 }
 
 func (s *PostgreSQLStore) DepotGet(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	id int64,
 ) (string, error) {
 
@@ -108,7 +108,7 @@ func (s *PostgreSQLStore) DepotGet(
 }
 
 func (s *PostgreSQLStore) DepotGetMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	ids []int64,
 ) (map[int64]string, []int64, error) {
 
@@ -154,7 +154,7 @@ func (s *PostgreSQLStore) DepotGetMany(
 }
 
 func (s *PostgreSQLStore) DepotGetAllByBucket(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 ) (map[int64]string, error) {
 

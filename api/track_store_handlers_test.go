@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	"github.com/vixac/bullet/store/ram"
 )
 
@@ -53,13 +53,13 @@ func TestTrackUpsertAndGetOne(t *testing.T) {
 
 	tag := int64(7)
 	metric := 3.14
-	upsertResp := trackPost(t, srv, "/items", model.TrackRequest{
+	upsertResp := trackPost(t, srv, "/items", protocol.TrackRequest{
 		BucketID: 10, Key: "hello", Value: 42, Tag: &tag, Metric: &metric,
 	})
 	assert.Equal(t, http.StatusOK, upsertResp.StatusCode)
 	upsertResp.Body.Close()
 
-	getResp := trackPost(t, srv, "/items/get", model.TrackRequest{BucketID: 10, Key: "hello"})
+	getResp := trackPost(t, srv, "/items/get", protocol.TrackRequest{BucketID: 10, Key: "hello"})
 	assert.Equal(t, http.StatusOK, getResp.StatusCode)
 	var body map[string]int64
 	json.NewDecoder(getResp.Body).Decode(&body)
@@ -70,22 +70,22 @@ func TestTrackUpsertAndGetOne(t *testing.T) {
 func TestTrackUpsertMany(t *testing.T) {
 	srv, _ := newTrackServer(t)
 
-	upsertResp := trackPost(t, srv, "/items/batch", model.TrackPutManyRequest{
-		Buckets: []model.TrackPutItems{
-			{BucketID: 5, Items: []model.TrackKeyValueItem{
-				{Key: "a", Value: model.TrackValue{Value: 1}},
-				{Key: "b", Value: model.TrackValue{Value: 2}},
+	upsertResp := trackPost(t, srv, "/items/batch", protocol.TrackPutManyRequest{
+		Buckets: []protocol.TrackPutItems{
+			{BucketID: 5, Items: []protocol.TrackKeyValueItem{
+				{Key: "a", Value: protocol.TrackValue{Value: 1}},
+				{Key: "b", Value: protocol.TrackValue{Value: 2}},
 			}},
 		},
 	})
 	assert.Equal(t, http.StatusOK, upsertResp.StatusCode)
 	upsertResp.Body.Close()
 
-	getManyResp := trackPost(t, srv, "/items/batch-get", model.TrackGetManyRequest{
-		Buckets: []model.TrackGetKeys{{BucketID: 5, Keys: []string{"a", "b", "missing"}}},
+	getManyResp := trackPost(t, srv, "/items/batch-get", protocol.TrackGetManyRequest{
+		Buckets: []protocol.TrackGetKeys{{BucketID: 5, Keys: []string{"a", "b", "missing"}}},
 	})
 	assert.Equal(t, http.StatusOK, getManyResp.StatusCode)
-	var body model.TrackGetManyResponse
+	var body protocol.TrackGetManyResponse
 	json.NewDecoder(getManyResp.Body).Decode(&body)
 	getManyResp.Body.Close()
 
@@ -98,12 +98,12 @@ func TestTrackDeleteMany(t *testing.T) {
 	srv, _ := newTrackServer(t)
 
 	for _, k := range []string{"k1", "k2", "k3"} {
-		r := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 10, Key: k, Value: 99})
+		r := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 10, Key: k, Value: 99})
 		r.Body.Close()
 	}
 
-	delResp := trackDelete(t, srv, "/items", model.TrackDeleteManyRequest{
-		Items: []model.TrackBucketKeyPair{
+	delResp := trackDelete(t, srv, "/items", protocol.TrackDeleteManyRequest{
+		Items: []protocol.TrackBucketKeyPair{
 			{BucketID: 10, Key: "k1"},
 			{BucketID: 10, Key: "k3"},
 		},
@@ -111,11 +111,11 @@ func TestTrackDeleteMany(t *testing.T) {
 	assert.Equal(t, http.StatusOK, delResp.StatusCode)
 	delResp.Body.Close()
 
-	getManyResp := trackPost(t, srv, "/items/batch-get", model.TrackGetManyRequest{
-		Buckets: []model.TrackGetKeys{{BucketID: 10, Keys: []string{"k1", "k2", "k3"}}},
+	getManyResp := trackPost(t, srv, "/items/batch-get", protocol.TrackGetManyRequest{
+		Buckets: []protocol.TrackGetKeys{{BucketID: 10, Keys: []string{"k1", "k2", "k3"}}},
 	})
 	assert.Equal(t, http.StatusOK, getManyResp.StatusCode)
-	var body model.TrackGetManyResponse
+	var body protocol.TrackGetManyResponse
 	json.NewDecoder(getManyResp.Body).Decode(&body)
 	getManyResp.Body.Close()
 
@@ -128,15 +128,15 @@ func TestTrackQueryByPrefix(t *testing.T) {
 	srv, _ := newTrackServer(t)
 
 	for _, k := range []string{"foo:1", "foo:2", "bar:1"} {
-		r := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 1, Key: k, Value: 5})
+		r := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 1, Key: k, Value: 5})
 		r.Body.Close()
 	}
 
-	queryResp := trackPost(t, srv, "/query", model.TrackGetItemsByPrefixRequest{
+	queryResp := trackPost(t, srv, "/query", protocol.TrackGetItemsByPrefixRequest{
 		BucketID: 1, Prefix: "foo:",
 	})
 	assert.Equal(t, http.StatusOK, queryResp.StatusCode)
-	var body map[string][]model.TrackKeyValueItem
+	var body map[string][]protocol.TrackKeyValueItem
 	json.NewDecoder(queryResp.Body).Decode(&body)
 	queryResp.Body.Close()
 
@@ -147,15 +147,15 @@ func TestTrackQueryByPrefixes(t *testing.T) {
 	srv, _ := newTrackServer(t)
 
 	for _, k := range []string{"foo:1", "bar:1", "baz:1"} {
-		r := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 1, Key: k, Value: 5})
+		r := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 1, Key: k, Value: 5})
 		r.Body.Close()
 	}
 
-	queryResp := trackPost(t, srv, "/query/multi", model.TrackGetItemsByPrefixesRequest{
+	queryResp := trackPost(t, srv, "/query/multi", protocol.TrackGetItemsByPrefixesRequest{
 		BucketID: 1, Prefixes: []string{"foo:", "bar:"},
 	})
 	assert.Equal(t, http.StatusOK, queryResp.StatusCode)
-	var body map[string][]model.TrackKeyValueItem
+	var body map[string][]protocol.TrackKeyValueItem
 	json.NewDecoder(queryResp.Body).Decode(&body)
 	queryResp.Body.Close()
 
@@ -169,7 +169,7 @@ func TestTrackMissingHeaders(t *testing.T) {
 	srv := httptest.NewServer(engine.Handler())
 	defer srv.Close()
 
-	b, _ := json.Marshal(model.TrackRequest{BucketID: 1, Key: "k", Value: 1})
+	b, _ := json.Marshal(protocol.TrackRequest{BucketID: 1, Key: "k", Value: 1})
 	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/track/items", bytes.NewBuffer(b))
 	req.Header.Set("Content-Type", "application/json")
 	// No X-App-Id or X-Tenancy-Id
@@ -181,35 +181,35 @@ func TestTrackMissingHeaders(t *testing.T) {
 
 func TestTrackMutate(t *testing.T) {
 	srv, _ := newTrackServer(t)
-	seed := trackPost(t, srv, "/items", model.TrackRequest{BucketID: 10, Key: "old", Value: 1})
+	seed := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 10, Key: "old", Value: 1})
 	require.Equal(t, http.StatusOK, seed.StatusCode)
 	seed.Body.Close()
 
 	tag, metric := int64(7), 3.14
-	req := model.TrackMutateRequest{
+	req := protocol.TrackMutateRequest{
 		MutationID: "mutation-1",
-		Puts:       []model.TrackRequest{{BucketID: 20, Key: "new", Value: 9007199254740993, Tag: &tag, Metric: &metric}},
-		Deletes:    []model.TrackBucketKeyPair{{BucketID: 10, Key: "old"}},
+		Puts:       []protocol.TrackRequest{{BucketID: 20, Key: "new", Value: 9007199254740993, Tag: &tag, Metric: &metric}},
+		Deletes:    []protocol.TrackBucketKeyPair{{BucketID: 10, Key: "old"}},
 	}
 	for _, applied := range []bool{true, false} {
 		resp := trackPost(t, srv, "/mutate", req)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
-		var result model.TrackMutateResponse
+		var result protocol.TrackMutateResponse
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
 		resp.Body.Close()
 		assert.Equal(t, applied, result.Applied)
 		// A retry with changed values must not apply again.
 		req.Puts[0].Value = 2
 	}
-	resp := trackPost(t, srv, "/items/batch-get", model.TrackGetManyRequest{
-		Buckets: []model.TrackGetKeys{{BucketID: 10, Keys: []string{"old"}}, {BucketID: 20, Keys: []string{"new"}}},
+	resp := trackPost(t, srv, "/items/batch-get", protocol.TrackGetManyRequest{
+		Buckets: []protocol.TrackGetKeys{{BucketID: 10, Keys: []string{"old"}}, {BucketID: 20, Keys: []string{"new"}}},
 	})
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	var result model.TrackGetManyResponse
+	var result protocol.TrackGetManyResponse
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
 	assert.Contains(t, result.Missing["10"], "old")
-	assert.Equal(t, model.TrackValue{Value: 9007199254740993, Tag: &tag, Metric: &metric}, result.Values["20"]["new"])
+	assert.Equal(t, protocol.TrackValue{Value: 9007199254740993, Tag: &tag, Metric: &metric}, result.Values["20"]["new"])
 }
 
 func TestTrackMutateInvalidRequests(t *testing.T) {

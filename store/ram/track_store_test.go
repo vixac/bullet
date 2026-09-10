@@ -6,21 +6,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vixac/bullet/model"
-	si "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestTrackBatchesHaveNoPartialVisibility(t *testing.T) {
 	s := NewRamStore()
-	space := si.TenancySpace{AppId: 1, TenancyId: 2}
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
 	puts := map[int32][]model.TrackKeyValueItem{}
 	keys := map[int32][]string{}
-	var deletes []model.TrackBucketKeyPair
+	var deletes []model.TrackKey
 	const count = 2000
 	for i := 0; i < count; i++ {
 		bucket, key := int32(i%2), fmt.Sprint(i)
 		puts[bucket] = append(puts[bucket], model.TrackKeyValueItem{Key: key, Value: model.TrackValue{Value: 42}})
 		keys[bucket] = append(keys[bucket], key)
-		deletes = append(deletes, model.TrackBucketKeyPair{BucketID: bucket, Key: key})
+		deletes = append(deletes, model.TrackKey{BucketID: bucket, Key: key})
 	}
 	done := make(chan error, 1)
 	go func() {

@@ -1,21 +1,21 @@
 package ram
 
 import (
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
-func (m *RamStore) depotEnsureSpace(space store_interface.TenancySpace) {
+func (m *RamStore) depotEnsureSpace(space model.TenancySpace) {
 	if _, ok := m.depots[space]; !ok {
 		m.depots[space] = make(map[int64]depotEntry)
 	}
 }
 
-func (m *RamStore) depotGenID(space store_interface.TenancySpace) int64 {
+func (m *RamStore) depotGenID(space model.TenancySpace) int64 {
 	m.depotNextIDs[space]++
 	return m.depotNextIDs[space]
 }
 
-func (m *RamStore) DepotCreate(space store_interface.TenancySpace, bucketID int32, value string) (int64, error) {
+func (m *RamStore) DepotCreate(space model.TenancySpace, bucketID int32, value string) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -25,7 +25,7 @@ func (m *RamStore) DepotCreate(space store_interface.TenancySpace, bucketID int3
 	return id, nil
 }
 
-func (m *RamStore) DepotCreateMany(space store_interface.TenancySpace, bucketID int32, values []string) ([]int64, error) {
+func (m *RamStore) DepotCreateMany(space model.TenancySpace, bucketID int32, values []string) ([]int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -39,7 +39,7 @@ func (m *RamStore) DepotCreateMany(space store_interface.TenancySpace, bucketID 
 	return ids, nil
 }
 
-func (m *RamStore) DepotUpdate(space store_interface.TenancySpace, id int64, value string) error {
+func (m *RamStore) DepotUpdate(space model.TenancySpace, id int64, value string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -50,10 +50,10 @@ func (m *RamStore) DepotUpdate(space store_interface.TenancySpace, id int64, val
 			return nil
 		}
 	}
-	return store_interface.ErrNodeNotFound
+	return model.ErrNodeNotFound
 }
 
-func (m *RamStore) DepotGet(space store_interface.TenancySpace, id int64) (string, error) {
+func (m *RamStore) DepotGet(space model.TenancySpace, id int64) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -62,10 +62,10 @@ func (m *RamStore) DepotGet(space store_interface.TenancySpace, id int64) (strin
 			return entry.value, nil
 		}
 	}
-	return "", store_interface.ErrNodeNotFound
+	return "", model.ErrNodeNotFound
 }
 
-func (m *RamStore) DepotGetMany(space store_interface.TenancySpace, ids []int64) (map[int64]string, []int64, error) {
+func (m *RamStore) DepotGetMany(space model.TenancySpace, ids []int64) (map[int64]string, []int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -85,7 +85,7 @@ func (m *RamStore) DepotGetMany(space store_interface.TenancySpace, ids []int64)
 	return found, missing, nil
 }
 
-func (m *RamStore) DepotDelete(space store_interface.TenancySpace, id int64) error {
+func (m *RamStore) DepotDelete(space model.TenancySpace, id int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -95,7 +95,7 @@ func (m *RamStore) DepotDelete(space store_interface.TenancySpace, id int64) err
 	return nil
 }
 
-func (m *RamStore) DepotDeleteByBucket(space store_interface.TenancySpace, bucketID int32) error {
+func (m *RamStore) DepotDeleteByBucket(space model.TenancySpace, bucketID int32) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -109,7 +109,7 @@ func (m *RamStore) DepotDeleteByBucket(space store_interface.TenancySpace, bucke
 	return nil
 }
 
-func (m *RamStore) DepotGetAllByBucket(space store_interface.TenancySpace, bucketID int32) (map[int64]string, error) {
+func (m *RamStore) DepotGetAllByBucket(space model.TenancySpace, bucketID int32) (map[int64]string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

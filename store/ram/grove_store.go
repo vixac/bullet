@@ -3,7 +3,7 @@ package ram
 import (
 	"fmt"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 // Grove data structures in RamStore (defined in ram.go)
@@ -16,48 +16,48 @@ import (
 
 // CreateNode creates a new node in the tree
 func (r *RamStore) CreateNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	parent *store_interface.NodeID,
-	position *store_interface.ChildPosition,
-	metadata *store_interface.NodeMetadata,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	parent *model.NodeID,
+	position *model.ChildPosition,
+	metadata *model.NodeMetadata,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Initialize maps if needed
 	if r.groveNodes == nil {
-		r.groveNodes = make(map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData)
+		r.groveNodes = make(map[model.TenancySpace]map[model.TreeID]map[model.NodeID]*nodeData)
 	}
 	if r.groveNodes[space] == nil {
-		r.groveNodes[space] = make(map[store_interface.TreeID]map[store_interface.NodeID]*nodeData)
+		r.groveNodes[space] = make(map[model.TreeID]map[model.NodeID]*nodeData)
 	}
 	if r.groveNodes[space][treeID] == nil {
-		r.groveNodes[space][treeID] = make(map[store_interface.NodeID]*nodeData)
+		r.groveNodes[space][treeID] = make(map[model.NodeID]*nodeData)
 	}
 	if r.groveClosure == nil {
-		r.groveClosure = make(map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.NodeID]int)
+		r.groveClosure = make(map[model.TenancySpace]map[model.TreeID]map[model.NodeID]map[model.NodeID]int)
 	}
 	if r.groveClosure[space] == nil {
-		r.groveClosure[space] = make(map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.NodeID]int)
+		r.groveClosure[space] = make(map[model.TreeID]map[model.NodeID]map[model.NodeID]int)
 	}
 	if r.groveClosure[space][treeID] == nil {
-		r.groveClosure[space][treeID] = make(map[store_interface.NodeID]map[store_interface.NodeID]int)
+		r.groveClosure[space][treeID] = make(map[model.NodeID]map[model.NodeID]int)
 	}
 	if r.groveChildren == nil {
-		r.groveChildren = make(map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID][]store_interface.NodeID)
+		r.groveChildren = make(map[model.TenancySpace]map[model.TreeID]map[model.NodeID][]model.NodeID)
 	}
 	if r.groveChildren[space] == nil {
-		r.groveChildren[space] = make(map[store_interface.TreeID]map[store_interface.NodeID][]store_interface.NodeID)
+		r.groveChildren[space] = make(map[model.TreeID]map[model.NodeID][]model.NodeID)
 	}
 	if r.groveChildren[space][treeID] == nil {
-		r.groveChildren[space][treeID] = make(map[store_interface.NodeID][]store_interface.NodeID)
+		r.groveChildren[space][treeID] = make(map[model.NodeID][]model.NodeID)
 	}
 
 	// Check if node already exists
 	if _, exists := r.groveNodes[space][treeID][node]; exists {
-		return store_interface.ErrNodeAlreadyExists
+		return model.ErrNodeAlreadyExists
 	}
 
 	// Check if parent exists (if specified)
@@ -65,7 +65,7 @@ func (r *RamStore) CreateNode(
 	if parent != nil {
 		parentNode, exists := r.groveNodes[space][treeID][*parent]
 		if !exists {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		depth = parentNode.depth + 1
 	} else {
@@ -84,7 +84,7 @@ func (r *RamStore) CreateNode(
 
 	// Update closure table: node is descendant of itself at depth 0
 	if r.groveClosure[space][treeID][node] == nil {
-		r.groveClosure[space][treeID][node] = make(map[store_interface.NodeID]int)
+		r.groveClosure[space][treeID][node] = make(map[model.NodeID]int)
 	}
 	r.groveClosure[space][treeID][node][node] = 0
 
@@ -107,17 +107,17 @@ func (r *RamStore) CreateNode(
 }
 
 // DeleteNode deletes a node (soft or hard delete)
-func (r *RamStore) DeleteNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, soft bool) error {
+func (r *RamStore) DeleteNode(space model.TenancySpace, treeID model.TreeID, node model.NodeID, soft bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	nodeObj, exists := r.groveNodes[space][treeID][node]
 	if !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	// Check if node has children - for now, prevent deletion of non-leaf nodes
@@ -128,13 +128,13 @@ func (r *RamStore) DeleteNode(space store_interface.TenancySpace, treeID store_i
 	if soft {
 		// Soft delete: move to deleted nodes map
 		if r.groveDeletedNodes == nil {
-			r.groveDeletedNodes = make(map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData)
+			r.groveDeletedNodes = make(map[model.TenancySpace]map[model.TreeID]map[model.NodeID]*nodeData)
 		}
 		if r.groveDeletedNodes[space] == nil {
-			r.groveDeletedNodes[space] = make(map[store_interface.TreeID]map[store_interface.NodeID]*nodeData)
+			r.groveDeletedNodes[space] = make(map[model.TreeID]map[model.NodeID]*nodeData)
 		}
 		if r.groveDeletedNodes[space][treeID] == nil {
-			r.groveDeletedNodes[space][treeID] = make(map[store_interface.NodeID]*nodeData)
+			r.groveDeletedNodes[space][treeID] = make(map[model.NodeID]*nodeData)
 		}
 		r.groveDeletedNodes[space][treeID][node] = nodeObj
 	}
@@ -164,22 +164,22 @@ func (r *RamStore) DeleteNode(space store_interface.TenancySpace, treeID store_i
 
 // MoveNode moves a node to a new parent
 func (r *RamStore) MoveNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	newParent *store_interface.NodeID,
-	newPosition *store_interface.ChildPosition,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	newParent *model.NodeID,
+	newPosition *model.ChildPosition,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	nodeObj, exists := r.groveNodes[space][treeID][node]
 	if !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	// Check if new parent exists (if specified)
@@ -187,12 +187,12 @@ func (r *RamStore) MoveNode(
 	if newParent != nil {
 		newParentNode, exists := r.groveNodes[space][treeID][*newParent]
 		if !exists {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		// Check for cycles: newParent cannot be a descendant of node
 		if r.isDescendant(space, treeID, node, *newParent) {
-			return store_interface.ErrCycleDetected
+			return model.ErrCycleDetected
 		}
 
 		newDepth = newParentNode.depth + 1
@@ -217,7 +217,7 @@ func (r *RamStore) MoveNode(
 	descendants := r.getDescendantsInternal(space, treeID, node)
 	descendants = append(descendants, node) // include node itself
 
-	subtreeSet := make(map[store_interface.NodeID]bool, len(descendants))
+	subtreeSet := make(map[model.NodeID]bool, len(descendants))
 	for _, desc := range descendants {
 		subtreeSet[desc] = true
 	}
@@ -252,14 +252,14 @@ func (r *RamStore) MoveNode(
 
 		// Add self-reference if not already present
 		if r.groveClosure[space][treeID][desc] == nil {
-			r.groveClosure[space][treeID][desc] = make(map[store_interface.NodeID]int)
+			r.groveClosure[space][treeID][desc] = make(map[model.NodeID]int)
 		}
 		r.groveClosure[space][treeID][desc][desc] = 0
 
 		// Add node as ancestor of descendants (if desc != node)
 		if desc != node {
 			if r.groveClosure[space][treeID][node] == nil {
-				r.groveClosure[space][treeID][node] = make(map[store_interface.NodeID]int)
+				r.groveClosure[space][treeID][node] = make(map[model.NodeID]int)
 			}
 			r.groveClosure[space][treeID][node][desc] = relativeDepth
 		}
@@ -285,23 +285,23 @@ func (r *RamStore) MoveNode(
 }
 
 // RestoreNode restores a soft-deleted node
-func (r *RamStore) RestoreNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) error {
+func (r *RamStore) RestoreNode(space model.TenancySpace, treeID model.TreeID, node model.NodeID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.groveDeletedNodes == nil || r.groveDeletedNodes[space] == nil || r.groveDeletedNodes[space][treeID] == nil {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	nodeObj, exists := r.groveDeletedNodes[space][treeID][node]
 	if !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	// Check if parent still exists (if node had a parent)
 	if nodeObj.parent != nil {
 		if _, exists := r.groveNodes[space][treeID][*nodeObj.parent]; !exists {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 	}
 
@@ -313,7 +313,7 @@ func (r *RamStore) RestoreNode(space store_interface.TenancySpace, treeID store_
 
 	// Rebuild closure table relationships
 	if r.groveClosure[space][treeID][node] == nil {
-		r.groveClosure[space][treeID][node] = make(map[store_interface.NodeID]int)
+		r.groveClosure[space][treeID][node] = make(map[model.NodeID]int)
 	}
 	r.groveClosure[space][treeID][node][node] = 0
 
@@ -333,7 +333,7 @@ func (r *RamStore) RestoreNode(space store_interface.TenancySpace, treeID store_
 }
 
 // Exists checks if a node exists
-func (r *RamStore) Exists(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (bool, error) {
+func (r *RamStore) Exists(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -346,20 +346,20 @@ func (r *RamStore) Exists(space store_interface.TenancySpace, treeID store_inter
 }
 
 // GetNodeInfo gets complete node information
-func (r *RamStore) GetNodeInfo(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (*store_interface.NodeInfo, error) {
+func (r *RamStore) GetNodeInfo(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (*model.NodeInfo, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 
 	nodeObj, exists := r.groveNodes[space][treeID][node]
 	if !exists {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 
-	return &store_interface.NodeInfo{
+	return &model.NodeInfo{
 		ID:       nodeObj.id,
 		Parent:   nodeObj.parent,
 		Position: nodeObj.position,
@@ -370,50 +370,50 @@ func (r *RamStore) GetNodeInfo(space store_interface.TenancySpace, treeID store_
 
 // GetChildren gets children of a node (with pagination stub)
 func (r *RamStore) GetChildren(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	pagination *store_interface.PaginationParams,
-) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	pagination *model.PaginationParams,
+) ([]model.NodeID, *model.PaginationResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	if _, exists := r.groveNodes[space][treeID][node]; !exists {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	children := r.groveChildren[space][treeID][node]
 	if children == nil {
-		children = []store_interface.NodeID{}
+		children = []model.NodeID{}
 	}
 
 	// TODO: implement pagination
-	return children, &store_interface.PaginationResult{NextCursor: nil}, nil
+	return children, &model.PaginationResult{NextCursor: nil}, nil
 }
 
 // GetAncestors gets all ancestors of a node (with pagination stub)
 func (r *RamStore) GetAncestors(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	pagination *store_interface.PaginationParams,
-) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	pagination *model.PaginationParams,
+) ([]model.NodeID, *model.PaginationResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	if _, exists := r.groveNodes[space][treeID][node]; !exists {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
-	var ancestors []store_interface.NodeID
+	var ancestors []model.NodeID
 	for ancestor, depth := range r.groveClosure[space][treeID] {
 		if _, isAncestor := depth[node]; isAncestor && ancestor != node {
 			ancestors = append(ancestors, ancestor)
@@ -421,20 +421,20 @@ func (r *RamStore) GetAncestors(
 	}
 
 	// TODO: Sort by depth and implement pagination
-	return ancestors, &store_interface.PaginationResult{NextCursor: nil}, nil
+	return ancestors, &model.PaginationResult{NextCursor: nil}, nil
 }
 
 // GetAncestorsBulk gets ancestors for multiple nodes.
 func (r *RamStore) GetAncestorsBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID][]model.NodeID, []model.NodeID, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make(map[store_interface.NodeID][]store_interface.NodeID)
-	var notFound []store_interface.NodeID
+	result := make(map[model.NodeID][]model.NodeID)
+	var notFound []model.NodeID
 
 	for _, node := range nodes {
 		if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
@@ -447,7 +447,7 @@ func (r *RamStore) GetAncestorsBulk(
 		}
 
 		type ancestorEntry struct {
-			id    store_interface.NodeID
+			id    model.NodeID
 			depth int
 		}
 		var entries []ancestorEntry
@@ -466,7 +466,7 @@ func (r *RamStore) GetAncestorsBulk(
 			}
 		}
 
-		ancestors := make([]store_interface.NodeID, len(entries))
+		ancestors := make([]model.NodeID, len(entries))
 		for i, e := range entries {
 			ancestors[i] = e.id
 		}
@@ -478,23 +478,23 @@ func (r *RamStore) GetAncestorsBulk(
 
 // GetDescendants gets all descendants of a node (with pagination stub)
 func (r *RamStore) GetDescendants(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	opts *store_interface.DescendantOptions,
-) ([]store_interface.NodeWithDepth, *store_interface.PaginationResult, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	opts *model.DescendantOptions,
+) ([]model.NodeWithDepth, *model.PaginationResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	if _, exists := r.groveNodes[space][treeID][node]; !exists {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
-	var result []store_interface.NodeWithDepth
+	var result []model.NodeWithDepth
 
 	// Get descendants from closure table
 	descendants := r.groveClosure[space][treeID][node]
@@ -509,64 +509,64 @@ func (r *RamStore) GetDescendants(
 			continue
 		}
 
-		result = append(result, store_interface.NodeWithDepth{
+		result = append(result, model.NodeWithDepth{
 			NodeID: desc,
 			Depth:  relativeDepth,
 		})
 	}
 
 	// TODO: Implement breadth-first vs depth-first ordering, pagination
-	return result, &store_interface.PaginationResult{NextCursor: nil}, nil
+	return result, &model.PaginationResult{NextCursor: nil}, nil
 }
 
 // ApplyAggregateMutation applies aggregate deltas to a node
 func (r *RamStore) ApplyAggregateMutation(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	mutation store_interface.MutationID,
-	node store_interface.NodeID,
-	deltas store_interface.AggregateDeltas,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	mutation model.MutationID,
+	node model.NodeID,
+	deltas model.AggregateDeltas,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Initialize maps
 	if r.groveMutations == nil {
-		r.groveMutations = make(map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.MutationID]bool)
+		r.groveMutations = make(map[model.TenancySpace]map[model.TreeID]map[model.NodeID]map[model.MutationID]bool)
 	}
 	if r.groveMutations[space] == nil {
-		r.groveMutations[space] = make(map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.MutationID]bool)
+		r.groveMutations[space] = make(map[model.TreeID]map[model.NodeID]map[model.MutationID]bool)
 	}
 	if r.groveMutations[space][treeID] == nil {
-		r.groveMutations[space][treeID] = make(map[store_interface.NodeID]map[store_interface.MutationID]bool)
+		r.groveMutations[space][treeID] = make(map[model.NodeID]map[model.MutationID]bool)
 	}
 	if r.groveMutations[space][treeID][node] == nil {
-		r.groveMutations[space][treeID][node] = make(map[store_interface.MutationID]bool)
+		r.groveMutations[space][treeID][node] = make(map[model.MutationID]bool)
 	}
 	if r.groveAggregates == nil {
-		r.groveAggregates = make(map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+		r.groveAggregates = make(map[model.TenancySpace]map[model.TreeID]map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
 	}
 	if r.groveAggregates[space] == nil {
-		r.groveAggregates[space] = make(map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+		r.groveAggregates[space] = make(map[model.TreeID]map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
 	}
 	if r.groveAggregates[space][treeID] == nil {
-		r.groveAggregates[space][treeID] = make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+		r.groveAggregates[space][treeID] = make(map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
 	}
 	if r.groveAggregates[space][treeID][node] == nil {
-		r.groveAggregates[space][treeID][node] = make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+		r.groveAggregates[space][treeID][node] = make(map[model.AggregateKey]model.AggregateValue)
 	}
 
 	// Check if node exists
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 	if _, exists := r.groveNodes[space][treeID][node]; !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	// Check if mutation already applied
 	if r.groveMutations[space][treeID][node][mutation] {
-		return store_interface.ErrMutationConflict
+		return model.ErrMutationConflict
 	}
 
 	// Apply deltas
@@ -582,21 +582,21 @@ func (r *RamStore) ApplyAggregateMutation(
 
 // GetNodeLocalAggregates gets aggregates for the node only
 func (r *RamStore) GetNodeLocalAggregates(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (map[model.AggregateKey]model.AggregateValue, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 	if _, exists := r.groveNodes[space][treeID][node]; !exists {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 
-	result := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+	result := make(map[model.AggregateKey]model.AggregateValue)
 	if r.groveAggregates != nil && r.groveAggregates[space] != nil && r.groveAggregates[space][treeID] != nil && r.groveAggregates[space][treeID][node] != nil {
 		for k, v := range r.groveAggregates[space][treeID][node] {
 			result[k] = v
@@ -609,19 +609,19 @@ func (r *RamStore) GetNodeLocalAggregates(
 // GetNodeLocalAggregatesBulk gets local aggregates for multiple nodes.
 // Returns a map of node -> aggregates and a slice of not-found node IDs.
 func (r *RamStore) GetNodeLocalAggregatesBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	if len(nodes) == 0 {
-		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+		return map[model.NodeID]map[model.AggregateKey]model.AggregateValue{}, nil, nil
 	}
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
-	var notFound []store_interface.NodeID
+	result := make(map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
+	var notFound []model.NodeID
 
 	for _, node := range nodes {
 		if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
@@ -632,7 +632,7 @@ func (r *RamStore) GetNodeLocalAggregatesBulk(
 			notFound = append(notFound, node)
 			continue
 		}
-		aggs := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+		aggs := make(map[model.AggregateKey]model.AggregateValue)
 		if r.groveAggregates != nil && r.groveAggregates[space] != nil &&
 			r.groveAggregates[space][treeID] != nil && r.groveAggregates[space][treeID][node] != nil {
 			for k, v := range r.groveAggregates[space][treeID][node] {
@@ -649,15 +649,15 @@ func (r *RamStore) GetNodeLocalAggregatesBulk(
 // Returns a map of node -> aggregates and a slice of not-found node IDs.
 // Nodes that exist but have no aggregates in their subtree appear in the map with an empty value map.
 func (r *RamStore) GetNodeWithDescendantsAggregatesBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
-	var notFound []store_interface.NodeID
+	result := make(map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
+	var notFound []model.NodeID
 
 	for _, node := range nodes {
 		if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
@@ -669,7 +669,7 @@ func (r *RamStore) GetNodeWithDescendantsAggregatesBulk(
 			continue
 		}
 
-		aggs := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+		aggs := make(map[model.AggregateKey]model.AggregateValue)
 
 		// Include node's own aggregates
 		if r.groveAggregates != nil && r.groveAggregates[space] != nil &&
@@ -702,21 +702,21 @@ func (r *RamStore) GetNodeWithDescendantsAggregatesBulk(
 
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (r *RamStore) GetNodeWithDescendantsAggregates(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (map[model.AggregateKey]model.AggregateValue, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.groveNodes == nil || r.groveNodes[space] == nil || r.groveNodes[space][treeID] == nil {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 	if _, exists := r.groveNodes[space][treeID][node]; !exists {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 
-	result := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+	result := make(map[model.AggregateKey]model.AggregateValue)
 
 	// Include node's own aggregates
 	if r.groveAggregates != nil && r.groveAggregates[space] != nil && r.groveAggregates[space][treeID] != nil && r.groveAggregates[space][treeID][node] != nil {
@@ -742,7 +742,7 @@ func (r *RamStore) GetNodeWithDescendantsAggregates(
 
 // Helper functions (must be called with lock held)
 
-func (r *RamStore) isDescendant(space store_interface.TenancySpace, treeID store_interface.TreeID, ancestor, node store_interface.NodeID) bool {
+func (r *RamStore) isDescendant(space model.TenancySpace, treeID model.TreeID, ancestor, node model.NodeID) bool {
 	if r.groveClosure == nil || r.groveClosure[space] == nil || r.groveClosure[space][treeID] == nil {
 		return false
 	}
@@ -751,8 +751,8 @@ func (r *RamStore) isDescendant(space store_interface.TenancySpace, treeID store
 	return isDesc
 }
 
-func (r *RamStore) getDescendantsInternal(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) []store_interface.NodeID {
-	var result []store_interface.NodeID
+func (r *RamStore) getDescendantsInternal(space model.TenancySpace, treeID model.TreeID, node model.NodeID) []model.NodeID {
+	var result []model.NodeID
 	if r.groveClosure == nil || r.groveClosure[space] == nil || r.groveClosure[space][treeID] == nil {
 		return result
 	}

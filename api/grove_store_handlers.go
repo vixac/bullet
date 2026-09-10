@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
@@ -53,31 +54,31 @@ func SetupGroveRouter(store store_interface.GroveStore, prefix string, engine *g
 func (h *groveHandler) createNode(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	var req model.GroveCreateNodeRequest
+	treeID := model.TreeID(c.Param("treeId"))
+	var req protocol.GroveCreateNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	var parent *store_interface.NodeID
+	var parent *model.NodeID
 	if req.ParentID != nil {
-		n := store_interface.NodeID(*req.ParentID)
+		n := model.NodeID(*req.ParentID)
 		parent = &n
 	}
-	var position *store_interface.ChildPosition
+	var position *model.ChildPosition
 	if req.Position != nil {
-		p := store_interface.ChildPosition(*req.Position)
+		p := model.ChildPosition(*req.Position)
 		position = &p
 	}
-	var metadata *store_interface.NodeMetadata
+	var metadata *model.NodeMetadata
 	if req.Metadata != nil {
-		m := store_interface.NodeMetadata(req.Metadata)
+		m := model.NodeMetadata(req.Metadata)
 		metadata = &m
 	}
-	if err := h.store.CreateNode(space, treeID, store_interface.NodeID(req.NodeID), parent, position, metadata); err != nil {
+	if err := h.store.CreateNode(space, treeID, model.NodeID(req.NodeID), parent, position, metadata); err != nil {
 		respondError(c, err)
 		return
 	}
@@ -88,11 +89,11 @@ func (h *groveHandler) createNode(c *gin.Context) {
 func (h *groveHandler) deleteNode(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	soft := c.Query("soft") == "true"
 	if err := h.store.DeleteNode(space, treeID, nodeID, soft); err != nil {
 		respondError(c, err)
@@ -104,24 +105,24 @@ func (h *groveHandler) deleteNode(c *gin.Context) {
 func (h *groveHandler) moveNode(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
-	var req model.GroveMoveNodeRequest
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
+	var req protocol.GroveMoveNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	var newParent *store_interface.NodeID
+	var newParent *model.NodeID
 	if req.NewParentID != nil {
-		n := store_interface.NodeID(*req.NewParentID)
+		n := model.NodeID(*req.NewParentID)
 		newParent = &n
 	}
-	var newPosition *store_interface.ChildPosition
+	var newPosition *model.ChildPosition
 	if req.NewPosition != nil {
-		p := store_interface.ChildPosition(*req.NewPosition)
+		p := model.ChildPosition(*req.NewPosition)
 		newPosition = &p
 	}
 	if err := h.store.MoveNode(space, treeID, nodeID, newParent, newPosition); err != nil {
@@ -135,18 +136,18 @@ func (h *groveHandler) moveNode(c *gin.Context) {
 func (h *groveHandler) getNodeInfo(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	info, err := h.store.GetNodeInfo(space, treeID, nodeID)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", 1)
-	resp := model.GroveNodeInfoResponse{
+	resp := protocol.GroveNodeInfoResponse{
 		ID:    string(info.ID),
 		Depth: info.Depth,
 	}
@@ -167,28 +168,28 @@ func (h *groveHandler) getNodeInfo(c *gin.Context) {
 func (h *groveHandler) exists(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	ok, err := h.store.Exists(space, treeID, nodeID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "grove", "read", 1)
-	c.JSON(http.StatusOK, model.GroveExistsResponse{Exists: ok})
+	c.JSON(http.StatusOK, protocol.GroveExistsResponse{Exists: ok})
 }
 
 func (h *groveHandler) getChildren(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	children, _, err := h.store.GetChildren(space, treeID, nodeID, nil)
 	if err != nil {
 		respondError(c, err)
@@ -199,17 +200,17 @@ func (h *groveHandler) getChildren(c *gin.Context) {
 	for i, ch := range children {
 		strs[i] = string(ch)
 	}
-	c.JSON(http.StatusOK, model.GroveChildrenResponse{Children: strs})
+	c.JSON(http.StatusOK, protocol.GroveChildrenResponse{Children: strs})
 }
 
 func (h *groveHandler) getAncestors(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	ancestors, _, err := h.store.GetAncestors(space, treeID, nodeID, nil)
 	if err != nil {
 		respondError(c, err)
@@ -220,48 +221,48 @@ func (h *groveHandler) getAncestors(c *gin.Context) {
 	for i, a := range ancestors {
 		strs[i] = string(a)
 	}
-	c.JSON(http.StatusOK, model.GroveAncestorsResponse{Ancestors: strs})
+	c.JSON(http.StatusOK, protocol.GroveAncestorsResponse{Ancestors: strs})
 }
 
 func (h *groveHandler) getDescendants(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	descendants, _, err := h.store.GetDescendants(space, treeID, nodeID, nil)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", len(descendants))
-	items := make([]model.GroveNodeWithDepth, len(descendants))
+	items := make([]protocol.GroveNodeWithDepth, len(descendants))
 	for i, d := range descendants {
-		items[i] = model.GroveNodeWithDepth{NodeID: string(d.NodeID), Depth: d.Depth}
+		items[i] = protocol.GroveNodeWithDepth{NodeID: string(d.NodeID), Depth: d.Depth}
 	}
-	c.JSON(http.StatusOK, model.GroveDescendantsResponse{Descendants: items})
+	c.JSON(http.StatusOK, protocol.GroveDescendantsResponse{Descendants: items})
 }
 
 func (h *groveHandler) applyMutation(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
-	var req model.GroveApplyMutationRequest
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
+	var req protocol.GroveApplyMutationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	deltas := make(store_interface.AggregateDeltas, len(req.Deltas))
+	deltas := make(model.AggregateDeltas, len(req.Deltas))
 	for k, v := range req.Deltas {
-		deltas[store_interface.AggregateKey(k)] = store_interface.AggregateValue(v)
+		deltas[model.AggregateKey(k)] = model.AggregateValue(v)
 	}
-	if err := h.store.ApplyAggregateMutation(space, treeID, store_interface.MutationID(req.MutationID), nodeID, deltas); err != nil {
+	if err := h.store.ApplyAggregateMutation(space, treeID, model.MutationID(req.MutationID), nodeID, deltas); err != nil {
 		respondError(c, err)
 		return
 	}
@@ -272,53 +273,53 @@ func (h *groveHandler) applyMutation(c *gin.Context) {
 func (h *groveHandler) getSubtreeAggregates(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	aggs, err := h.store.GetNodeWithDescendantsAggregates(space, treeID, nodeID)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", 1)
-	c.JSON(http.StatusOK, model.GroveAggregatesResponse{Aggregates: aggregatesToMap(aggs)})
+	c.JSON(http.StatusOK, protocol.GroveAggregatesResponse{Aggregates: aggregatesToMap(aggs)})
 }
 
 func (h *groveHandler) getLocalAggregates(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	nodeID := store_interface.NodeID(c.Param("nodeId"))
+	treeID := model.TreeID(c.Param("treeId"))
+	nodeID := model.NodeID(c.Param("nodeId"))
 	aggs, err := h.store.GetNodeLocalAggregates(space, treeID, nodeID)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", 1)
-	c.JSON(http.StatusOK, model.GroveAggregatesResponse{Aggregates: aggregatesToMap(aggs)})
+	c.JSON(http.StatusOK, protocol.GroveAggregatesResponse{Aggregates: aggregatesToMap(aggs)})
 }
 
 func (h *groveHandler) getAncestorsBulk(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	var req model.GroveBulkNodesRequest
+	treeID := model.TreeID(c.Param("treeId"))
+	var req protocol.GroveBulkNodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	nodeIDs := toNodeIDs(req.NodeIDs)
 	ancestorsMap, missing, err := h.store.GetAncestorsBulk(space, treeID, nodeIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "grove", "read", len(ancestorsMap))
@@ -330,7 +331,7 @@ func (h *groveHandler) getAncestorsBulk(c *gin.Context) {
 		}
 		result[string(node)] = strs
 	}
-	c.JSON(http.StatusOK, model.GroveAncestorsBulkResponse{
+	c.JSON(http.StatusOK, protocol.GroveAncestorsBulkResponse{
 		Ancestors: result,
 		Missing:   nodeIDsToStrings(missing),
 	})
@@ -339,23 +340,23 @@ func (h *groveHandler) getAncestorsBulk(c *gin.Context) {
 func (h *groveHandler) getSubtreeAggregatesBulk(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	var req model.GroveBulkNodesRequest
+	treeID := model.TreeID(c.Param("treeId"))
+	var req protocol.GroveBulkNodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	nodeIDs := toNodeIDs(req.NodeIDs)
 	aggsMap, missing, err := h.store.GetNodeWithDescendantsAggregatesBulk(space, treeID, nodeIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "grove", "read", len(aggsMap))
-	c.JSON(http.StatusOK, model.GroveAggregatesBulkResponse{
+	c.JSON(http.StatusOK, protocol.GroveAggregatesBulkResponse{
 		Aggregates: aggregatesBulkToMap(aggsMap),
 		Missing:    nodeIDsToStrings(missing),
 	})
@@ -364,23 +365,23 @@ func (h *groveHandler) getSubtreeAggregatesBulk(c *gin.Context) {
 func (h *groveHandler) getLocalAggregatesBulk(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	treeID := store_interface.TreeID(c.Param("treeId"))
-	var req model.GroveBulkNodesRequest
+	treeID := model.TreeID(c.Param("treeId"))
+	var req protocol.GroveBulkNodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	nodeIDs := toNodeIDs(req.NodeIDs)
 	aggsMap, missing, err := h.store.GetNodeLocalAggregatesBulk(space, treeID, nodeIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "grove", "read", len(aggsMap))
-	c.JSON(http.StatusOK, model.GroveAggregatesBulkResponse{
+	c.JSON(http.StatusOK, protocol.GroveAggregatesBulkResponse{
 		Aggregates: aggregatesBulkToMap(aggsMap),
 		Missing:    nodeIDsToStrings(missing),
 	})
@@ -388,7 +389,7 @@ func (h *groveHandler) getLocalAggregatesBulk(c *gin.Context) {
 
 // helpers
 
-func aggregatesToMap(aggs map[store_interface.AggregateKey]store_interface.AggregateValue) map[string]int64 {
+func aggregatesToMap(aggs map[model.AggregateKey]model.AggregateValue) map[string]int64 {
 	m := make(map[string]int64, len(aggs))
 	for k, v := range aggs {
 		m[string(k)] = int64(v)
@@ -396,7 +397,7 @@ func aggregatesToMap(aggs map[store_interface.AggregateKey]store_interface.Aggre
 	return m
 }
 
-func aggregatesBulkToMap(bulk map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue) map[string]map[string]int64 {
+func aggregatesBulkToMap(bulk map[model.NodeID]map[model.AggregateKey]model.AggregateValue) map[string]map[string]int64 {
 	result := make(map[string]map[string]int64, len(bulk))
 	for node, aggs := range bulk {
 		result[string(node)] = aggregatesToMap(aggs)
@@ -404,15 +405,15 @@ func aggregatesBulkToMap(bulk map[store_interface.NodeID]map[store_interface.Agg
 	return result
 }
 
-func toNodeIDs(strs []string) []store_interface.NodeID {
-	ids := make([]store_interface.NodeID, len(strs))
+func toNodeIDs(strs []string) []model.NodeID {
+	ids := make([]model.NodeID, len(strs))
 	for i, s := range strs {
-		ids[i] = store_interface.NodeID(s)
+		ids[i] = model.NodeID(s)
 	}
 	return ids
 }
 
-func nodeIDsToStrings(ids []store_interface.NodeID) []string {
+func nodeIDsToStrings(ids []model.NodeID) []string {
 	strs := make([]string, len(ids))
 	for i, id := range ids {
 		strs[i] = string(id)

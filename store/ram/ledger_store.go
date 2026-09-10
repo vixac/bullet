@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 var ramLedgerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type ledgerSpaceData struct {
-	nextPosition store_interface.LedgerPosition
-	records      map[store_interface.LedgerPosition]store_interface.LedgerRecord
-	appendIDs    map[store_interface.LedgerID]map[store_interface.LedgerAppendID]store_interface.LedgerPosition
+	nextPosition model.LedgerPosition
+	records      map[model.LedgerPosition]model.LedgerRecord
+	appendIDs    map[model.LedgerID]map[model.LedgerAppendID]model.LedgerPosition
 }
 
 type ramLedgerCursor struct {
@@ -27,48 +27,48 @@ type ramLedgerCursor struct {
 	Selector string `json:"selector"`
 }
 
-func validateRamLedgerWrite(ledgerID store_interface.LedgerID, appendID store_interface.LedgerAppendID, payload string) error {
+func validateRamLedgerWrite(ledgerID model.LedgerID, appendID model.LedgerAppendID, payload string) error {
 	if !ramLedgerIDPattern.MatchString(string(ledgerID)) {
-		return store_interface.ErrLedgerInvalidID
+		return model.ErrLedgerInvalidID
 	}
 	if len(appendID) == 0 || len(appendID) > 255 {
-		return store_interface.ErrLedgerInvalidAppendID
+		return model.ErrLedgerInvalidAppendID
 	}
-	if len(payload) > store_interface.LedgerMaxPayloadBytes {
-		return store_interface.ErrLedgerPayloadTooLarge
+	if len(payload) > model.LedgerMaxPayloadBytes {
+		return model.ErrLedgerPayloadTooLarge
 	}
 	return nil
 }
 
-func normalizeRamLedgerSelector(selector store_interface.LedgerSelector) (map[store_interface.LedgerID]struct{}, string, error) {
+func normalizeRamLedgerSelector(selector model.LedgerSelector) (map[model.LedgerID]struct{}, string, error) {
 	modes := 0
 	for _, enabled := range []bool{selector.All, len(selector.LedgerIDs) > 0, selector.Prefix != ""} {
 		if enabled {
 			modes++
 		}
 	}
-	if modes != 1 || len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
-		return nil, "", store_interface.ErrLedgerInvalidSelector
+	if modes != 1 || len(selector.LedgerIDs) > model.LedgerMaxSelected {
+		return nil, "", model.ErrLedgerInvalidSelector
 	}
 	if selector.All {
 		return nil, "all", nil
 	}
 	if selector.Prefix != "" {
 		if !ramLedgerIDPattern.MatchString(selector.Prefix) {
-			return nil, "", store_interface.ErrLedgerInvalidID
+			return nil, "", model.ErrLedgerInvalidID
 		}
 		return nil, "prefix:" + selector.Prefix, nil
 	}
-	ids := append([]store_interface.LedgerID(nil), selector.LedgerIDs...)
+	ids := append([]model.LedgerID(nil), selector.LedgerIDs...)
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	selected := make(map[store_interface.LedgerID]struct{}, len(ids))
+	selected := make(map[model.LedgerID]struct{}, len(ids))
 	h := sha256.New()
 	for _, id := range ids {
 		if !ramLedgerIDPattern.MatchString(string(id)) {
-			return nil, "", store_interface.ErrLedgerInvalidID
+			return nil, "", model.ErrLedgerInvalidID
 		}
 		if _, duplicate := selected[id]; duplicate {
-			return nil, "", store_interface.ErrLedgerInvalidSelector
+			return nil, "", model.ErrLedgerInvalidSelector
 		}
 		selected[id] = struct{}{}
 		h.Write([]byte(id))
@@ -77,7 +77,7 @@ func normalizeRamLedgerSelector(selector store_interface.LedgerSelector) (map[st
 	return selected, base64.RawURLEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-func ramLedgerSelected(record store_interface.LedgerRecord, all bool, prefix string, selected map[store_interface.LedgerID]struct{}) bool {
+func ramLedgerSelected(record model.LedgerRecord, all bool, prefix string, selected map[model.LedgerID]struct{}) bool {
 	if all {
 		return true
 	}
@@ -97,42 +97,42 @@ func decodeRamLedgerCursor(value string) (ramLedgerCursor, error) {
 	var cursor ramLedgerCursor
 	b, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil || json.Unmarshal(b, &cursor) != nil || cursor.Version != 1 || cursor.Upper < 0 || cursor.Before < 0 {
-		return cursor, store_interface.ErrLedgerInvalidCursor
+		return cursor, model.ErrLedgerInvalidCursor
 	}
 	return cursor, nil
 }
 
-func (s *RamStore) ensureLedgerSpace(space store_interface.TenancySpace) *ledgerSpaceData {
+func (s *RamStore) ensureLedgerSpace(space model.TenancySpace) *ledgerSpaceData {
 	data := s.ledgers[space]
 	if data == nil {
-		data = &ledgerSpaceData{records: make(map[store_interface.LedgerPosition]store_interface.LedgerRecord), appendIDs: make(map[store_interface.LedgerID]map[store_interface.LedgerAppendID]store_interface.LedgerPosition)}
+		data = &ledgerSpaceData{records: make(map[model.LedgerPosition]model.LedgerRecord), appendIDs: make(map[model.LedgerID]map[model.LedgerAppendID]model.LedgerPosition)}
 		s.ledgers[space] = data
 	}
 	return data
 }
 
-func (s *RamStore) LedgerAppend(space store_interface.TenancySpace, ledgerID store_interface.LedgerID, appendID store_interface.LedgerAppendID, payload string) (store_interface.LedgerRecord, error) {
-	records, err := s.LedgerAppendMany(space, ledgerID, []store_interface.LedgerAppendItem{{AppendID: appendID, Payload: payload}})
+func (s *RamStore) LedgerAppend(space model.TenancySpace, ledgerID model.LedgerID, appendID model.LedgerAppendID, payload string) (model.LedgerRecord, error) {
+	records, err := s.LedgerAppendMany(space, ledgerID, []model.LedgerAppendItem{{AppendID: appendID, Payload: payload}})
 	if err != nil {
-		return store_interface.LedgerRecord{}, err
+		return model.LedgerRecord{}, err
 	}
 	return records[0], nil
 }
 
-func (s *RamStore) LedgerAppendMany(space store_interface.TenancySpace, ledgerID store_interface.LedgerID, items []store_interface.LedgerAppendItem) ([]store_interface.LedgerRecord, error) {
+func (s *RamStore) LedgerAppendMany(space model.TenancySpace, ledgerID model.LedgerID, items []model.LedgerAppendItem) ([]model.LedgerRecord, error) {
 	if !ramLedgerIDPattern.MatchString(string(ledgerID)) {
-		return nil, store_interface.ErrLedgerInvalidID
+		return nil, model.ErrLedgerInvalidID
 	}
 	if len(items) == 0 {
-		return []store_interface.LedgerRecord{}, nil
+		return []model.LedgerRecord{}, nil
 	}
-	seen := make(map[store_interface.LedgerAppendID]struct{}, len(items))
+	seen := make(map[model.LedgerAppendID]struct{}, len(items))
 	for _, item := range items {
 		if err := validateRamLedgerWrite(ledgerID, item.AppendID, item.Payload); err != nil {
 			return nil, err
 		}
 		if _, duplicate := seen[item.AppendID]; duplicate {
-			return nil, store_interface.ErrLedgerInvalidAppendID
+			return nil, model.ErrLedgerInvalidAppendID
 		}
 		seen[item.AppendID] = struct{}{}
 	}
@@ -141,10 +141,10 @@ func (s *RamStore) LedgerAppendMany(space store_interface.TenancySpace, ledgerID
 	data := s.ensureLedgerSpace(space)
 	ledgerAppendIDs := data.appendIDs[ledgerID]
 	if ledgerAppendIDs == nil {
-		ledgerAppendIDs = make(map[store_interface.LedgerAppendID]store_interface.LedgerPosition)
+		ledgerAppendIDs = make(map[model.LedgerAppendID]model.LedgerPosition)
 		data.appendIDs[ledgerID] = ledgerAppendIDs
 	}
-	existing := make([]store_interface.LedgerRecord, len(items))
+	existing := make([]model.LedgerRecord, len(items))
 	existingCount := 0
 	for i, item := range items {
 		position, ok := ledgerAppendIDs[item.AppendID]
@@ -154,20 +154,20 @@ func (s *RamStore) LedgerAppendMany(space store_interface.TenancySpace, ledgerID
 		existingCount++
 		existing[i] = data.records[position]
 		if existing[i].Payload != item.Payload {
-			return nil, store_interface.ErrLedgerAppendConflict
+			return nil, model.ErrLedgerAppendConflict
 		}
 	}
 	if existingCount == len(items) {
 		return existing, nil
 	}
 	if existingCount != 0 {
-		return nil, store_interface.ErrLedgerBatchConflict
+		return nil, model.ErrLedgerBatchConflict
 	}
 	createdAt := time.Now().UTC()
-	records := make([]store_interface.LedgerRecord, len(items))
+	records := make([]model.LedgerRecord, len(items))
 	for i, item := range items {
 		data.nextPosition++
-		record := store_interface.LedgerRecord{LedgerID: ledgerID, Position: data.nextPosition, AppendID: item.AppendID, CreatedAt: createdAt, Payload: item.Payload}
+		record := model.LedgerRecord{LedgerID: ledgerID, Position: data.nextPosition, AppendID: item.AppendID, CreatedAt: createdAt, Payload: item.Payload}
 		data.records[record.Position] = record
 		ledgerAppendIDs[item.AppendID] = record.Position
 		records[i] = record
@@ -175,29 +175,29 @@ func (s *RamStore) LedgerAppendMany(space store_interface.TenancySpace, ledgerID
 	return records, nil
 }
 
-func (s *RamStore) LedgerReadBackward(space store_interface.TenancySpace, selector store_interface.LedgerSelector, cursorValue *string, limit int) (store_interface.LedgerPage, error) {
-	if limit < 1 || limit > store_interface.LedgerMaxPageSize {
-		return store_interface.LedgerPage{}, store_interface.ErrLedgerInvalidPageSize
+func (s *RamStore) LedgerReadBackward(space model.TenancySpace, selector model.LedgerSelector, cursorValue *string, limit int) (model.LedgerPage, error) {
+	if limit < 1 || limit > model.LedgerMaxPageSize {
+		return model.LedgerPage{}, model.ErrLedgerInvalidPageSize
 	}
 	selected, selectorKey, err := normalizeRamLedgerSelector(selector)
 	if err != nil {
-		return store_interface.LedgerPage{}, err
+		return model.LedgerPage{}, err
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	data := s.ledgers[space]
 	if data == nil {
-		return store_interface.LedgerPage{Records: []store_interface.LedgerRecord{}}, nil
+		return model.LedgerPage{Records: []model.LedgerRecord{}}, nil
 	}
-	upper, before := data.nextPosition, store_interface.LedgerPosition(0)
+	upper, before := data.nextPosition, model.LedgerPosition(0)
 	if cursorValue != nil {
 		cursor, err := decodeRamLedgerCursor(*cursorValue)
 		if err != nil || cursor.Selector != selectorKey {
-			return store_interface.LedgerPage{}, store_interface.ErrLedgerInvalidCursor
+			return model.LedgerPage{}, model.ErrLedgerInvalidCursor
 		}
-		upper, before = store_interface.LedgerPosition(cursor.Upper), store_interface.LedgerPosition(cursor.Before)
+		upper, before = model.LedgerPosition(cursor.Upper), model.LedgerPosition(cursor.Before)
 	}
-	records := make([]store_interface.LedgerRecord, 0, limit+1)
+	records := make([]model.LedgerRecord, 0, limit+1)
 	for position := upper; position > 0 && len(records) <= limit; position-- {
 		if before > 0 && position >= before {
 			continue
@@ -207,7 +207,7 @@ func (s *RamStore) LedgerReadBackward(space store_interface.TenancySpace, select
 			records = append(records, record)
 		}
 	}
-	page := store_interface.LedgerPage{Records: records}
+	page := model.LedgerPage{Records: records}
 	if len(records) > limit {
 		page.Records = records[:limit]
 		next := encodeRamLedgerCursor(ramLedgerCursor{Version: 1, Upper: int64(upper), Before: int64(page.Records[len(page.Records)-1].Position), Selector: selectorKey})
@@ -216,12 +216,12 @@ func (s *RamStore) LedgerReadBackward(space store_interface.TenancySpace, select
 	return page, nil
 }
 
-func (s *RamStore) LedgerReadForward(space store_interface.TenancySpace, selector store_interface.LedgerSelector, after store_interface.LedgerPosition, through *store_interface.LedgerPosition, limit int) ([]store_interface.LedgerRecord, error) {
-	if limit < 1 || limit > store_interface.LedgerMaxPageSize {
-		return nil, store_interface.ErrLedgerInvalidPageSize
+func (s *RamStore) LedgerReadForward(space model.TenancySpace, selector model.LedgerSelector, after model.LedgerPosition, through *model.LedgerPosition, limit int) ([]model.LedgerRecord, error) {
+	if limit < 1 || limit > model.LedgerMaxPageSize {
+		return nil, model.ErrLedgerInvalidPageSize
 	}
 	if after < 0 || (through != nil && *through < 0) {
-		return nil, store_interface.ErrLedgerInvalidCursor
+		return nil, model.ErrLedgerInvalidCursor
 	}
 	selected, _, err := normalizeRamLedgerSelector(selector)
 	if err != nil {
@@ -231,13 +231,13 @@ func (s *RamStore) LedgerReadForward(space store_interface.TenancySpace, selecto
 	defer s.mu.RUnlock()
 	data := s.ledgers[space]
 	if data == nil {
-		return []store_interface.LedgerRecord{}, nil
+		return []model.LedgerRecord{}, nil
 	}
 	upper := data.nextPosition
 	if through != nil && *through < upper {
 		upper = *through
 	}
-	records := make([]store_interface.LedgerRecord, 0, limit)
+	records := make([]model.LedgerRecord, 0, limit)
 	for position := after + 1; position <= upper && len(records) < limit; position++ {
 		record, ok := data.records[position]
 		if ok && ramLedgerSelected(record, selector.All, selector.Prefix, selected) {
@@ -247,9 +247,9 @@ func (s *RamStore) LedgerReadForward(space store_interface.TenancySpace, selecto
 	return records, nil
 }
 
-func (s *RamStore) LedgerDelete(space store_interface.TenancySpace, ledgerID store_interface.LedgerID) error {
+func (s *RamStore) LedgerDelete(space model.TenancySpace, ledgerID model.LedgerID) error {
 	if !ramLedgerIDPattern.MatchString(string(ledgerID)) {
-		return store_interface.ErrLedgerInvalidID
+		return model.ErrLedgerInvalidID
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

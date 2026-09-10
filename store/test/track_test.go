@@ -12,20 +12,20 @@ import (
 func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 	for name, trackStore := range trackStores {
 		t.Run(name, func(t *testing.T) {
-			space := store_interface.TenancySpace{AppId: 901, TenancyId: 902}
+			space := model.TenancySpace{AppId: 901, TenancyId: 902}
 			if err := trackStore.TrackPut(space, 1, "delete-me", 1, nil, nil); err != nil {
 				t.Fatal(err)
 			}
 
-			req := store_interface.TrackMutation{
-				MutationID: store_interface.MutationID("track-mutation-test-901-902"),
-				Puts: []store_interface.TrackPut{
+			req := model.TrackMutation{
+				MutationID: model.MutationID("track-mutation-test-901-902"),
+				Puts: []model.TrackPut{
 					{BucketID: 1, Key: "put-me", Value: 42},
 				},
-				Deletes: []store_interface.TrackKey{{BucketID: 1, Key: "delete-me"}},
+				Deletes: []model.TrackKey{{BucketID: 1, Key: "delete-me"}},
 			}
 			result, err := trackStore.TrackMutate(space, req)
-			if errors.Is(err, store_interface.ErrTrackMutationUnsupported) {
+			if errors.Is(err, model.ErrTrackMutationUnsupported) {
 				t.Skip("track mutations are intentionally unsupported")
 			}
 			if err != nil {
@@ -67,7 +67,7 @@ func TestTrackBasicOperations(t *testing.T) {
 
 func testTrackBasicOperations(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 100, TenancyId: 1}
+		space := model.TenancySpace{AppId: 100, TenancyId: 1}
 		bucketID := int32(1)
 
 		// Test basic put and get
@@ -141,7 +141,7 @@ func TestTrackPutManyGetMany(t *testing.T) {
 
 func testTrackPutManyGetMany(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 101, TenancyId: 1}
+		space := model.TenancySpace{AppId: 101, TenancyId: 1}
 		bucketID1 := int32(10)
 		bucketID2 := int32(20)
 
@@ -248,7 +248,7 @@ func TestTrackDeleteMany(t *testing.T) {
 
 func testTrackDeleteMany(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 102, TenancyId: 1}
+		space := model.TenancySpace{AppId: 102, TenancyId: 1}
 		bucketID := int32(30)
 
 		// Put some items first
@@ -265,7 +265,7 @@ func testTrackDeleteMany(store store_interface.TrackStore, name string, t *testi
 		}
 
 		// Delete some items
-		deleteItems := []model.TrackBucketKeyPair{
+		deleteItems := []model.TrackKey{
 			{BucketID: bucketID, Key: "del1"},
 			{BucketID: bucketID, Key: "del2"},
 		}
@@ -294,7 +294,7 @@ func testTrackDeleteMany(store store_interface.TrackStore, name string, t *testi
 		}
 
 		// Test deleting non-existent keys (should not error - idempotent)
-		deleteNonExistent := []model.TrackBucketKeyPair{
+		deleteNonExistent := []model.TrackKey{
 			{BucketID: bucketID, Key: "non_existent"},
 		}
 		err = store.TrackDeleteMany(space, deleteNonExistent)
@@ -303,7 +303,7 @@ func testTrackDeleteMany(store store_interface.TrackStore, name string, t *testi
 		}
 
 		// Test deleting from non-existent bucket (behavior may vary)
-		deleteFromNonExistent := []model.TrackBucketKeyPair{
+		deleteFromNonExistent := []model.TrackKey{
 			{BucketID: int32(9999), Key: "any"},
 		}
 		err = store.TrackDeleteMany(space, deleteFromNonExistent)
@@ -323,7 +323,7 @@ func TestTrackGetItemsByKeyPrefix(t *testing.T) {
 
 func testTrackGetItemsByKeyPrefix(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 103, TenancyId: 1}
+		space := model.TenancySpace{AppId: 103, TenancyId: 1}
 		bucketID := int32(40)
 
 		// Setup data with various prefixes, tags, and metrics
@@ -456,7 +456,7 @@ func TestTrackGetItemsByKeyPrefixes(t *testing.T) {
 
 func testTrackGetItemsByKeyPrefixes(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 104, TenancyId: 1}
+		space := model.TenancySpace{AppId: 104, TenancyId: 1}
 		bucketID := int32(50)
 
 		// Setup data
@@ -543,9 +543,9 @@ func TestTrackMultiTenancy(t *testing.T) {
 
 func testTrackMultiTenancy(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space1 := store_interface.TenancySpace{AppId: 105, TenancyId: 1}
-		space2 := store_interface.TenancySpace{AppId: 105, TenancyId: 2}
-		space3 := store_interface.TenancySpace{AppId: 106, TenancyId: 1}
+		space1 := model.TenancySpace{AppId: 105, TenancyId: 1}
+		space2 := model.TenancySpace{AppId: 105, TenancyId: 2}
+		space3 := model.TenancySpace{AppId: 106, TenancyId: 1}
 		bucketID := int32(60)
 
 		// Put same key in different tenancy spaces
@@ -590,7 +590,7 @@ func testTrackMultiTenancy(store store_interface.TrackStore, name string, t *tes
 		}
 
 		// Delete from space1 shouldn't affect others
-		err = store.TrackDeleteMany(space1, []model.TrackBucketKeyPair{{BucketID: bucketID, Key: key}})
+		err = store.TrackDeleteMany(space1, []model.TrackKey{{BucketID: bucketID, Key: key}})
 		if err != nil {
 			t.Fatalf("Delete from space1 failed: %v", err)
 		}
@@ -626,7 +626,7 @@ func TestTrackBucketIsolation(t *testing.T) {
 
 func testTrackBucketIsolation(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 107, TenancyId: 1}
+		space := model.TenancySpace{AppId: 107, TenancyId: 1}
 		bucket1 := int32(70)
 		bucket2 := int32(71)
 
@@ -660,7 +660,7 @@ func testTrackBucketIsolation(store store_interface.TrackStore, name string, t *
 		}
 
 		// Delete from bucket1 shouldn't affect bucket2
-		err = store.TrackDeleteMany(space, []model.TrackBucketKeyPair{{BucketID: bucket1, Key: key}})
+		err = store.TrackDeleteMany(space, []model.TrackKey{{BucketID: bucket1, Key: key}})
 		if err != nil {
 			t.Fatalf("Delete from bucket1 failed: %v", err)
 		}
@@ -688,7 +688,7 @@ func TestTrackLargeValues(t *testing.T) {
 
 func testTrackLargeValues(store store_interface.TrackStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 108, TenancyId: 1}
+		space := model.TenancySpace{AppId: 108, TenancyId: 1}
 		bucketID := int32(80)
 
 		// Test with max int64

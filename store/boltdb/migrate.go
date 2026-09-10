@@ -3,7 +3,7 @@ package boltdb
 import (
 	"fmt"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 	"go.etcd.io/bbolt"
 )
 
@@ -12,7 +12,7 @@ var schemaVersionKey = []byte("version")
 
 const currentSchemaVersion = "4"
 
-func (s *BoltStore) MigrateToTenantBuckets(space store_interface.TenancySpace, bucketId int32) error {
+func (s *BoltStore) MigrateToTenantBuckets(space model.TenancySpace, bucketId int32) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		// schema bucket
 		sb, err := tx.CreateBucketIfNotExists(schemaBucket)

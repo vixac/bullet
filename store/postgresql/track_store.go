@@ -8,26 +8,25 @@ import (
 	"strings"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 )
 
-func (s *PostgreSQLStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	defer tx.Rollback()
 
 	result, err := tx.Exec(`INSERT INTO track_mutations (mutation_id) VALUES ($1) ON CONFLICT DO NOTHING`, req.MutationID)
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	if rows == 0 {
-		return store_interface.TrackMutationResult{Applied: false}, nil
+		return model.TrackMutationResult{Applied: false}, nil
 	}
 
 	putStmt, err := tx.Prepare(`
@@ -36,34 +35,34 @@ func (s *PostgreSQLStore) TrackMutate(space store_interface.TenancySpace, req st
 		ON CONFLICT(app_id, tenancy_id, bucket_id, key) DO UPDATE SET
 			value=excluded.value, tag=excluded.tag, metric=excluded.metric`)
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	defer putStmt.Close()
 	for _, put := range req.Puts {
 		if _, err := putStmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric); err != nil {
-			return store_interface.TrackMutationResult{}, err
+			return model.TrackMutationResult{}, err
 		}
 	}
 
 	deleteStmt, err := tx.Prepare(`DELETE FROM track WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4`)
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	defer deleteStmt.Close()
 	for _, key := range req.Deletes {
 		if _, err := deleteStmt.Exec(space.AppId, space.TenancyId, key.BucketID, key.Key); err != nil {
-			return store_interface.TrackMutationResult{}, err
+			return model.TrackMutationResult{}, err
 		}
 
 	}
 	if err := tx.Commit(); err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
-	return store_interface.TrackMutationResult{Applied: true}, nil
+	return model.TrackMutationResult{Applied: true}, nil
 }
 
 func (s *PostgreSQLStore) TrackGet(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	key string,
 ) (int64, error) {
@@ -84,7 +83,7 @@ func (s *PostgreSQLStore) TrackGet(
 }
 
 func (s *PostgreSQLStore) GetItemsByKeyPrefix(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefix string,
 	tags []int64,
@@ -140,7 +139,7 @@ func (s *PostgreSQLStore) GetItemsByKeyPrefix(
 }
 
 func (s *PostgreSQLStore) GetItemsByKeyPrefixes(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefixes []string,
 	tags []int64,
@@ -221,8 +220,8 @@ func (s *PostgreSQLStore) TrackClose() error {
 }
 
 func (s *PostgreSQLStore) TrackDeleteMany(
-	space store_interface.TenancySpace,
-	items []model.TrackBucketKeyPair,
+	space model.TenancySpace,
+	items []model.TrackKey,
 ) error {
 
 	tx, err := s.db.Begin()
@@ -249,7 +248,7 @@ func (s *PostgreSQLStore) TrackDeleteMany(
 }
 
 func (s *PostgreSQLStore) TrackPutMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	items map[int32][]model.TrackKeyValueItem,
 ) error {
 
@@ -287,7 +286,7 @@ func (s *PostgreSQLStore) TrackPutMany(
 }
 
 func (s *PostgreSQLStore) TrackGetMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	keys map[int32][]string,
 ) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 
@@ -362,7 +361,7 @@ func (s *PostgreSQLStore) TrackGetMany(
 }
 
 func (s *PostgreSQLStore) TrackPut(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	key string,
 	value int64,

@@ -5,30 +5,29 @@ import (
 	"errors"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 )
 
 type sqlQueryer interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
-func (s *SQLiteStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (s *SQLiteStore) TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	defer tx.Rollback()
 
 	result, err := tx.Exec(`INSERT OR IGNORE INTO track_mutations (mutation_id) VALUES (?)`, req.MutationID)
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	if rows == 0 {
-		return store_interface.TrackMutationResult{Applied: false}, nil
+		return model.TrackMutationResult{Applied: false}, nil
 	}
 
 	putStmt, err := tx.Prepare(`
@@ -37,34 +36,34 @@ func (s *SQLiteStore) TrackMutate(space store_interface.TenancySpace, req store_
 		ON CONFLICT(app_id, tenancy_id, bucket_id, key) DO UPDATE SET
 			value=excluded.value, tag=excluded.tag, metric=excluded.metric`)
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	defer putStmt.Close()
 	for _, put := range req.Puts {
 		if _, err := putStmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric); err != nil {
-			return store_interface.TrackMutationResult{}, err
+			return model.TrackMutationResult{}, err
 		}
 	}
 
 	deleteStmt, err := tx.Prepare(`DELETE FROM track WHERE app_id=? AND tenancy_id=? AND bucket_id=? AND key=?`)
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	defer deleteStmt.Close()
 	for _, key := range req.Deletes {
 		if _, err := deleteStmt.Exec(space.AppId, space.TenancyId, key.BucketID, key.Key); err != nil {
-			return store_interface.TrackMutationResult{}, err
+			return model.TrackMutationResult{}, err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
-	return store_interface.TrackMutationResult{Applied: true}, nil
+	return model.TrackMutationResult{Applied: true}, nil
 }
 
 func (s *SQLiteStore) TrackGet(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	key string,
 ) (int64, error) {
@@ -87,7 +86,7 @@ func (s *SQLiteStore) TrackGet(
 }
 
 func (s *SQLiteStore) GetItemsByKeyPrefix(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefix string,
 	tags []int64,
@@ -98,7 +97,7 @@ func (s *SQLiteStore) GetItemsByKeyPrefix(
 }
 
 func (s *SQLiteStore) GetItemsByKeyPrefixes(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefixes []string,
 	tags []int64,
@@ -118,7 +117,7 @@ func (s *SQLiteStore) GetItemsByKeyPrefixes(
 // depth limit. Results are de-duplicated because overlapping prefix chunks can
 // match the same key.
 func (s *SQLiteStore) getItemsByKeyPrefixChunks(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefixes []string,
 	tags []int64,
@@ -173,7 +172,7 @@ func (s *SQLiteStore) getItemsByKeyPrefixChunks(
 
 func getItemsByKeyPrefixQuery(
 	db sqlQueryer,
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefixes []string,
 	tags []int64,
@@ -257,8 +256,8 @@ func (s *SQLiteStore) TrackClose() error {
 }
 
 func (s *SQLiteStore) TrackDeleteMany(
-	space store_interface.TenancySpace,
-	items []model.TrackBucketKeyPair,
+	space model.TenancySpace,
+	items []model.TrackKey,
 ) error {
 
 	tx, err := s.db.Begin()
@@ -291,7 +290,7 @@ func (s *SQLiteStore) TrackDeleteMany(
 }
 
 func (s *SQLiteStore) TrackPutMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	items map[int32][]model.TrackKeyValueItem,
 ) error {
 
@@ -336,7 +335,7 @@ func (s *SQLiteStore) TrackPutMany(
 }
 
 func (s *SQLiteStore) TrackGetMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	keys map[int32][]string,
 ) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 
@@ -414,7 +413,7 @@ func (s *SQLiteStore) TrackGetMany(
 }
 
 func (s *SQLiteStore) TrackPut(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	key string,
 	value int64,

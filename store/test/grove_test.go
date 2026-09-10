@@ -3,6 +3,7 @@ package store_test
 import (
 	"testing"
 
+	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -17,11 +18,11 @@ func TestGroveBasicOperations(t *testing.T) {
 
 func testGroveBasicOperations(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 1, TenancyId: 1}
-		treeID := store_interface.TreeID("tree1")
+		space := model.TenancySpace{AppId: 1, TenancyId: 1}
+		treeID := model.TreeID("tree1")
 
 		// Test creating root node
-		rootID := store_interface.NodeID("root")
+		rootID := model.NodeID("root")
 		err := store.CreateNode(space, treeID, rootID, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create root node: %v", err)
@@ -52,13 +53,13 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 		}
 
 		// Test creating child nodes
-		child1ID := store_interface.NodeID("child1")
+		child1ID := model.NodeID("child1")
 		err = store.CreateNode(space, treeID, child1ID, &rootID, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create child1: %v", err)
 		}
 
-		child2ID := store_interface.NodeID("child2")
+		child2ID := model.NodeID("child2")
 		err = store.CreateNode(space, treeID, child2ID, &rootID, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create child2: %v", err)
@@ -96,7 +97,7 @@ func testGroveBasicOperations(store store_interface.GroveStore, name string, t *
 
 		// Test delete node already exists error
 		err = store.CreateNode(space, treeID, child1ID, &rootID, nil, nil)
-		if err != store_interface.ErrNodeAlreadyExists {
+		if err != model.ErrNodeAlreadyExists {
 			t.Errorf("Expected ErrNodeAlreadyExists, got %v", err)
 		}
 	})
@@ -110,8 +111,8 @@ func TestGroveDescendants(t *testing.T) {
 
 func testGroveDescendants(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 2, TenancyId: 1}
-		treeID := store_interface.TreeID("tree2")
+		space := model.TenancySpace{AppId: 2, TenancyId: 1}
+		treeID := model.TreeID("tree2")
 
 		// Create tree:
 		//     root
@@ -120,11 +121,11 @@ func testGroveDescendants(store store_interface.GroveStore, name string, t *test
 		//   / \
 		//  c   d
 
-		root := store_interface.NodeID("root2")
-		a := store_interface.NodeID("a2")
-		b := store_interface.NodeID("b2")
-		c := store_interface.NodeID("c2")
-		d := store_interface.NodeID("d2")
+		root := model.NodeID("root2")
+		a := model.NodeID("a2")
+		b := model.NodeID("b2")
+		c := model.NodeID("c2")
+		d := model.NodeID("d2")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, a, &root, nil, nil)
@@ -143,7 +144,7 @@ func testGroveDescendants(store store_interface.GroveStore, name string, t *test
 
 		// Get descendants of 'a' with max depth 1
 		maxDepth := 1
-		opts := &store_interface.DescendantOptions{MaxDepth: &maxDepth}
+		opts := &model.DescendantOptions{MaxDepth: &maxDepth}
 		descendants, _, err = store.GetDescendants(space, treeID, a, opts)
 		if err != nil {
 			t.Fatalf("Failed to get descendants: %v", err)
@@ -169,8 +170,8 @@ func TestGroveMoveNode(t *testing.T) {
 
 func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 3, TenancyId: 1}
-		treeID := store_interface.TreeID("tree3")
+		space := model.TenancySpace{AppId: 3, TenancyId: 1}
+		treeID := model.TreeID("tree3")
 
 		// Create tree:
 		//     root
@@ -179,10 +180,10 @@ func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing
 		//   /
 		//  c
 
-		root := store_interface.NodeID("root3")
-		a := store_interface.NodeID("a3")
-		b := store_interface.NodeID("b3")
-		c := store_interface.NodeID("c3")
+		root := model.NodeID("root3")
+		a := model.NodeID("a3")
+		b := model.NodeID("b3")
+		c := model.NodeID("c3")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, a, &root, nil, nil)
@@ -221,7 +222,7 @@ func testGroveMoveNode(store store_interface.GroveStore, name string, t *testing
 
 		// Test cycle detection: try to move b under c (should fail)
 		err = store.MoveNode(space, treeID, b, &c, nil)
-		if err != store_interface.ErrCycleDetected {
+		if err != model.ErrCycleDetected {
 			t.Errorf("Expected ErrCycleDetected, got %v", err)
 		}
 	})
@@ -235,8 +236,8 @@ func TestGroveMoveNodeWithDescendants(t *testing.T) {
 
 func testGroveMoveNodeWithDescendants(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 11, TenancyId: 1}
-		treeID := store_interface.TreeID("tree11")
+		space := model.TenancySpace{AppId: 11, TenancyId: 1}
+		treeID := model.TreeID("tree11")
 
 		// Create tree:
 		//     root
@@ -247,13 +248,13 @@ func testGroveMoveNodeWithDescendants(store store_interface.GroveStore, name str
 		//     / \
 		//    D   E
 
-		root := store_interface.NodeID("root11")
-		A := store_interface.NodeID("A11")
-		B := store_interface.NodeID("B11")
-		C := store_interface.NodeID("C11")
-		D := store_interface.NodeID("D11")
-		E := store_interface.NodeID("E11")
-		Z := store_interface.NodeID("Z11")
+		root := model.NodeID("root11")
+		A := model.NodeID("A11")
+		B := model.NodeID("B11")
+		C := model.NodeID("C11")
+		D := model.NodeID("D11")
+		E := model.NodeID("E11")
+		Z := model.NodeID("Z11")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, A, &root, nil, nil)
@@ -339,7 +340,7 @@ func testGroveMoveNodeWithDescendants(store store_interface.GroveStore, name str
 		if len(zDescendants) != 3 {
 			t.Errorf("Expected Z to have 3 descendants (C, D, E), got %d", len(zDescendants))
 		}
-		zDescMap := make(map[store_interface.NodeID]int)
+		zDescMap := make(map[model.NodeID]int)
 		for _, desc := range zDescendants {
 			zDescMap[desc.NodeID] = desc.Depth
 		}
@@ -384,37 +385,37 @@ func TestGroveAggregates(t *testing.T) {
 
 func testGroveAggregates(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 4, TenancyId: 1}
-		treeID := store_interface.TreeID("tree4")
+		space := model.TenancySpace{AppId: 4, TenancyId: 1}
+		treeID := model.TreeID("tree4")
 
 		// Create tree:
 		//     root
 		//     /  \
 		//    a    b
 
-		root := store_interface.NodeID("root4")
-		a := store_interface.NodeID("a4")
-		b := store_interface.NodeID("b4")
+		root := model.NodeID("root4")
+		a := model.NodeID("a4")
+		b := model.NodeID("b4")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, a, &root, nil, nil)
 		store.CreateNode(space, treeID, b, &root, nil, nil)
 
 		// Apply mutations
-		mutation1 := store_interface.MutationID("m1")
-		deltas1 := store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 5,
-			store_interface.AggregateKey("value"): 100,
+		mutation1 := model.MutationID("m1")
+		deltas1 := model.AggregateDeltas{
+			model.AggregateKey("count"): 5,
+			model.AggregateKey("value"): 100,
 		}
 		err := store.ApplyAggregateMutation(space, treeID, mutation1, a, deltas1)
 		if err != nil {
 			t.Fatalf("Failed to apply mutation: %v", err)
 		}
 
-		mutation2 := store_interface.MutationID("m2")
-		deltas2 := store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 3,
-			store_interface.AggregateKey("value"): 50,
+		mutation2 := model.MutationID("m2")
+		deltas2 := model.AggregateDeltas{
+			model.AggregateKey("count"): 3,
+			model.AggregateKey("value"): 50,
 		}
 		err = store.ApplyAggregateMutation(space, treeID, mutation2, b, deltas2)
 		if err != nil {
@@ -426,8 +427,8 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 		if err != nil {
 			t.Fatalf("Failed to get local aggregates: %v", err)
 		}
-		if localAgg[store_interface.AggregateKey("count")] != 5 {
-			t.Errorf("Expected count=5, got %d", localAgg[store_interface.AggregateKey("count")])
+		if localAgg[model.AggregateKey("count")] != 5 {
+			t.Errorf("Expected count=5, got %d", localAgg[model.AggregateKey("count")])
 		}
 
 		// Test subtree aggregates
@@ -435,16 +436,16 @@ func testGroveAggregates(store store_interface.GroveStore, name string, t *testi
 		if err != nil {
 			t.Fatalf("Failed to get subtree aggregates: %v", err)
 		}
-		if subtreeAgg[store_interface.AggregateKey("count")] != 8 {
-			t.Errorf("Expected total count=8, got %d", subtreeAgg[store_interface.AggregateKey("count")])
+		if subtreeAgg[model.AggregateKey("count")] != 8 {
+			t.Errorf("Expected total count=8, got %d", subtreeAgg[model.AggregateKey("count")])
 		}
-		if subtreeAgg[store_interface.AggregateKey("value")] != 150 {
-			t.Errorf("Expected total value=150, got %d", subtreeAgg[store_interface.AggregateKey("value")])
+		if subtreeAgg[model.AggregateKey("value")] != 150 {
+			t.Errorf("Expected total value=150, got %d", subtreeAgg[model.AggregateKey("value")])
 		}
 
 		// Test idempotency: applying same mutation should fail
 		err = store.ApplyAggregateMutation(space, treeID, mutation1, a, deltas1)
-		if err != store_interface.ErrMutationConflict {
+		if err != model.ErrMutationConflict {
 			t.Errorf("Expected ErrMutationConflict, got %v", err)
 		}
 	})
@@ -458,11 +459,11 @@ func TestGroveSoftDelete(t *testing.T) {
 
 func testGroveSoftDelete(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 5, TenancyId: 1}
-		treeID := store_interface.TreeID("tree5")
+		space := model.TenancySpace{AppId: 5, TenancyId: 1}
+		treeID := model.TreeID("tree5")
 
-		root := store_interface.NodeID("root5")
-		child := store_interface.NodeID("child5")
+		root := model.NodeID("root5")
+		child := model.NodeID("child5")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, child, &root, nil, nil)
@@ -491,11 +492,11 @@ func TestGroveMultiTenancy(t *testing.T) {
 
 func testGroveMultiTenancy(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space1 := store_interface.TenancySpace{AppId: 6, TenancyId: 1}
-		space2 := store_interface.TenancySpace{AppId: 6, TenancyId: 2}
-		treeID := store_interface.TreeID("tree6")
+		space1 := model.TenancySpace{AppId: 6, TenancyId: 1}
+		space2 := model.TenancySpace{AppId: 6, TenancyId: 2}
+		treeID := model.TreeID("tree6")
 
-		nodeID := store_interface.NodeID("node6")
+		nodeID := model.NodeID("node6")
 
 		// Create same node ID in different tenancy spaces
 		err := store.CreateNode(space1, treeID, nodeID, nil, nil, nil)
@@ -545,8 +546,8 @@ func TestGroveGetAncestorsBulk(t *testing.T) {
 
 func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 8, TenancyId: 1}
-		treeID := store_interface.TreeID("tree8")
+		space := model.TenancySpace{AppId: 8, TenancyId: 1}
+		treeID := model.TreeID("tree8")
 
 		// Tree:
 		//       root
@@ -555,11 +556,11 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 		//    / \
 		//   c   d
 
-		root := store_interface.NodeID("root8")
-		a := store_interface.NodeID("a8")
-		b := store_interface.NodeID("b8")
-		c := store_interface.NodeID("c8")
-		d := store_interface.NodeID("d8")
+		root := model.NodeID("root8")
+		a := model.NodeID("a8")
+		b := model.NodeID("b8")
+		c := model.NodeID("c8")
+		d := model.NodeID("d8")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, a, &root, nil, nil)
@@ -568,7 +569,7 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 		store.CreateNode(space, treeID, d, &a, nil, nil)
 
 		t.Run("bulk lookup of leaf nodes", func(t *testing.T) {
-			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{c, d})
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []model.NodeID{c, d})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -592,7 +593,7 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 		})
 
 		t.Run("root node has no ancestors", func(t *testing.T) {
-			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{root})
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []model.NodeID{root})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -609,8 +610,8 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 		})
 
 		t.Run("mixed found and not found", func(t *testing.T) {
-			missing := store_interface.NodeID("doesNotExist8")
-			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{c, missing})
+			missing := model.NodeID("doesNotExist8")
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []model.NodeID{c, missing})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -626,7 +627,7 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 		})
 
 		t.Run("empty input", func(t *testing.T) {
-			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{})
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []model.NodeID{})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -639,9 +640,9 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 		})
 
 		t.Run("all nodes not found", func(t *testing.T) {
-			x := store_interface.NodeID("x8")
-			y := store_interface.NodeID("y8")
-			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{x, y})
+			x := model.NodeID("x8")
+			y := model.NodeID("y8")
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []model.NodeID{x, y})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -655,7 +656,7 @@ func testGroveGetAncestorsBulk(store store_interface.GroveStore, name string, t 
 
 		t.Run("mixed depths in single call", func(t *testing.T) {
 			// b is at depth 1, c is at depth 2
-			result, notFound, err := store.GetAncestorsBulk(space, treeID, []store_interface.NodeID{b, c, root})
+			result, notFound, err := store.GetAncestorsBulk(space, treeID, []model.NodeID{b, c, root})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -683,8 +684,8 @@ func TestGroveGetNodeLocalAggregatesBulk(t *testing.T) {
 
 func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 9, TenancyId: 1}
-		treeID := store_interface.TreeID("tree9")
+		space := model.TenancySpace{AppId: 9, TenancyId: 1}
+		treeID := model.TreeID("tree9")
 
 		// Tree:
 		//       root
@@ -693,10 +694,10 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 		//    /
 		//   c
 
-		root := store_interface.NodeID("root9")
-		a := store_interface.NodeID("a9")
-		b := store_interface.NodeID("b9")
-		c := store_interface.NodeID("c9")
+		root := model.NodeID("root9")
+		a := model.NodeID("a9")
+		b := model.NodeID("b9")
+		c := model.NodeID("c9")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, a, &root, nil, nil)
@@ -704,36 +705,36 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 		store.CreateNode(space, treeID, c, &a, nil, nil)
 
 		// Apply aggregates: a has count=5,value=100; b has count=3
-		store.ApplyAggregateMutation(space, treeID, "m1", a, store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 5,
-			store_interface.AggregateKey("value"): 100,
+		store.ApplyAggregateMutation(space, treeID, "m1", a, model.AggregateDeltas{
+			model.AggregateKey("count"): 5,
+			model.AggregateKey("value"): 100,
 		})
-		store.ApplyAggregateMutation(space, treeID, "m2", b, store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 3,
+		store.ApplyAggregateMutation(space, treeID, "m2", b, model.AggregateDeltas{
+			model.AggregateKey("count"): 3,
 		})
 		// root and c have no aggregates
 
 		t.Run("bulk lookup returns correct aggregates", func(t *testing.T) {
-			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{a, b})
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []model.NodeID{a, b})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if len(notFound) != 0 {
 				t.Errorf("expected no missing nodes, got %v", notFound)
 			}
-			if result[a][store_interface.AggregateKey("count")] != 5 {
-				t.Errorf("a: expected count=5, got %d", result[a][store_interface.AggregateKey("count")])
+			if result[a][model.AggregateKey("count")] != 5 {
+				t.Errorf("a: expected count=5, got %d", result[a][model.AggregateKey("count")])
 			}
-			if result[a][store_interface.AggregateKey("value")] != 100 {
-				t.Errorf("a: expected value=100, got %d", result[a][store_interface.AggregateKey("value")])
+			if result[a][model.AggregateKey("value")] != 100 {
+				t.Errorf("a: expected value=100, got %d", result[a][model.AggregateKey("value")])
 			}
-			if result[b][store_interface.AggregateKey("count")] != 3 {
-				t.Errorf("b: expected count=3, got %d", result[b][store_interface.AggregateKey("count")])
+			if result[b][model.AggregateKey("count")] != 3 {
+				t.Errorf("b: expected count=3, got %d", result[b][model.AggregateKey("count")])
 			}
 		})
 
 		t.Run("node with no aggregates returns empty map", func(t *testing.T) {
-			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{root, c})
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []model.NodeID{root, c})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -752,8 +753,8 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 		})
 
 		t.Run("mixed found and not found", func(t *testing.T) {
-			missing := store_interface.NodeID("doesNotExist9")
-			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{a, missing})
+			missing := model.NodeID("doesNotExist9")
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []model.NodeID{a, missing})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -769,7 +770,7 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 		})
 
 		t.Run("empty input", func(t *testing.T) {
-			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{})
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []model.NodeID{})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -782,9 +783,9 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 		})
 
 		t.Run("all nodes not found", func(t *testing.T) {
-			x := store_interface.NodeID("x9")
-			y := store_interface.NodeID("y9")
-			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{x, y})
+			x := model.NodeID("x9")
+			y := model.NodeID("y9")
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []model.NodeID{x, y})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -797,7 +798,7 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 		})
 
 		t.Run("mixed nodes with and without aggregates", func(t *testing.T) {
-			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []store_interface.NodeID{a, b, c, root})
+			result, notFound, err := store.GetNodeLocalAggregatesBulk(space, treeID, []model.NodeID{a, b, c, root})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -807,8 +808,8 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 			if len(result) != 4 {
 				t.Errorf("expected 4 nodes in result, got %d", len(result))
 			}
-			if result[a][store_interface.AggregateKey("count")] != 5 {
-				t.Errorf("a: expected count=5, got %d", result[a][store_interface.AggregateKey("count")])
+			if result[a][model.AggregateKey("count")] != 5 {
+				t.Errorf("a: expected count=5, got %d", result[a][model.AggregateKey("count")])
 			}
 			if len(result[c]) != 0 {
 				t.Errorf("c: expected empty aggregates, got %v", result[c])
@@ -819,13 +820,13 @@ func testGroveGetNodeLocalAggregatesBulk(store store_interface.GroveStore, name 
 
 func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 7, TenancyId: 1}
-		tree1 := store_interface.TreeID("fileSystemA")
-		tree2 := store_interface.TreeID("fileSystemB")
+		space := model.TenancySpace{AppId: 7, TenancyId: 1}
+		tree1 := model.TreeID("fileSystemA")
+		tree2 := model.TreeID("fileSystemB")
 
 		// Create same node structure in two different trees
-		rootID := store_interface.NodeID("root")
-		childID := store_interface.NodeID("child")
+		rootID := model.NodeID("root")
+		childID := model.NodeID("child")
 
 		// Create nodes in tree1
 		err := store.CreateNode(space, tree1, rootID, nil, nil, nil)
@@ -869,18 +870,18 @@ func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *te
 		}
 
 		// Apply different aggregates to same node ID in different trees
-		mutation1 := store_interface.MutationID("mut1")
-		deltas1 := store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 10,
+		mutation1 := model.MutationID("mut1")
+		deltas1 := model.AggregateDeltas{
+			model.AggregateKey("count"): 10,
 		}
 		err = store.ApplyAggregateMutation(space, tree1, mutation1, rootID, deltas1)
 		if err != nil {
 			t.Fatalf("Failed to apply mutation to tree1: %v", err)
 		}
 
-		mutation2 := store_interface.MutationID("mut2")
-		deltas2 := store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 20,
+		mutation2 := model.MutationID("mut2")
+		deltas2 := model.AggregateDeltas{
+			model.AggregateKey("count"): 20,
 		}
 		err = store.ApplyAggregateMutation(space, tree2, mutation2, rootID, deltas2)
 		if err != nil {
@@ -897,11 +898,11 @@ func testGroveTreeIsolation(store store_interface.GroveStore, name string, t *te
 			t.Fatalf("Failed to get aggregates from tree2: %v", err)
 		}
 
-		if agg1[store_interface.AggregateKey("count")] != 10 {
-			t.Errorf("Tree1 count should be 10, got %d", agg1[store_interface.AggregateKey("count")])
+		if agg1[model.AggregateKey("count")] != 10 {
+			t.Errorf("Tree1 count should be 10, got %d", agg1[model.AggregateKey("count")])
 		}
-		if agg2[store_interface.AggregateKey("count")] != 20 {
-			t.Errorf("Tree2 count should be 20, got %d", agg2[store_interface.AggregateKey("count")])
+		if agg2[model.AggregateKey("count")] != 20 {
+			t.Errorf("Tree2 count should be 20, got %d", agg2[model.AggregateKey("count")])
 		}
 
 		// Delete from tree1 shouldn't affect tree2
@@ -933,8 +934,8 @@ func TestGroveGetNodeWithDescendantsAggregatesBulk(t *testing.T) {
 
 func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 10, TenancyId: 1}
-		treeID := store_interface.TreeID("tree10")
+		space := model.TenancySpace{AppId: 10, TenancyId: 1}
+		treeID := model.TreeID("tree10")
 
 		// Tree:
 		//       root
@@ -945,29 +946,29 @@ func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveSt
 		//
 		// Aggregates: a=count:5,value:100  b=count:3  c=count:2  root=none
 
-		root := store_interface.NodeID("root10")
-		a := store_interface.NodeID("a10")
-		b := store_interface.NodeID("b10")
-		c := store_interface.NodeID("c10")
+		root := model.NodeID("root10")
+		a := model.NodeID("a10")
+		b := model.NodeID("b10")
+		c := model.NodeID("c10")
 
 		store.CreateNode(space, treeID, root, nil, nil, nil)
 		store.CreateNode(space, treeID, a, &root, nil, nil)
 		store.CreateNode(space, treeID, b, &root, nil, nil)
 		store.CreateNode(space, treeID, c, &a, nil, nil)
 
-		store.ApplyAggregateMutation(space, treeID, "m1", a, store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 5,
-			store_interface.AggregateKey("value"): 100,
+		store.ApplyAggregateMutation(space, treeID, "m1", a, model.AggregateDeltas{
+			model.AggregateKey("count"): 5,
+			model.AggregateKey("value"): 100,
 		})
-		store.ApplyAggregateMutation(space, treeID, "m2", b, store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 3,
+		store.ApplyAggregateMutation(space, treeID, "m2", b, model.AggregateDeltas{
+			model.AggregateKey("count"): 3,
 		})
-		store.ApplyAggregateMutation(space, treeID, "m3", c, store_interface.AggregateDeltas{
-			store_interface.AggregateKey("count"): 2,
+		store.ApplyAggregateMutation(space, treeID, "m3", c, model.AggregateDeltas{
+			model.AggregateKey("count"): 2,
 		})
 
 		t.Run("subtree sums are correct", func(t *testing.T) {
-			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{root, a, b})
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []model.NodeID{root, a, b})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -975,27 +976,27 @@ func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveSt
 				t.Errorf("expected no missing nodes, got %v", notFound)
 			}
 			// root subtree: a(5)+b(3)+c(2)=10 count, a(100) value
-			if result[root][store_interface.AggregateKey("count")] != 10 {
-				t.Errorf("root: expected count=10, got %d", result[root][store_interface.AggregateKey("count")])
+			if result[root][model.AggregateKey("count")] != 10 {
+				t.Errorf("root: expected count=10, got %d", result[root][model.AggregateKey("count")])
 			}
-			if result[root][store_interface.AggregateKey("value")] != 100 {
-				t.Errorf("root: expected value=100, got %d", result[root][store_interface.AggregateKey("value")])
+			if result[root][model.AggregateKey("value")] != 100 {
+				t.Errorf("root: expected value=100, got %d", result[root][model.AggregateKey("value")])
 			}
 			// a subtree: a(5)+c(2)=7 count, a(100) value
-			if result[a][store_interface.AggregateKey("count")] != 7 {
-				t.Errorf("a: expected count=7, got %d", result[a][store_interface.AggregateKey("count")])
+			if result[a][model.AggregateKey("count")] != 7 {
+				t.Errorf("a: expected count=7, got %d", result[a][model.AggregateKey("count")])
 			}
-			if result[a][store_interface.AggregateKey("value")] != 100 {
-				t.Errorf("a: expected value=100, got %d", result[a][store_interface.AggregateKey("value")])
+			if result[a][model.AggregateKey("value")] != 100 {
+				t.Errorf("a: expected value=100, got %d", result[a][model.AggregateKey("value")])
 			}
 			// b subtree: b(3) count only
-			if result[b][store_interface.AggregateKey("count")] != 3 {
-				t.Errorf("b: expected count=3, got %d", result[b][store_interface.AggregateKey("count")])
+			if result[b][model.AggregateKey("count")] != 3 {
+				t.Errorf("b: expected count=3, got %d", result[b][model.AggregateKey("count")])
 			}
 		})
 
 		t.Run("node with no aggregates returns empty map not notFound", func(t *testing.T) {
-			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{root})
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []model.NodeID{root})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -1009,8 +1010,8 @@ func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveSt
 		})
 
 		t.Run("non-existent node goes to notFound", func(t *testing.T) {
-			missing := store_interface.NodeID("doesNotExist10")
-			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{a, missing})
+			missing := model.NodeID("doesNotExist10")
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []model.NodeID{a, missing})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -1026,7 +1027,7 @@ func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveSt
 		})
 
 		t.Run("empty input", func(t *testing.T) {
-			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{})
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []model.NodeID{})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -1040,18 +1041,18 @@ func testGroveGetNodeWithDescendantsAggregatesBulk(store store_interface.GroveSt
 
 		t.Run("overlapping subtrees are independent", func(t *testing.T) {
 			// root and a have overlapping subtrees; each should reflect its own subtree sum
-			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []store_interface.NodeID{root, a})
+			result, notFound, err := store.GetNodeWithDescendantsAggregatesBulk(space, treeID, []model.NodeID{root, a})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if len(notFound) != 0 {
 				t.Errorf("expected no missing nodes, got %v", notFound)
 			}
-			if result[root][store_interface.AggregateKey("count")] != 10 {
-				t.Errorf("root: expected count=10, got %d", result[root][store_interface.AggregateKey("count")])
+			if result[root][model.AggregateKey("count")] != 10 {
+				t.Errorf("root: expected count=10, got %d", result[root][model.AggregateKey("count")])
 			}
-			if result[a][store_interface.AggregateKey("count")] != 7 {
-				t.Errorf("a: expected count=7, got %d", result[a][store_interface.AggregateKey("count")])
+			if result[a][model.AggregateKey("count")] != 7 {
+				t.Errorf("a: expected count=7, got %d", result[a][model.AggregateKey("count")])
 			}
 		})
 	})

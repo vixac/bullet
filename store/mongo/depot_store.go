@@ -1,42 +1,42 @@
 package mongodb
 
 import (
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
-func (m *MongoStore) DepotCreate(space store_interface.TenancySpace, bucketID int32, value string) (int64, error) {
+func (m *MongoStore) DepotCreate(space model.TenancySpace, bucketID int32, value string) (int64, error) {
 	return 0, nil
 }
-func (m *MongoStore) DepotCreateMany(space store_interface.TenancySpace, bucketID int32, values []string) ([]int64, error) {
+func (m *MongoStore) DepotCreateMany(space model.TenancySpace, bucketID int32, values []string) ([]int64, error) {
 	return []int64{}, nil
 }
 
-func (m *MongoStore) DepotUpdate(space store_interface.TenancySpace, id int64, value string) error {
+func (m *MongoStore) DepotUpdate(space model.TenancySpace, id int64, value string) error {
 	return nil
 
 }
 
-func (m *MongoStore) DepotGet(space store_interface.TenancySpace, id int64) (string, error) {
+func (m *MongoStore) DepotGet(space model.TenancySpace, id int64) (string, error) {
 	return "", nil
 }
-func (m *MongoStore) DepotGetMany(space store_interface.TenancySpace, ids []int64) (map[int64]string, []int64, error) {
+func (m *MongoStore) DepotGetMany(space model.TenancySpace, ids []int64) (map[int64]string, []int64, error) {
 	return map[int64]string{}, []int64{}, nil
 }
 
-func (m *MongoStore) DepotDelete(space store_interface.TenancySpace, id int64) error {
+func (m *MongoStore) DepotDelete(space model.TenancySpace, id int64) error {
 	return nil
 }
-func (m *MongoStore) DepotDeleteByBucket(space store_interface.TenancySpace, bucketID int32) error {
+func (m *MongoStore) DepotDeleteByBucket(space model.TenancySpace, bucketID int32) error {
 	return nil
 
 }
-func (m *MongoStore) DepotGetAllByBucket(space store_interface.TenancySpace, bucketID int32) (map[int64]string, error) {
+func (m *MongoStore) DepotGetAllByBucket(space model.TenancySpace, bucketID int32) (map[int64]string, error) {
 
 	return map[int64]string{}, nil
 }
 
 /*
-func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, value string) error {
+func (m *MongoStore) DepotPut(space model.TenancySpace, key int64, value string) error {
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 	update := bson.M{"$set": bson.M{"value": value}}
 	opts := options.Update().SetUpsert(true)
@@ -44,12 +44,12 @@ func (m *MongoStore) DepotPut(space store_interface.TenancySpace, key int64, val
 	_, err := m.depotCollection.UpdateOne(context.TODO(), filter, update, opts)
 	return err
 }
-func (b *MongoStore) DepotGetAll(space store_interface.TenancySpace) (map[int64]string, error) {
+func (b *MongoStore) DepotGetAll(space model.TenancySpace) (map[int64]string, error) {
 	x := make(map[int64]string)
 	return x, errors.New("Not implmented")
 }
 
-func (m *MongoStore) DepotGet(space store_interface.TenancySpace, key int64) (string, error) {
+func (m *MongoStore) DepotGet(space model.TenancySpace, key int64) (string, error) {
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 
 	var result struct {
@@ -63,13 +63,13 @@ func (m *MongoStore) DepotGet(space store_interface.TenancySpace, key int64) (st
 	return result.Value, err
 }
 
-func (m *MongoStore) DepotDelete(space store_interface.TenancySpace, key int64) error {
+func (m *MongoStore) DepotDelete(space model.TenancySpace, key int64) error {
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "key": key}
 	_, err := m.depotCollection.DeleteOne(context.TODO(), filter)
 	return err
 }
 
-func (m *MongoStore) DepotPutMany(space store_interface.TenancySpace, items []model.DepotKeyValueItem) error {
+func (m *MongoStore) DepotPutMany(space model.TenancySpace, items []model.DepotKeyValueItem) error {
 	var ops []mongo.WriteModel
 
 	for _, item := range items {
@@ -86,7 +86,7 @@ func (m *MongoStore) DepotPutMany(space store_interface.TenancySpace, items []mo
 	return err
 }
 
-func (m *MongoStore) DepotGetMany(space store_interface.TenancySpace, keys []int64) (map[int64]string, []int64, error) {
+func (m *MongoStore) DepotGetMany(space model.TenancySpace, keys []int64) (map[int64]string, []int64, error) {
 	filter := bson.M{
 		"appId":     space.AppId,
 		"tenancyId": space.TenancyId,

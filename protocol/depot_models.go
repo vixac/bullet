@@ -1,4 +1,4 @@
-package model
+package protocol
 
 type DepotCreateRequest struct {
 	BucketID int32  `json:"bucket_id"`

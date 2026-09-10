@@ -4,73 +4,74 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	si "github.com/vixac/bullet/store/store_interface"
 	"time"
+
+	"github.com/vixac/bullet/model"
 )
 
 type warehouseSpace struct {
-	blobs map[si.BlobID]si.Blob
-	puts  map[si.PutID]si.BlobID
+	blobs map[model.BlobID]model.Blob
+	puts  map[model.PutID]model.BlobID
 }
 
-func cloneBlob(b si.Blob) si.Blob {
+func cloneBlob(b model.Blob) model.Blob {
 	b.Value = bytes.Clone(b.Value)
 	return b
 }
 
-func (s *RamStore) WarehousePut(ctx context.Context, space si.TenancySpace, req si.PutBlobRequest) (si.Blob, error) {
+func (s *RamStore) WarehousePut(ctx context.Context, space model.TenancySpace, req model.PutBlobRequest) (model.Blob, error) {
 	if err := ctx.Err(); err != nil {
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	if req.PutID == "" {
-		return si.Blob{}, si.ErrWarehouseInvalidPutID
+		return model.Blob{}, model.ErrWarehouseInvalidPutID
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	if s.warehouse == nil {
-		s.warehouse = make(map[si.TenancySpace]*warehouseSpace)
+		s.warehouse = make(map[model.TenancySpace]*warehouseSpace)
 	}
 	data := s.warehouse[space]
 	if data == nil {
-		data = &warehouseSpace{blobs: make(map[si.BlobID]si.Blob), puts: make(map[si.PutID]si.BlobID)}
+		data = &warehouseSpace{blobs: make(map[model.BlobID]model.Blob), puts: make(map[model.PutID]model.BlobID)}
 		s.warehouse[space] = data
 	}
 	if id, ok := data.puts[req.PutID]; ok {
 		b := data.blobs[id]
 		if b.ContentType != req.ContentType || b.Checksum != req.Checksum || !bytes.Equal(b.Value, req.Value) {
-			return si.Blob{}, si.ErrWarehousePutConflict
+			return model.Blob{}, model.ErrWarehousePutConflict
 		}
 		return cloneBlob(b), nil
 	}
-	id := si.BlobID(rand.Text())
+	id := model.BlobID(rand.Text())
 	for {
 		if _, exists := data.blobs[id]; !exists {
 			break
 		}
-		id = si.BlobID(rand.Text())
+		id = model.BlobID(rand.Text())
 	}
-	b := si.Blob{ID: id, PutID: req.PutID, ContentType: req.ContentType, Value: bytes.Clone(req.Value), Checksum: req.Checksum, CreatedAt: time.Now().UTC()}
+	b := model.Blob{ID: id, PutID: req.PutID, ContentType: req.ContentType, Value: bytes.Clone(req.Value), Checksum: req.Checksum, CreatedAt: time.Now().UTC()}
 	data.blobs[id] = b
 	data.puts[req.PutID] = id
 	return cloneBlob(b), nil
 }
 
-func (s *RamStore) WarehouseGet(ctx context.Context, space si.TenancySpace, id si.BlobID) (si.Blob, error) {
-	found, err := s.WarehouseGetMany(ctx, space, []si.BlobID{id})
+func (s *RamStore) WarehouseGet(ctx context.Context, space model.TenancySpace, id model.BlobID) (model.Blob, error) {
+	found, err := s.WarehouseGetMany(ctx, space, []model.BlobID{id})
 	if err != nil {
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	b, ok := found[id]
 	if !ok {
-		return si.Blob{}, si.ErrBlobNotFound
+		return model.Blob{}, model.ErrBlobNotFound
 	}
 	return b, nil
 }
 
-func (s *RamStore) WarehouseGetMany(ctx context.Context, space si.TenancySpace, ids []si.BlobID) (map[si.BlobID]si.Blob, error) {
+func (s *RamStore) WarehouseGetMany(ctx context.Context, space model.TenancySpace, ids []model.BlobID) (map[model.BlobID]model.Blob, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -79,7 +80,7 @@ func (s *RamStore) WarehouseGetMany(ctx context.Context, space si.TenancySpace, 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	result := make(map[si.BlobID]si.Blob)
+	result := make(map[model.BlobID]model.Blob)
 	data := s.warehouse[space]
 	if data == nil {
 		return result, nil

@@ -5,14 +5,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vixac/bullet/model"
-	si "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestTrackBatchRollback(t *testing.T) {
 	for _, operation := range []string{"put", "delete"} {
 		t.Run(operation, func(t *testing.T) {
 			s := newLedgerTestStore(t)
-			space := si.TenancySpace{AppId: 1, TenancyId: 2}
+			space := model.TenancySpace{AppId: 1, TenancyId: 2}
 			require.NoError(t, s.TrackPut(space, 1, "first", 10, nil, nil))
 			require.NoError(t, s.TrackPut(space, 1, "fail", 20, nil, nil))
 			event := "INSERT"
@@ -32,7 +31,7 @@ func TestTrackBatchRollback(t *testing.T) {
 					{Key: "fail", Value: model.TrackValue{Value: 99}},
 				}})
 			} else {
-				err = s.TrackDeleteMany(space, []model.TrackBucketKeyPair{{BucketID: 1, Key: "first"}, {BucketID: 1, Key: "fail"}})
+				err = s.TrackDeleteMany(space, []model.TrackKey{{BucketID: 1, Key: "first"}, {BucketID: 1, Key: "fail"}})
 			}
 			require.Error(t, err)
 			for key, want := range map[string]int64{"first": 10, "fail": 20} {

@@ -5,38 +5,38 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 	"go.etcd.io/bbolt"
 )
 
 // Bucket naming helpers
-func groveNodesBucket(space store_interface.TenancySpace, treeID store_interface.TreeID) []byte {
+func groveNodesBucket(space model.TenancySpace, treeID model.TreeID) []byte {
 	return []byte(fmt.Sprintf("grove:nodes:%d:%d:%s", space.AppId, space.TenancyId, treeID))
 }
 
-func groveClosureBucket(space store_interface.TenancySpace, treeID store_interface.TreeID) []byte {
+func groveClosureBucket(space model.TenancySpace, treeID model.TreeID) []byte {
 	return []byte(fmt.Sprintf("grove:closure:%d:%d:%s", space.AppId, space.TenancyId, treeID))
 }
 
-func groveMutationsBucket(space store_interface.TenancySpace, treeID store_interface.TreeID) []byte {
+func groveMutationsBucket(space model.TenancySpace, treeID model.TreeID) []byte {
 	return []byte(fmt.Sprintf("grove:mutations:%d:%d:%s", space.AppId, space.TenancyId, treeID))
 }
 
-func groveAggregatesBucket(space store_interface.TenancySpace, treeID store_interface.TreeID) []byte {
+func groveAggregatesBucket(space model.TenancySpace, treeID model.TreeID) []byte {
 	return []byte(fmt.Sprintf("grove:aggregates:%d:%d:%s", space.AppId, space.TenancyId, treeID))
 }
 
-func groveDeletedBucket(space store_interface.TenancySpace, treeID store_interface.TreeID) []byte {
+func groveDeletedBucket(space model.TenancySpace, treeID model.TreeID) []byte {
 	return []byte(fmt.Sprintf("grove:deleted:%d:%d:%s", space.AppId, space.TenancyId, treeID))
 }
 
 // Node data structure
 type nodeData struct {
-	ID       string                          `json:"id"`
-	Parent   *string                         `json:"parent,omitempty"`
-	Position *float64                        `json:"position,omitempty"`
-	Depth    int                             `json:"depth"`
-	Metadata *store_interface.NodeMetadata   `json:"metadata,omitempty"`
+	ID       string              `json:"id"`
+	Parent   *string             `json:"parent,omitempty"`
+	Position *float64            `json:"position,omitempty"`
+	Depth    int                 `json:"depth"`
+	Metadata *model.NodeMetadata `json:"metadata,omitempty"`
 }
 
 // Closure entry structure
@@ -48,12 +48,12 @@ type closureEntry struct {
 
 // CreateNode creates a new node in the tree
 func (b *BoltStore) CreateNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	parent *store_interface.NodeID,
-	position *store_interface.ChildPosition,
-	metadata *store_interface.NodeMetadata,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	parent *model.NodeID,
+	position *model.ChildPosition,
+	metadata *model.NodeMetadata,
 ) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		nodesBkt, err := tx.CreateBucketIfNotExists(groveNodesBucket(space, treeID))
@@ -68,7 +68,7 @@ func (b *BoltStore) CreateNode(
 		// Check if node already exists
 		nodeKey := []byte(node)
 		if nodesBkt.Get(nodeKey) != nil {
-			return store_interface.ErrNodeAlreadyExists
+			return model.ErrNodeAlreadyExists
 		}
 
 		// Calculate depth
@@ -77,7 +77,7 @@ func (b *BoltStore) CreateNode(
 			parentKey := []byte(*parent)
 			parentData := nodesBkt.Get(parentKey)
 			if parentData == nil {
-				return store_interface.ErrNodeNotFound
+				return model.ErrNodeNotFound
 			}
 			var parentNode nodeData
 			if err := json.Unmarshal(parentData, &parentNode); err != nil {
@@ -162,18 +162,18 @@ func (b *BoltStore) CreateNode(
 }
 
 // DeleteNode deletes a node (soft or hard delete)
-func (b *BoltStore) DeleteNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, soft bool) error {
+func (b *BoltStore) DeleteNode(space model.TenancySpace, treeID model.TreeID, node model.NodeID, soft bool) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		closureBkt := tx.Bucket(groveClosureBucket(space, treeID))
 
 		nodeKey := []byte(node)
 		nodeBytes := nodesBkt.Get(nodeKey)
 		if nodeBytes == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		// Check if node has children
@@ -230,26 +230,26 @@ func (b *BoltStore) DeleteNode(space store_interface.TenancySpace, treeID store_
 
 // MoveNode moves a node to a new parent
 func (b *BoltStore) MoveNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	newParent *store_interface.NodeID,
-	newPosition *store_interface.ChildPosition,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	newParent *model.NodeID,
+	newPosition *model.ChildPosition,
 ) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		closureBkt := tx.Bucket(groveClosureBucket(space, treeID))
 		if closureBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		nodeKey := []byte(node)
 		nodeBytes := nodesBkt.Get(nodeKey)
 		if nodeBytes == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		var nodeObj nodeData
@@ -264,7 +264,7 @@ func (b *BoltStore) MoveNode(
 			parentKey := []byte(*newParent)
 			parentBytes := nodesBkt.Get(parentKey)
 			if parentBytes == nil {
-				return store_interface.ErrNodeNotFound
+				return model.ErrNodeNotFound
 			}
 			var parentNode nodeData
 			if err := json.Unmarshal(parentBytes, &parentNode); err != nil {
@@ -274,7 +274,7 @@ func (b *BoltStore) MoveNode(
 			// Check for cycles: newParent cannot be a descendant of node
 			cycleKey := []byte(fmt.Sprintf("%s:%s", node, *newParent))
 			if closureBkt.Get(cycleKey) != nil {
-				return store_interface.ErrCycleDetected
+				return model.ErrCycleDetected
 			}
 
 			newDepth = parentNode.Depth + 1
@@ -414,7 +414,7 @@ func (b *BoltStore) MoveNode(
 }
 
 // Exists checks if a node exists
-func (b *BoltStore) Exists(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (bool, error) {
+func (b *BoltStore) Exists(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (bool, error) {
 	var exists bool
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
@@ -428,17 +428,17 @@ func (b *BoltStore) Exists(space store_interface.TenancySpace, treeID store_inte
 }
 
 // GetNodeInfo gets complete node information
-func (b *BoltStore) GetNodeInfo(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (*store_interface.NodeInfo, error) {
-	var info *store_interface.NodeInfo
+func (b *BoltStore) GetNodeInfo(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (*model.NodeInfo, error) {
+	var info *model.NodeInfo
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		nodeBytes := nodesBkt.Get([]byte(node))
 		if nodeBytes == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		var nodeObj nodeData
@@ -446,19 +446,19 @@ func (b *BoltStore) GetNodeInfo(space store_interface.TenancySpace, treeID store
 			return err
 		}
 
-		var parent *store_interface.NodeID
+		var parent *model.NodeID
 		if nodeObj.Parent != nil {
-			p := store_interface.NodeID(*nodeObj.Parent)
+			p := model.NodeID(*nodeObj.Parent)
 			parent = &p
 		}
 
-		var position *store_interface.ChildPosition
+		var position *model.ChildPosition
 		if nodeObj.Position != nil {
-			p := store_interface.ChildPosition(*nodeObj.Position)
+			p := model.ChildPosition(*nodeObj.Position)
 			position = &p
 		}
 
-		info = &store_interface.NodeInfo{
+		info = &model.NodeInfo{
 			ID:       node,
 			Parent:   parent,
 			Position: position,
@@ -472,27 +472,27 @@ func (b *BoltStore) GetNodeInfo(space store_interface.TenancySpace, treeID store
 
 // GetChildren gets children of a node
 func (b *BoltStore) GetChildren(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	pagination *store_interface.PaginationParams,
-) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
-	var children []store_interface.NodeID
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	pagination *model.PaginationParams,
+) ([]model.NodeID, *model.PaginationResult, error) {
+	var children []model.NodeID
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		// Check if parent node exists
 		if nodesBkt.Get([]byte(node)) == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		// Find all children
 		type childEntry struct {
-			id       store_interface.NodeID
+			id       model.NodeID
 			position *float64
 		}
 		var childEntries []childEntry
@@ -505,7 +505,7 @@ func (b *BoltStore) GetChildren(
 			}
 			if n.Parent != nil && *n.Parent == string(node) {
 				childEntries = append(childEntries, childEntry{
-					id:       store_interface.NodeID(n.ID),
+					id:       model.NodeID(n.ID),
 					position: n.Position,
 				})
 			}
@@ -532,25 +532,25 @@ func (b *BoltStore) GetChildren(
 		return nil
 	})
 
-	return children, &store_interface.PaginationResult{NextCursor: nil}, err
+	return children, &model.PaginationResult{NextCursor: nil}, err
 }
 
 // GetAncestors gets all ancestors of a node
 func (b *BoltStore) GetAncestors(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	pagination *store_interface.PaginationParams,
-) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
-	var ancestors []store_interface.NodeID
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	pagination *model.PaginationParams,
+) ([]model.NodeID, *model.PaginationResult, error) {
+	var ancestors []model.NodeID
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		if nodesBkt.Get([]byte(node)) == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		closureBkt := tx.Bucket(groveClosureBucket(space, treeID))
@@ -559,7 +559,7 @@ func (b *BoltStore) GetAncestors(
 		}
 
 		type ancestorEntry struct {
-			id    store_interface.NodeID
+			id    model.NodeID
 			depth int
 		}
 		var ancestorEntries []ancestorEntry
@@ -572,7 +572,7 @@ func (b *BoltStore) GetAncestors(
 			}
 			if entry.DescendantID == string(node) && entry.AncestorID != string(node) {
 				ancestorEntries = append(ancestorEntries, ancestorEntry{
-					id:    store_interface.NodeID(entry.AncestorID),
+					id:    model.NodeID(entry.AncestorID),
 					depth: entry.Depth,
 				})
 			}
@@ -590,17 +590,17 @@ func (b *BoltStore) GetAncestors(
 		return nil
 	})
 
-	return ancestors, &store_interface.PaginationResult{NextCursor: nil}, err
+	return ancestors, &model.PaginationResult{NextCursor: nil}, err
 }
 
 // GetAncestorsBulk gets ancestors for multiple nodes.
 func (b *BoltStore) GetAncestorsBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
-	result := make(map[store_interface.NodeID][]store_interface.NodeID)
-	var notFound []store_interface.NodeID
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID][]model.NodeID, []model.NodeID, error) {
+	result := make(map[model.NodeID][]model.NodeID)
+	var notFound []model.NodeID
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
@@ -613,12 +613,12 @@ func (b *BoltStore) GetAncestorsBulk(
 			}
 
 			if closureBkt == nil {
-				result[node] = []store_interface.NodeID{}
+				result[node] = []model.NodeID{}
 				continue
 			}
 
 			type ancestorEntry struct {
-				id    store_interface.NodeID
+				id    model.NodeID
 				depth int
 			}
 			var entries []ancestorEntry
@@ -631,7 +631,7 @@ func (b *BoltStore) GetAncestorsBulk(
 				}
 				if entry.DescendantID == string(node) && entry.AncestorID != string(node) {
 					entries = append(entries, ancestorEntry{
-						id:    store_interface.NodeID(entry.AncestorID),
+						id:    model.NodeID(entry.AncestorID),
 						depth: entry.Depth,
 					})
 				}
@@ -641,7 +641,7 @@ func (b *BoltStore) GetAncestorsBulk(
 				return entries[i].depth > entries[j].depth
 			})
 
-			ancestors := make([]store_interface.NodeID, len(entries))
+			ancestors := make([]model.NodeID, len(entries))
 			for i, e := range entries {
 				ancestors[i] = e.id
 			}
@@ -655,20 +655,20 @@ func (b *BoltStore) GetAncestorsBulk(
 
 // GetDescendants gets all descendants of a node
 func (b *BoltStore) GetDescendants(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	opts *store_interface.DescendantOptions,
-) ([]store_interface.NodeWithDepth, *store_interface.PaginationResult, error) {
-	var descendants []store_interface.NodeWithDepth
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	opts *model.DescendantOptions,
+) ([]model.NodeWithDepth, *model.PaginationResult, error) {
+	var descendants []model.NodeWithDepth
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		if nodesBkt.Get([]byte(node)) == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		closureBkt := tx.Bucket(groveClosureBucket(space, treeID))
@@ -688,8 +688,8 @@ func (b *BoltStore) GetDescendants(
 				if opts != nil && opts.MaxDepth != nil && entry.Depth > *opts.MaxDepth {
 					continue
 				}
-				descendants = append(descendants, store_interface.NodeWithDepth{
-					NodeID: store_interface.NodeID(entry.DescendantID),
+				descendants = append(descendants, model.NodeWithDepth{
+					NodeID: model.NodeID(entry.DescendantID),
 					Depth:  entry.Depth,
 				})
 			}
@@ -703,24 +703,24 @@ func (b *BoltStore) GetDescendants(
 		return nil
 	})
 
-	return descendants, &store_interface.PaginationResult{NextCursor: nil}, err
+	return descendants, &model.PaginationResult{NextCursor: nil}, err
 }
 
 // ApplyAggregateMutation applies aggregate deltas to a node
 func (b *BoltStore) ApplyAggregateMutation(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	mutation store_interface.MutationID,
-	node store_interface.NodeID,
-	deltas store_interface.AggregateDeltas,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	mutation model.MutationID,
+	node model.NodeID,
+	deltas model.AggregateDeltas,
 ) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		if nodesBkt.Get([]byte(node)) == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		mutationsBkt, err := tx.CreateBucketIfNotExists(groveMutationsBucket(space, treeID))
@@ -731,7 +731,7 @@ func (b *BoltStore) ApplyAggregateMutation(
 		// Check if mutation already applied
 		mutationKey := []byte(fmt.Sprintf("%s:%s", node, mutation))
 		if mutationsBkt.Get(mutationKey) != nil {
-			return store_interface.ErrMutationConflict
+			return model.ErrMutationConflict
 		}
 
 		aggregatesBkt, err := tx.CreateBucketIfNotExists(groveAggregatesBucket(space, treeID))
@@ -769,19 +769,19 @@ func (b *BoltStore) ApplyAggregateMutation(
 
 // GetNodeLocalAggregates gets aggregates for the node only
 func (b *BoltStore) GetNodeLocalAggregates(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
-	result := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (map[model.AggregateKey]model.AggregateValue, error) {
+	result := make(map[model.AggregateKey]model.AggregateValue)
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		if nodesBkt.Get([]byte(node)) == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		aggregatesBkt := tx.Bucket(groveAggregatesBucket(space, treeID))
@@ -798,7 +798,7 @@ func (b *BoltStore) GetNodeLocalAggregates(
 			if err := json.Unmarshal(v, &value); err != nil {
 				return err
 			}
-			result[store_interface.AggregateKey(keyStr)] = store_interface.AggregateValue(value)
+			result[model.AggregateKey(keyStr)] = model.AggregateValue(value)
 		}
 
 		return nil
@@ -810,16 +810,16 @@ func (b *BoltStore) GetNodeLocalAggregates(
 // GetNodeLocalAggregatesBulk gets local aggregates for multiple nodes.
 // Returns a map of node -> aggregates and a slice of not-found node IDs.
 func (b *BoltStore) GetNodeLocalAggregatesBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	if len(nodes) == 0 {
-		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+		return map[model.NodeID]map[model.AggregateKey]model.AggregateValue{}, nil, nil
 	}
 
-	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
-	var notFound []store_interface.NodeID
+	result := make(map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
+	var notFound []model.NodeID
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
@@ -830,7 +830,7 @@ func (b *BoltStore) GetNodeLocalAggregatesBulk(
 				notFound = append(notFound, node)
 				continue
 			}
-			aggs := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+			aggs := make(map[model.AggregateKey]model.AggregateValue)
 			if aggregatesBkt != nil {
 				c := aggregatesBkt.Cursor()
 				prefix := []byte(fmt.Sprintf("%s:", node))
@@ -840,7 +840,7 @@ func (b *BoltStore) GetNodeLocalAggregatesBulk(
 					if err := json.Unmarshal(v, &value); err != nil {
 						return err
 					}
-					aggs[store_interface.AggregateKey(keyStr)] = store_interface.AggregateValue(value)
+					aggs[model.AggregateKey(keyStr)] = model.AggregateValue(value)
 				}
 			}
 			result[node] = aggs
@@ -853,28 +853,28 @@ func (b *BoltStore) GetNodeLocalAggregatesBulk(
 
 // GetNodeWithDescendantsAggregatesBulk is not yet implemented for BoltDB.
 func (b *BoltStore) GetNodeWithDescendantsAggregatesBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	return nil, nil, fmt.Errorf("GetNodeWithDescendantsAggregatesBulk not implemented for BoltDB")
 }
 
 // GetNodeWithDescendantsAggregates gets aggregates for node + all descendants
 func (b *BoltStore) GetNodeWithDescendantsAggregates(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
-	result := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (map[model.AggregateKey]model.AggregateValue, error) {
+	result := make(map[model.AggregateKey]model.AggregateValue)
 
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		nodesBkt := tx.Bucket(groveNodesBucket(space, treeID))
 		if nodesBkt == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 		if nodesBkt.Get([]byte(node)) == nil {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		closureBkt := tx.Bucket(groveClosureBucket(space, treeID))
@@ -910,7 +910,7 @@ func (b *BoltStore) GetNodeWithDescendantsAggregates(
 				if err := json.Unmarshal(v, &value); err != nil {
 					return err
 				}
-				result[store_interface.AggregateKey(keyStr)] += store_interface.AggregateValue(value)
+				result[model.AggregateKey(keyStr)] += model.AggregateValue(value)
 			}
 		}
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vixac/bullet/model"
-	si "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestPostgreSQLTrackBatchRollback(t *testing.T) {
@@ -27,7 +26,7 @@ func TestPostgreSQLTrackBatchRollback(t *testing.T) {
 	s := trackStores["postgresql"]
 	for _, operation := range []string{"put", "delete"} {
 		t.Run(operation, func(t *testing.T) {
-			space := si.TenancySpace{AppId: 9921, TenancyId: 1}
+			space := model.TenancySpace{AppId: 9921, TenancyId: 1}
 			require.NoError(t, s.TrackPut(space, 1, "first", 10, nil, nil))
 			require.NoError(t, s.TrackPut(space, 1, "atomicity-fail", 20, nil, nil))
 			_, err := db.Exec(`CREATE TRIGGER reject_track_batch BEFORE INSERT OR DELETE ON track FOR EACH ROW EXECUTE FUNCTION reject_track_batch()`)
@@ -40,7 +39,7 @@ func TestPostgreSQLTrackBatchRollback(t *testing.T) {
 					{Key: "atomicity-fail", Value: model.TrackValue{Value: 99}},
 				}})
 			} else {
-				err = s.TrackDeleteMany(space, []model.TrackBucketKeyPair{{BucketID: 1, Key: "first"}, {BucketID: 1, Key: "atomicity-fail"}})
+				err = s.TrackDeleteMany(space, []model.TrackKey{{BucketID: 1, Key: "first"}, {BucketID: 1, Key: "atomicity-fail"}})
 			}
 			require.Error(t, err)
 			for key, want := range map[string]int64{"first": 10, "atomicity-fail": 20} {

@@ -12,7 +12,7 @@ import (
 type TrackMigrator struct {
 	SourceTrack store_interface.TrackStore
 	TargetTrack store_interface.TrackStore
-	Tenancy     store_interface.TenancySpace
+	Tenancy     model.TenancySpace
 }
 
 func (t *TrackMigrator) Migrate(bucketId int32) error {

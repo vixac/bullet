@@ -11,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 var ledgerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
@@ -23,20 +23,20 @@ type ledgerCursor struct {
 	Selector string `json:"selector"`
 }
 
-func validateLedgerWrite(ledgerID store_interface.LedgerID, appendID store_interface.LedgerAppendID, payload string) error {
+func validateLedgerWrite(ledgerID model.LedgerID, appendID model.LedgerAppendID, payload string) error {
 	if !ledgerIDPattern.MatchString(string(ledgerID)) {
-		return store_interface.ErrLedgerInvalidID
+		return model.ErrLedgerInvalidID
 	}
 	if len(appendID) == 0 || len(appendID) > 255 {
-		return store_interface.ErrLedgerInvalidAppendID
+		return model.ErrLedgerInvalidAppendID
 	}
-	if len(payload) > store_interface.LedgerMaxPayloadBytes {
-		return store_interface.ErrLedgerPayloadTooLarge
+	if len(payload) > model.LedgerMaxPayloadBytes {
+		return model.ErrLedgerPayloadTooLarge
 	}
 	return nil
 }
 
-func normalizeLedgerSelector(selector store_interface.LedgerSelector) ([]store_interface.LedgerID, string, error) {
+func normalizeLedgerSelector(selector model.LedgerSelector) ([]model.LedgerID, string, error) {
 	modes := 0
 	for _, enabled := range []bool{selector.All, len(selector.LedgerIDs) > 0, selector.Prefix != ""} {
 		if enabled {
@@ -44,30 +44,30 @@ func normalizeLedgerSelector(selector store_interface.LedgerSelector) ([]store_i
 		}
 	}
 	if modes != 1 {
-		return nil, "", store_interface.ErrLedgerInvalidSelector
+		return nil, "", model.ErrLedgerInvalidSelector
 	}
 	if selector.All {
 		return nil, "all", nil
 	}
-	if len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
-		return nil, "", store_interface.ErrLedgerInvalidSelector
+	if len(selector.LedgerIDs) > model.LedgerMaxSelected {
+		return nil, "", model.ErrLedgerInvalidSelector
 	}
 	if selector.Prefix != "" {
 		if !ledgerIDPattern.MatchString(selector.Prefix) {
-			return nil, "", store_interface.ErrLedgerInvalidID
+			return nil, "", model.ErrLedgerInvalidID
 		}
 		return nil, "prefix:" + selector.Prefix, nil
 	}
-	ids := append([]store_interface.LedgerID(nil), selector.LedgerIDs...)
+	ids := append([]model.LedgerID(nil), selector.LedgerIDs...)
 	for _, id := range ids {
 		if !ledgerIDPattern.MatchString(string(id)) {
-			return nil, "", store_interface.ErrLedgerInvalidID
+			return nil, "", model.ErrLedgerInvalidID
 		}
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	for i := 1; i < len(ids); i++ {
 		if ids[i] == ids[i-1] {
-			return nil, "", store_interface.ErrLedgerInvalidSelector
+			return nil, "", model.ErrLedgerInvalidSelector
 		}
 	}
 	h := sha256.New()
@@ -78,7 +78,7 @@ func normalizeLedgerSelector(selector store_interface.LedgerSelector) ([]store_i
 	return ids, base64.RawURLEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-func selectorSQL(ids []store_interface.LedgerID, all bool, prefix string, args *[]any) string {
+func selectorSQL(ids []model.LedgerID, all bool, prefix string, args *[]any) string {
 	if all {
 		return ""
 	}
@@ -95,7 +95,7 @@ func selectorSQL(ids []store_interface.LedgerID, all bool, prefix string, args *
 	return clause
 }
 
-func allocateLedgerPositions(tx *sql.Tx, space store_interface.TenancySpace, count int) (int64, error) {
+func allocateLedgerPositions(tx *sql.Tx, space model.TenancySpace, count int) (int64, error) {
 	if _, err := tx.Exec(`
 		INSERT INTO ledger_positions (app_id, tenancy_id, next_position)
 		VALUES (?, ?, 0)
@@ -120,27 +120,27 @@ func allocateLedgerPositions(tx *sql.Tx, space store_interface.TenancySpace, cou
 	return last - int64(count) + 1, nil
 }
 
-func scanLedgerRecord(scanner interface{ Scan(...any) error }) (store_interface.LedgerRecord, error) {
-	var record store_interface.LedgerRecord
+func scanLedgerRecord(scanner interface{ Scan(...any) error }) (model.LedgerRecord, error) {
+	var record model.LedgerRecord
 	var ledgerID, appendID string
 	var position, createdAt int64
 	if err := scanner.Scan(&ledgerID, &position, &appendID, &createdAt, &record.Payload); err != nil {
 		return record, err
 	}
-	record.LedgerID = store_interface.LedgerID(ledgerID)
-	record.Position = store_interface.LedgerPosition(position)
-	record.AppendID = store_interface.LedgerAppendID(appendID)
+	record.LedgerID = model.LedgerID(ledgerID)
+	record.Position = model.LedgerPosition(position)
+	record.AppendID = model.LedgerAppendID(appendID)
 	record.CreatedAt = time.Unix(0, createdAt).UTC()
 	return record, nil
 }
 
-func existingLedgerRecord(tx *sql.Tx, space store_interface.TenancySpace, ledgerID store_interface.LedgerID, appendID store_interface.LedgerAppendID) (store_interface.LedgerRecord, []byte, error) {
+func existingLedgerRecord(tx *sql.Tx, space model.TenancySpace, ledgerID model.LedgerID, appendID model.LedgerAppendID) (model.LedgerRecord, []byte, error) {
 	row := tx.QueryRow(`
 		SELECT ledger_id, position, append_id, created_at_ns, payload, payload_hash
 		FROM ledger
 		WHERE app_id = ? AND tenancy_id = ? AND ledger_id = ? AND append_id = ?
 	`, space.AppId, space.TenancyId, string(ledgerID), string(appendID))
-	var record store_interface.LedgerRecord
+	var record model.LedgerRecord
 	var id, aid string
 	var position, createdAt int64
 	var hash []byte
@@ -148,35 +148,35 @@ func existingLedgerRecord(tx *sql.Tx, space store_interface.TenancySpace, ledger
 	if err != nil {
 		return record, nil, err
 	}
-	record.LedgerID = store_interface.LedgerID(id)
-	record.Position = store_interface.LedgerPosition(position)
-	record.AppendID = store_interface.LedgerAppendID(aid)
+	record.LedgerID = model.LedgerID(id)
+	record.Position = model.LedgerPosition(position)
+	record.AppendID = model.LedgerAppendID(aid)
 	record.CreatedAt = time.Unix(0, createdAt).UTC()
 	return record, hash, nil
 }
 
-func (s *SQLiteStore) LedgerAppend(space store_interface.TenancySpace, ledgerID store_interface.LedgerID, appendID store_interface.LedgerAppendID, payload string) (store_interface.LedgerRecord, error) {
-	items, err := s.LedgerAppendMany(space, ledgerID, []store_interface.LedgerAppendItem{{AppendID: appendID, Payload: payload}})
+func (s *SQLiteStore) LedgerAppend(space model.TenancySpace, ledgerID model.LedgerID, appendID model.LedgerAppendID, payload string) (model.LedgerRecord, error) {
+	items, err := s.LedgerAppendMany(space, ledgerID, []model.LedgerAppendItem{{AppendID: appendID, Payload: payload}})
 	if err != nil {
-		return store_interface.LedgerRecord{}, err
+		return model.LedgerRecord{}, err
 	}
 	return items[0], nil
 }
 
-func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledgerID store_interface.LedgerID, items []store_interface.LedgerAppendItem) ([]store_interface.LedgerRecord, error) {
+func (s *SQLiteStore) LedgerAppendMany(space model.TenancySpace, ledgerID model.LedgerID, items []model.LedgerAppendItem) ([]model.LedgerRecord, error) {
 	if !ledgerIDPattern.MatchString(string(ledgerID)) {
-		return nil, store_interface.ErrLedgerInvalidID
+		return nil, model.ErrLedgerInvalidID
 	}
 	if len(items) == 0 {
-		return []store_interface.LedgerRecord{}, nil
+		return []model.LedgerRecord{}, nil
 	}
-	seen := make(map[store_interface.LedgerAppendID]struct{}, len(items))
+	seen := make(map[model.LedgerAppendID]struct{}, len(items))
 	for _, item := range items {
 		if err := validateLedgerWrite(ledgerID, item.AppendID, item.Payload); err != nil {
 			return nil, err
 		}
 		if _, exists := seen[item.AppendID]; exists {
-			return nil, store_interface.ErrLedgerInvalidAppendID
+			return nil, model.ErrLedgerInvalidAppendID
 		}
 		seen[item.AppendID] = struct{}{}
 	}
@@ -191,7 +191,7 @@ func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledge
 		return nil, err
 	}
 
-	existing := make([]store_interface.LedgerRecord, len(items))
+	existing := make([]model.LedgerRecord, len(items))
 	existingCount := 0
 	for i, item := range items {
 		record, hash, err := existingLedgerRecord(tx, space, ledgerID, item.AppendID)
@@ -204,7 +204,7 @@ func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledge
 		existingCount++
 		wanted := sha256.Sum256([]byte(item.Payload))
 		if !bytes.Equal(hash, wanted[:]) || record.Payload != item.Payload {
-			return nil, store_interface.ErrLedgerAppendConflict
+			return nil, model.ErrLedgerAppendConflict
 		}
 		existing[i] = record
 	}
@@ -212,11 +212,11 @@ func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledge
 		return existing, nil
 	}
 	if existingCount != 0 {
-		return nil, store_interface.ErrLedgerBatchConflict
+		return nil, model.ErrLedgerBatchConflict
 	}
 
 	createdAt := time.Now().UTC()
-	records := make([]store_interface.LedgerRecord, len(items))
+	records := make([]model.LedgerRecord, len(items))
 	for i, item := range items {
 		position := first + int64(i)
 		hash := sha256.Sum256([]byte(item.Payload))
@@ -227,7 +227,7 @@ func (s *SQLiteStore) LedgerAppendMany(space store_interface.TenancySpace, ledge
 		`, space.AppId, space.TenancyId, string(ledgerID), position, string(item.AppendID), createdAt.UnixNano(), item.Payload, hash[:]); err != nil {
 			return nil, err
 		}
-		records[i] = store_interface.LedgerRecord{LedgerID: ledgerID, Position: store_interface.LedgerPosition(position), AppendID: item.AppendID, CreatedAt: createdAt, Payload: item.Payload}
+		records[i] = model.LedgerRecord{LedgerID: ledgerID, Position: model.LedgerPosition(position), AppendID: item.AppendID, CreatedAt: createdAt, Payload: item.Payload}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -247,35 +247,35 @@ func decodeLedgerCursor(value string) (ledgerCursor, error) {
 	var cursor ledgerCursor
 	b, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return cursor, store_interface.ErrLedgerInvalidCursor
+		return cursor, model.ErrLedgerInvalidCursor
 	}
 	if err := json.Unmarshal(b, &cursor); err != nil || cursor.Version != 1 || cursor.Upper < 0 || cursor.Before < 0 {
-		return cursor, store_interface.ErrLedgerInvalidCursor
+		return cursor, model.ErrLedgerInvalidCursor
 	}
 	return cursor, nil
 }
 
 func validatePageSize(limit int) error {
-	if limit < 1 || limit > store_interface.LedgerMaxPageSize {
-		return store_interface.ErrLedgerInvalidPageSize
+	if limit < 1 || limit > model.LedgerMaxPageSize {
+		return model.ErrLedgerInvalidPageSize
 	}
 	return nil
 }
 
-func (s *SQLiteStore) LedgerReadBackward(space store_interface.TenancySpace, selector store_interface.LedgerSelector, cursorValue *string, limit int) (store_interface.LedgerPage, error) {
+func (s *SQLiteStore) LedgerReadBackward(space model.TenancySpace, selector model.LedgerSelector, cursorValue *string, limit int) (model.LedgerPage, error) {
 	if err := validatePageSize(limit); err != nil {
-		return store_interface.LedgerPage{}, err
+		return model.LedgerPage{}, err
 	}
 	ids, selectorKey, err := normalizeLedgerSelector(selector)
 	if err != nil {
-		return store_interface.LedgerPage{}, err
+		return model.LedgerPage{}, err
 	}
 	upper := int64(0)
 	before := int64(0)
 	if cursorValue != nil {
 		cursor, err := decodeLedgerCursor(*cursorValue)
 		if err != nil || cursor.Selector != selectorKey {
-			return store_interface.LedgerPage{}, store_interface.ErrLedgerInvalidCursor
+			return model.LedgerPage{}, model.ErrLedgerInvalidCursor
 		}
 		upper, before = cursor.Upper, cursor.Before
 	} else {
@@ -283,11 +283,11 @@ func (s *SQLiteStore) LedgerReadBackward(space store_interface.TenancySpace, sel
 		query := `SELECT COALESCE(MAX(position), 0) FROM ledger WHERE app_id = ? AND tenancy_id = ?`
 		query += selectorSQL(ids, selector.All, selector.Prefix, &args)
 		if err := s.db.QueryRow(query, args...).Scan(&upper); err != nil {
-			return store_interface.LedgerPage{}, err
+			return model.LedgerPage{}, err
 		}
 	}
 	if upper == 0 {
-		return store_interface.LedgerPage{Records: []store_interface.LedgerRecord{}}, nil
+		return model.LedgerPage{Records: []model.LedgerRecord{}}, nil
 	}
 
 	args := []any{space.AppId, space.TenancyId, upper}
@@ -301,38 +301,38 @@ func (s *SQLiteStore) LedgerReadBackward(space store_interface.TenancySpace, sel
 	args = append(args, limit+1)
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
-		return store_interface.LedgerPage{}, err
+		return model.LedgerPage{}, err
 	}
 	defer rows.Close()
-	records := make([]store_interface.LedgerRecord, 0, limit+1)
+	records := make([]model.LedgerRecord, 0, limit+1)
 	for rows.Next() {
 		record, err := scanLedgerRecord(rows)
 		if err != nil {
-			return store_interface.LedgerPage{}, err
+			return model.LedgerPage{}, err
 		}
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return store_interface.LedgerPage{}, err
+		return model.LedgerPage{}, err
 	}
-	page := store_interface.LedgerPage{Records: records}
+	page := model.LedgerPage{Records: records}
 	if len(records) > limit {
 		page.Records = records[:limit]
 		next, err := encodeLedgerCursor(ledgerCursor{Version: 1, Upper: upper, Before: int64(page.Records[len(page.Records)-1].Position), Selector: selectorKey})
 		if err != nil {
-			return store_interface.LedgerPage{}, err
+			return model.LedgerPage{}, err
 		}
 		page.NextCursor = &next
 	}
 	return page, nil
 }
 
-func (s *SQLiteStore) LedgerReadForward(space store_interface.TenancySpace, selector store_interface.LedgerSelector, after store_interface.LedgerPosition, through *store_interface.LedgerPosition, limit int) ([]store_interface.LedgerRecord, error) {
+func (s *SQLiteStore) LedgerReadForward(space model.TenancySpace, selector model.LedgerSelector, after model.LedgerPosition, through *model.LedgerPosition, limit int) ([]model.LedgerRecord, error) {
 	if err := validatePageSize(limit); err != nil || after < 0 || (through != nil && *through < 0) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, store_interface.ErrLedgerInvalidCursor
+		return nil, model.ErrLedgerInvalidCursor
 	}
 	ids, _, err := normalizeLedgerSelector(selector)
 	if err != nil {
@@ -352,7 +352,7 @@ func (s *SQLiteStore) LedgerReadForward(space store_interface.TenancySpace, sele
 		return nil, err
 	}
 	defer rows.Close()
-	records := make([]store_interface.LedgerRecord, 0, limit)
+	records := make([]model.LedgerRecord, 0, limit)
 	for rows.Next() {
 		record, err := scanLedgerRecord(rows)
 		if err != nil {
@@ -363,9 +363,9 @@ func (s *SQLiteStore) LedgerReadForward(space store_interface.TenancySpace, sele
 	return records, rows.Err()
 }
 
-func (s *SQLiteStore) LedgerDelete(space store_interface.TenancySpace, ledgerID store_interface.LedgerID) error {
+func (s *SQLiteStore) LedgerDelete(space model.TenancySpace, ledgerID model.LedgerID) error {
 	if !ledgerIDPattern.MatchString(string(ledgerID)) {
-		return store_interface.ErrLedgerInvalidID
+		return model.ErrLedgerInvalidID
 	}
 	_, err := s.db.Exec(`DELETE FROM ledger WHERE app_id = ? AND tenancy_id = ? AND ledger_id = ?`, space.AppId, space.TenancyId, string(ledgerID))
 	return err

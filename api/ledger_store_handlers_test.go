@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	"github.com/vixac/bullet/store/ram"
 )
 
@@ -35,11 +35,11 @@ func TestLedgerRESTLifecycle(t *testing.T) {
 	engine := gin.New()
 	SetupLedgerRouter(ram.NewRamStore(), "/ledger", engine)
 
-	first := ledgerRequest(t, engine, http.MethodPost, "/ledger/orders/entries", model.LedgerAppendRequest{AppendID: "order-1", Payload: "first"})
+	first := ledgerRequest(t, engine, http.MethodPost, "/ledger/orders/entries", protocol.LedgerAppendRequest{AppendID: "order-1", Payload: "first"})
 	if first.Code != http.StatusCreated {
 		t.Fatalf("append status = %d body=%s", first.Code, first.Body.String())
 	}
-	var firstRecord model.LedgerRecordResponse
+	var firstRecord protocol.LedgerRecordResponse
 	if err := json.Unmarshal(first.Body.Bytes(), &firstRecord); err != nil {
 		t.Fatalf("decode append: %v", err)
 	}
@@ -47,16 +47,16 @@ func TestLedgerRESTLifecycle(t *testing.T) {
 		t.Fatalf("append response = %+v", firstRecord)
 	}
 
-	batch := ledgerRequest(t, engine, http.MethodPost, "/ledger/payments/entries/batch", model.LedgerAppendManyRequest{Items: []model.LedgerAppendRequest{{AppendID: "payment-1", Payload: "second"}, {AppendID: "payment-2", Payload: "third"}}})
+	batch := ledgerRequest(t, engine, http.MethodPost, "/ledger/payments/entries/batch", protocol.LedgerAppendManyRequest{Items: []protocol.LedgerAppendRequest{{AppendID: "payment-1", Payload: "second"}, {AppendID: "payment-2", Payload: "third"}}})
 	if batch.Code != http.StatusCreated {
 		t.Fatalf("batch status = %d body=%s", batch.Code, batch.Body.String())
 	}
 
-	backward := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/backward", model.LedgerReadBackwardRequest{LedgerSelectorRequest: model.LedgerSelectorRequest{All: true}, Limit: 2})
+	backward := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/backward", protocol.LedgerReadBackwardRequest{LedgerSelectorRequest: protocol.LedgerSelectorRequest{All: true}, Limit: 2})
 	if backward.Code != http.StatusOK {
 		t.Fatalf("backward status = %d body=%s", backward.Code, backward.Body.String())
 	}
-	var page model.LedgerPageResponse
+	var page protocol.LedgerPageResponse
 	if err := json.Unmarshal(backward.Body.Bytes(), &page); err != nil {
 		t.Fatalf("decode page: %v", err)
 	}
@@ -65,17 +65,17 @@ func TestLedgerRESTLifecycle(t *testing.T) {
 	}
 
 	through := "3"
-	forward := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/forward", model.LedgerReadForwardRequest{LedgerSelectorRequest: model.LedgerSelectorRequest{LedgerIDs: []string{"orders", "payments"}}, AfterPosition: "1", ThroughPosition: &through, Limit: 10})
+	forward := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/forward", protocol.LedgerReadForwardRequest{LedgerSelectorRequest: protocol.LedgerSelectorRequest{LedgerIDs: []string{"orders", "payments"}}, AfterPosition: "1", ThroughPosition: &through, Limit: 10})
 	if forward.Code != http.StatusOK {
 		t.Fatalf("forward status = %d body=%s", forward.Code, forward.Body.String())
 	}
-	var forwardBody model.LedgerReadForwardResponse
+	var forwardBody protocol.LedgerReadForwardResponse
 	_ = json.Unmarshal(forward.Body.Bytes(), &forwardBody)
 	if len(forwardBody.Records) != 2 || forwardBody.Records[0].Position != "2" {
 		t.Fatalf("forward records = %+v", forwardBody.Records)
 	}
 
-	conflict := ledgerRequest(t, engine, http.MethodPost, "/ledger/orders/entries", model.LedgerAppendRequest{AppendID: "order-1", Payload: "changed"})
+	conflict := ledgerRequest(t, engine, http.MethodPost, "/ledger/orders/entries", protocol.LedgerAppendRequest{AppendID: "order-1", Payload: "changed"})
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("conflict status = %d body=%s", conflict.Code, conflict.Body.String())
 	}
@@ -88,11 +88,11 @@ func TestLedgerRESTLifecycle(t *testing.T) {
 func TestLedgerRESTValidation(t *testing.T) {
 	engine := gin.New()
 	SetupLedgerRouter(ram.NewRamStore(), "/ledger", engine)
-	invalid := ledgerRequest(t, engine, http.MethodPost, "/ledger/bad%20ledger/entries", model.LedgerAppendRequest{AppendID: "id", Payload: "x"})
+	invalid := ledgerRequest(t, engine, http.MethodPost, "/ledger/bad%20ledger/entries", protocol.LedgerAppendRequest{AppendID: "id", Payload: "x"})
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid ledger status = %d body=%s", invalid.Code, invalid.Body.String())
 	}
-	invalidPosition := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/forward", model.LedgerReadForwardRequest{LedgerSelectorRequest: model.LedgerSelectorRequest{All: true}, AfterPosition: "not-a-number", Limit: 10})
+	invalidPosition := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/forward", protocol.LedgerReadForwardRequest{LedgerSelectorRequest: protocol.LedgerSelectorRequest{All: true}, AfterPosition: "not-a-number", Limit: 10})
 	if invalidPosition.Code != http.StatusBadRequest {
 		t.Fatalf("invalid position status = %d", invalidPosition.Code)
 	}
@@ -102,14 +102,14 @@ func TestLedgerRESTPrefix(t *testing.T) {
 	engine := gin.New()
 	SetupLedgerRouter(ram.NewRamStore(), "/ledger", engine)
 	for _, id := range []string{"orders_a", "orders_b", "ordersXa"} {
-		response := ledgerRequest(t, engine, http.MethodPost, "/ledger/"+id+"/entries", model.LedgerAppendRequest{AppendID: "one", Payload: id})
+		response := ledgerRequest(t, engine, http.MethodPost, "/ledger/"+id+"/entries", protocol.LedgerAppendRequest{AppendID: "one", Payload: id})
 		if response.Code != http.StatusCreated {
 			t.Fatal(response.Body.String())
 		}
 	}
 	for _, direction := range []string{"forward", "backward"} {
 		response := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/"+direction, map[string]any{"prefix": "orders_", "limit": 10})
-		var page model.LedgerPageResponse
+		var page protocol.LedgerPageResponse
 		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
 			t.Fatal(err)
 		}

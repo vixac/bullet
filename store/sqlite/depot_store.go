@@ -1,11 +1,11 @@
 package sqlite_store
 
 import (
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 func (s *SQLiteStore) DepotCreate(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	value string,
 ) (int64, error) {
@@ -28,7 +28,7 @@ func (s *SQLiteStore) DepotCreate(
 }
 
 func (s *SQLiteStore) DepotDeleteByBucket(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 ) error {
 
@@ -41,7 +41,7 @@ func (s *SQLiteStore) DepotDeleteByBucket(
 }
 
 func (s *SQLiteStore) DepotCreateMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	values []string,
 ) ([]int64, error) {
@@ -85,7 +85,7 @@ func (s *SQLiteStore) DepotCreateMany(
 }
 
 func (s *SQLiteStore) DepotUpdate(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	id int64,
 	value string,
 ) error {
@@ -100,7 +100,7 @@ func (s *SQLiteStore) DepotUpdate(
 }
 
 func (s *SQLiteStore) DepotDelete(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	id int64,
 ) error {
 
@@ -112,9 +112,8 @@ func (s *SQLiteStore) DepotDelete(
 	return err
 }
 
-
 func (s *SQLiteStore) DepotGet(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	id int64,
 ) (string, error) {
 
@@ -129,7 +128,7 @@ func (s *SQLiteStore) DepotGet(
 }
 
 func (s *SQLiteStore) DepotGetMany(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	ids []int64,
 ) (map[int64]string, []int64, error) {
 
@@ -181,7 +180,7 @@ func (s *SQLiteStore) DepotGetMany(
 }
 
 func (s *SQLiteStore) DepotGetAllByBucket(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 ) (map[int64]string, error) {
 

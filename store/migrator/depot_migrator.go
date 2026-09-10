@@ -1,13 +1,14 @@
 package migrator
 
 import (
+	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
 type DepotMigrator struct {
 	SourceDepot store_interface.DepotStore
 	TargetDepot store_interface.DepotStore
-	Tenancy     store_interface.TenancySpace
+	Tenancy     model.TenancySpace
 }
 
 /*

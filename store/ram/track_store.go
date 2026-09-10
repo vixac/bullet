@@ -6,15 +6,14 @@ import (
 	"strings"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 )
 
-func (r *RamStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (r *RamStore) TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, exists := r.trackMutations[req.MutationID]; exists {
-		return store_interface.TrackMutationResult{Applied: false}, nil
+		return model.TrackMutationResult{Applied: false}, nil
 	}
 
 	for _, put := range req.Puts {
@@ -32,10 +31,10 @@ func (r *RamStore) TrackMutate(space store_interface.TenancySpace, req store_int
 		}
 	}
 	r.trackMutations[req.MutationID] = struct{}{}
-	return store_interface.TrackMutationResult{Applied: true}, nil
+	return model.TrackMutationResult{Applied: true}, nil
 }
 
-func (r *RamStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
+func (r *RamStore) TrackDeleteMany(space model.TenancySpace, items []model.TrackKey) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -56,7 +55,7 @@ func (r *RamStore) TrackDeleteMany(space store_interface.TenancySpace, items []m
 
 	return nil
 }
-func (r *RamStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (r *RamStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -75,7 +74,7 @@ func (r *RamStore) TrackPut(space store_interface.TenancySpace, bucketID int32, 
 	return nil
 }
 
-func (r *RamStore) TrackGet(space store_interface.TenancySpace, bucketID int32, key string) (int64, error) {
+func (r *RamStore) TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -90,7 +89,7 @@ func (r *RamStore) TrackGet(space store_interface.TenancySpace, bucketID int32, 
 	return val.Value, nil
 }
 
-func (r *RamStore) TrackDelete(space store_interface.TenancySpace, bucketID int32, key string) error {
+func (r *RamStore) TrackDelete(space model.TenancySpace, bucketID int32, key string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -104,7 +103,7 @@ func (r *RamStore) TrackClose() error {
 	return nil // nothing to close in memory
 }
 
-func (r *RamStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
+func (r *RamStore) TrackPutMany(space model.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -122,7 +121,7 @@ func (r *RamStore) TrackPutMany(space store_interface.TenancySpace, items map[in
 	return nil
 }
 
-func (r *RamStore) TrackGetMany(space store_interface.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+func (r *RamStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -155,7 +154,7 @@ func (r *RamStore) TrackGetMany(space store_interface.TenancySpace, keys map[int
 }
 
 func (b *RamStore) GetItemsByKeyPrefix(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefix string,
 	tags []int64,
@@ -165,7 +164,7 @@ func (b *RamStore) GetItemsByKeyPrefix(
 	return b.GetItemsByKeyPrefixes(space, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
 }
 func (r *RamStore) GetItemsByKeyPrefixes(
-	space store_interface.TenancySpace,
+	space model.TenancySpace,
 	bucketID int32,
 	prefixes []string,
 	tags []int64,

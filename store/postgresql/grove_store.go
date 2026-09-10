@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 func (s *PostgreSQLStore) CreateNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	parent *store_interface.NodeID,
-	position *store_interface.ChildPosition,
-	metadata *store_interface.NodeMetadata,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	parent *model.NodeID,
+	position *model.ChildPosition,
+	metadata *model.NodeMetadata,
 ) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *PostgreSQLStore) CreateNode(
 		return err
 	}
 	if exists {
-		return store_interface.ErrNodeAlreadyExists
+		return model.ErrNodeAlreadyExists
 	}
 
 	if parent != nil {
@@ -46,7 +46,7 @@ func (s *PostgreSQLStore) CreateNode(
 			return err
 		}
 		if !parentExists {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 	}
 
@@ -103,9 +103,9 @@ func (s *PostgreSQLStore) CreateNode(
 }
 
 func (s *PostgreSQLStore) DeleteNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
 	soft bool,
 ) error {
 	tx, err := s.db.Begin()
@@ -124,7 +124,7 @@ func (s *PostgreSQLStore) DeleteNode(
 		return err
 	}
 	if !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	var hasChildren bool
@@ -137,7 +137,7 @@ func (s *PostgreSQLStore) DeleteNode(
 		return err
 	}
 	if hasChildren {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	if soft {
@@ -175,11 +175,11 @@ func (s *PostgreSQLStore) DeleteNode(
 }
 
 func (s *PostgreSQLStore) MoveNode(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	newParent *store_interface.NodeID,
-	newPosition *store_interface.ChildPosition,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	newParent *model.NodeID,
+	newPosition *model.ChildPosition,
 ) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -197,7 +197,7 @@ func (s *PostgreSQLStore) MoveNode(
 		return err
 	}
 	if !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	if newParent != nil {
@@ -210,7 +210,7 @@ func (s *PostgreSQLStore) MoveNode(
 			return err
 		}
 		if !exists {
-			return store_interface.ErrNodeNotFound
+			return model.ErrNodeNotFound
 		}
 
 		var isCycle bool
@@ -223,7 +223,7 @@ func (s *PostgreSQLStore) MoveNode(
 			return err
 		}
 		if isCycle {
-			return store_interface.ErrCycleDetected
+			return model.ErrCycleDetected
 		}
 	}
 
@@ -306,9 +306,9 @@ func (s *PostgreSQLStore) MoveNode(
 }
 
 func (s *PostgreSQLStore) Exists(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
 ) (bool, error) {
 	var exists bool
 	err := s.db.QueryRow(`
@@ -320,10 +320,10 @@ func (s *PostgreSQLStore) Exists(
 }
 
 func (s *PostgreSQLStore) GetNodeInfo(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (*store_interface.NodeInfo, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (*model.NodeInfo, error) {
 	var parentIDStr *string
 	var positionVal *float64
 	var depth int
@@ -344,34 +344,34 @@ func (s *PostgreSQLStore) GetNodeInfo(
 		space.AppId, space.TenancyId, string(treeID), string(node),
 	).Scan(&parentIDStr, &positionVal, &metadataJSON, &depth)
 	if err == sql.ErrNoRows {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	var parent *store_interface.NodeID
+	var parent *model.NodeID
 	if parentIDStr != nil {
-		p := store_interface.NodeID(*parentIDStr)
+		p := model.NodeID(*parentIDStr)
 		parent = &p
 	}
 
-	var position *store_interface.ChildPosition
+	var position *model.ChildPosition
 	if positionVal != nil {
-		p := store_interface.ChildPosition(*positionVal)
+		p := model.ChildPosition(*positionVal)
 		position = &p
 	}
 
-	var metadata *store_interface.NodeMetadata
+	var metadata *model.NodeMetadata
 	if metadataJSON != nil {
-		var m store_interface.NodeMetadata
+		var m model.NodeMetadata
 		if err := json.Unmarshal([]byte(*metadataJSON), &m); err != nil {
 			return nil, err
 		}
 		metadata = &m
 	}
 
-	return &store_interface.NodeInfo{
+	return &model.NodeInfo{
 		ID:       node,
 		Parent:   parent,
 		Position: position,
@@ -381,17 +381,17 @@ func (s *PostgreSQLStore) GetNodeInfo(
 }
 
 func (s *PostgreSQLStore) GetChildren(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	pagination *store_interface.PaginationParams,
-) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	pagination *model.PaginationParams,
+) ([]model.NodeID, *model.PaginationResult, error) {
 	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !exists {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	rows, err := s.db.Query(`
@@ -404,30 +404,30 @@ func (s *PostgreSQLStore) GetChildren(
 	}
 	defer rows.Close()
 
-	var children []store_interface.NodeID
+	var children []model.NodeID
 	for rows.Next() {
 		var childID string
 		if err := rows.Scan(&childID); err != nil {
 			return nil, nil, err
 		}
-		children = append(children, store_interface.NodeID(childID))
+		children = append(children, model.NodeID(childID))
 	}
 
-	return children, &store_interface.PaginationResult{NextCursor: nil}, nil
+	return children, &model.PaginationResult{NextCursor: nil}, nil
 }
 
 func (s *PostgreSQLStore) GetAncestors(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	pagination *store_interface.PaginationParams,
-) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	pagination *model.PaginationParams,
+) ([]model.NodeID, *model.PaginationResult, error) {
 	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !exists {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	rows, err := s.db.Query(`
@@ -440,25 +440,25 @@ func (s *PostgreSQLStore) GetAncestors(
 	}
 	defer rows.Close()
 
-	var ancestors []store_interface.NodeID
+	var ancestors []model.NodeID
 	for rows.Next() {
 		var ancestorID string
 		if err := rows.Scan(&ancestorID); err != nil {
 			return nil, nil, err
 		}
-		ancestors = append(ancestors, store_interface.NodeID(ancestorID))
+		ancestors = append(ancestors, model.NodeID(ancestorID))
 	}
 
-	return ancestors, &store_interface.PaginationResult{NextCursor: nil}, nil
+	return ancestors, &model.PaginationResult{NextCursor: nil}, nil
 }
 
 func (s *PostgreSQLStore) GetAncestorsBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID][]model.NodeID, []model.NodeID, error) {
 	if len(nodes) == 0 {
-		return map[store_interface.NodeID][]store_interface.NodeID{}, nil, nil
+		return map[model.NodeID][]model.NodeID{}, nil, nil
 	}
 
 	args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
@@ -478,27 +478,27 @@ func (s *PostgreSQLStore) GetAncestorsBulk(
 	}
 	defer rows.Close()
 
-	result := make(map[store_interface.NodeID][]store_interface.NodeID)
-	seen := make(map[store_interface.NodeID]bool)
+	result := make(map[model.NodeID][]model.NodeID)
+	seen := make(map[model.NodeID]bool)
 
 	for rows.Next() {
 		var descID, ancID string
 		if err := rows.Scan(&descID, &ancID); err != nil {
 			return nil, nil, err
 		}
-		nodeID := store_interface.NodeID(descID)
+		nodeID := model.NodeID(descID)
 		seen[nodeID] = true
 		if ancID != descID {
-			result[nodeID] = append(result[nodeID], store_interface.NodeID(ancID))
+			result[nodeID] = append(result[nodeID], model.NodeID(ancID))
 		} else if _, ok := result[nodeID]; !ok {
-			result[nodeID] = []store_interface.NodeID{}
+			result[nodeID] = []model.NodeID{}
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
 
-	var notFound []store_interface.NodeID
+	var notFound []model.NodeID
 	for _, node := range nodes {
 		if !seen[node] {
 			notFound = append(notFound, node)
@@ -509,17 +509,17 @@ func (s *PostgreSQLStore) GetAncestorsBulk(
 }
 
 func (s *PostgreSQLStore) GetDescendants(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-	opts *store_interface.DescendantOptions,
-) ([]store_interface.NodeWithDepth, *store_interface.PaginationResult, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+	opts *model.DescendantOptions,
+) ([]model.NodeWithDepth, *model.PaginationResult, error) {
 	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !exists {
-		return nil, nil, store_interface.ErrNodeNotFound
+		return nil, nil, model.ErrNodeNotFound
 	}
 
 	query := `
@@ -541,28 +541,28 @@ func (s *PostgreSQLStore) GetDescendants(
 	}
 	defer rows.Close()
 
-	var descendants []store_interface.NodeWithDepth
+	var descendants []model.NodeWithDepth
 	for rows.Next() {
 		var descID string
 		var depth int
 		if err := rows.Scan(&descID, &depth); err != nil {
 			return nil, nil, err
 		}
-		descendants = append(descendants, store_interface.NodeWithDepth{
-			NodeID: store_interface.NodeID(descID),
+		descendants = append(descendants, model.NodeWithDepth{
+			NodeID: model.NodeID(descID),
 			Depth:  depth,
 		})
 	}
 
-	return descendants, &store_interface.PaginationResult{NextCursor: nil}, nil
+	return descendants, &model.PaginationResult{NextCursor: nil}, nil
 }
 
 func (s *PostgreSQLStore) ApplyAggregateMutation(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	mutation store_interface.MutationID,
-	node store_interface.NodeID,
-	deltas store_interface.AggregateDeltas,
+	space model.TenancySpace,
+	treeID model.TreeID,
+	mutation model.MutationID,
+	node model.NodeID,
+	deltas model.AggregateDeltas,
 ) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -580,7 +580,7 @@ func (s *PostgreSQLStore) ApplyAggregateMutation(
 		return err
 	}
 	if !exists {
-		return store_interface.ErrNodeNotFound
+		return model.ErrNodeNotFound
 	}
 
 	err = tx.QueryRow(`
@@ -592,7 +592,7 @@ func (s *PostgreSQLStore) ApplyAggregateMutation(
 		return err
 	}
 	if exists {
-		return store_interface.ErrMutationConflict
+		return model.ErrMutationConflict
 	}
 
 	for key, delta := range deltas {
@@ -619,16 +619,16 @@ func (s *PostgreSQLStore) ApplyAggregateMutation(
 }
 
 func (s *PostgreSQLStore) GetNodeLocalAggregates(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (map[model.AggregateKey]model.AggregateValue, error) {
 	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 
 	rows, err := s.db.Query(`
@@ -640,25 +640,25 @@ func (s *PostgreSQLStore) GetNodeLocalAggregates(
 	}
 	defer rows.Close()
 
-	result := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+	result := make(map[model.AggregateKey]model.AggregateValue)
 	for rows.Next() {
 		var key string
 		var value int64
 		if err := rows.Scan(&key, &value); err != nil {
 			return nil, err
 		}
-		result[store_interface.AggregateKey(key)] = store_interface.AggregateValue(value)
+		result[model.AggregateKey(key)] = model.AggregateValue(value)
 	}
 	return result, nil
 }
 
 func (s *PostgreSQLStore) GetNodeLocalAggregatesBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	if len(nodes) == 0 {
-		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+		return map[model.NodeID]map[model.AggregateKey]model.AggregateValue{}, nil, nil
 	}
 
 	args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
@@ -687,7 +687,7 @@ func (s *PostgreSQLStore) GetNodeLocalAggregatesBulk(
 	}
 	defer rows.Close()
 
-	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+	result := make(map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
 
 	for rows.Next() {
 		var nodeStr string
@@ -696,19 +696,19 @@ func (s *PostgreSQLStore) GetNodeLocalAggregatesBulk(
 		if err := rows.Scan(&nodeStr, &aggKey, &aggVal); err != nil {
 			return nil, nil, err
 		}
-		nodeID := store_interface.NodeID(nodeStr)
+		nodeID := model.NodeID(nodeStr)
 		if _, ok := result[nodeID]; !ok {
-			result[nodeID] = make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+			result[nodeID] = make(map[model.AggregateKey]model.AggregateValue)
 		}
 		if aggKey != nil {
-			result[nodeID][store_interface.AggregateKey(*aggKey)] = store_interface.AggregateValue(*aggVal)
+			result[nodeID][model.AggregateKey(*aggKey)] = model.AggregateValue(*aggVal)
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
 
-	var notFound []store_interface.NodeID
+	var notFound []model.NodeID
 	for _, node := range nodes {
 		if _, ok := result[node]; !ok {
 			notFound = append(notFound, node)
@@ -718,12 +718,12 @@ func (s *PostgreSQLStore) GetNodeLocalAggregatesBulk(
 }
 
 func (s *PostgreSQLStore) GetNodeWithDescendantsAggregatesBulk(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	nodes []store_interface.NodeID,
-) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	nodes []model.NodeID,
+) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	if len(nodes) == 0 {
-		return map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue{}, nil, nil
+		return map[model.NodeID]map[model.AggregateKey]model.AggregateValue{}, nil, nil
 	}
 
 	args := []interface{}{space.AppId, space.TenancyId, string(treeID)}
@@ -752,7 +752,7 @@ func (s *PostgreSQLStore) GetNodeWithDescendantsAggregatesBulk(
 	}
 	defer rows.Close()
 
-	result := make(map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue)
+	result := make(map[model.NodeID]map[model.AggregateKey]model.AggregateValue)
 
 	for rows.Next() {
 		var nodeStr string
@@ -761,19 +761,19 @@ func (s *PostgreSQLStore) GetNodeWithDescendantsAggregatesBulk(
 		if err := rows.Scan(&nodeStr, &aggKey, &aggVal); err != nil {
 			return nil, nil, err
 		}
-		nodeID := store_interface.NodeID(nodeStr)
+		nodeID := model.NodeID(nodeStr)
 		if _, ok := result[nodeID]; !ok {
-			result[nodeID] = make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+			result[nodeID] = make(map[model.AggregateKey]model.AggregateValue)
 		}
 		if aggKey != nil {
-			result[nodeID][store_interface.AggregateKey(*aggKey)] = store_interface.AggregateValue(*aggVal)
+			result[nodeID][model.AggregateKey(*aggKey)] = model.AggregateValue(*aggVal)
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
 
-	var notFound []store_interface.NodeID
+	var notFound []model.NodeID
 	for _, node := range nodes {
 		if _, ok := result[node]; !ok {
 			notFound = append(notFound, node)
@@ -783,16 +783,16 @@ func (s *PostgreSQLStore) GetNodeWithDescendantsAggregatesBulk(
 }
 
 func (s *PostgreSQLStore) GetNodeWithDescendantsAggregates(
-	space store_interface.TenancySpace,
-	treeID store_interface.TreeID,
-	node store_interface.NodeID,
-) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
+	space model.TenancySpace,
+	treeID model.TreeID,
+	node model.NodeID,
+) (map[model.AggregateKey]model.AggregateValue, error) {
 	exists, err := s.Exists(space, treeID, node)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, store_interface.ErrNodeNotFound
+		return nil, model.ErrNodeNotFound
 	}
 
 	rows, err := s.db.Query(`
@@ -811,15 +811,14 @@ func (s *PostgreSQLStore) GetNodeWithDescendantsAggregates(
 	}
 	defer rows.Close()
 
-	result := make(map[store_interface.AggregateKey]store_interface.AggregateValue)
+	result := make(map[model.AggregateKey]model.AggregateValue)
 	for rows.Next() {
 		var key string
 		var value int64
 		if err := rows.Scan(&key, &value); err != nil {
 			return nil, err
 		}
-		result[store_interface.AggregateKey(key)] = store_interface.AggregateValue(value)
+		result[model.AggregateKey(key)] = model.AggregateValue(value)
 	}
 	return result, nil
 }
-

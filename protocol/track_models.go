@@ -1,4 +1,4 @@
-package model
+package protocol
 
 type TrackMutateRequest struct {
 	MutationID string               `json:"mutationId" binding:"required"`
@@ -72,7 +72,7 @@ type TrackGetManyResponse struct {
 }
 
 type TrackValue struct {
-	Value  int64    `bson:"value"`
-	Tag    *int64   `bson:"tag,omitempty"`
-	Metric *float64 `bson:"metric,omitempty"`
+	Value  int64    `json:"Value"`
+	Tag    *int64   `json:"Tag"`
+	Metric *float64 `json:"Metric"`
 }

@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	store_interface "github.com/vixac/bullet/store/store_interface"
 )
 
@@ -42,57 +42,57 @@ func SetupDepotRouter(store store_interface.DepotStore, prefix string, engine *g
 func (h *depotHandler) createOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	var req model.DepotCreateRequest
+	var req protocol.DepotCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	id, err := h.store.DepotCreate(space, req.BucketID, req.Value)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "depot", "written", 1)
-	c.JSON(http.StatusCreated, model.DepotCreateResponse{ID: id})
+	c.JSON(http.StatusCreated, protocol.DepotCreateResponse{ID: id})
 }
 
 func (h *depotHandler) createMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	var req model.DepotCreateManyRequest
+	var req protocol.DepotCreateManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	ids, err := h.store.DepotCreateMany(space, req.BucketID, req.Values)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "depot", "written", len(ids))
-	c.JSON(http.StatusCreated, model.DepotCreateManyResponse{IDs: ids})
+	c.JSON(http.StatusCreated, protocol.DepotCreateManyResponse{IDs: ids})
 }
 
 func (h *depotHandler) update(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid id"})
 		return
 	}
-	var req model.DepotUpdateRequest
+	var req protocol.DepotUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	if err := h.store.DepotUpdate(space, id, req.Value); err != nil {
@@ -106,12 +106,12 @@ func (h *depotHandler) update(c *gin.Context) {
 func (h *depotHandler) getOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid id"})
 		return
 	}
 	value, err := h.store.DepotGet(space, id)
@@ -120,38 +120,38 @@ func (h *depotHandler) getOne(c *gin.Context) {
 		return
 	}
 	incrementObjects(c, "depot", "read", 1)
-	c.JSON(http.StatusOK, model.DepotGetResponse{Value: value})
+	c.JSON(http.StatusOK, protocol.DepotGetResponse{Value: value})
 }
 
 func (h *depotHandler) getMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
-	var req model.DepotGetManyRequest
+	var req protocol.DepotGetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	values, missing, err := h.store.DepotGetMany(space, req.IDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "depot", "read", len(values))
-	c.JSON(http.StatusOK, model.DepotGetManyResponse{Values: values, Missing: missing})
+	c.JSON(http.StatusOK, protocol.DepotGetManyResponse{Values: values, Missing: missing})
 }
 
 func (h *depotHandler) deleteOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid id"})
 		return
 	}
 	if err := h.store.DepotDelete(space, id); err != nil {
@@ -164,16 +164,16 @@ func (h *depotHandler) deleteOne(c *gin.Context) {
 func (h *depotHandler) deleteByBucket(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	bucketID, err := strconv.ParseInt(c.Param("bucketId"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucketId"})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid bucketId"})
 		return
 	}
 	if err := h.store.DepotDeleteByBucket(space, int32(bucketID)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -182,19 +182,19 @@ func (h *depotHandler) deleteByBucket(c *gin.Context) {
 func (h *depotHandler) getAllByBucket(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	bucketID, err := strconv.ParseInt(c.Param("bucketId"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucketId"})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid bucketId"})
 		return
 	}
 	values, err := h.store.DepotGetAllByBucket(space, int32(bucketID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
 		return
 	}
 	incrementObjects(c, "depot", "read", len(values))
-	c.JSON(http.StatusOK, model.DepotGetAllByBucketResponse{Values: values})
+	c.JSON(http.StatusOK, protocol.DepotGetAllByBucketResponse{Values: values})
 }
