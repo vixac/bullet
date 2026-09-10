@@ -37,11 +37,23 @@ func validatePostgresLedgerWrite(ledgerID store_interface.LedgerID, appendID sto
 }
 
 func normalizePostgresLedgerSelector(selector store_interface.LedgerSelector) ([]store_interface.LedgerID, string, error) {
-	if selector.All == (len(selector.LedgerIDs) > 0) || len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
+	modes := 0
+	for _, enabled := range []bool{selector.All, len(selector.LedgerIDs) > 0, selector.Prefix != ""} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes != 1 || len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
 		return nil, "", store_interface.ErrLedgerInvalidSelector
 	}
 	if selector.All {
 		return nil, "all", nil
+	}
+	if selector.Prefix != "" {
+		if !postgresLedgerIDPattern.MatchString(selector.Prefix) {
+			return nil, "", store_interface.ErrLedgerInvalidID
+		}
+		return nil, "prefix:" + selector.Prefix, nil
 	}
 	ids := append([]store_interface.LedgerID(nil), selector.LedgerIDs...)
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
@@ -59,9 +71,14 @@ func normalizePostgresLedgerSelector(selector store_interface.LedgerSelector) ([
 	return ids, base64.RawURLEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-func postgresLedgerSelectorSQL(ids []store_interface.LedgerID, all bool, start int, args *[]any) string {
+func postgresLedgerSelectorSQL(ids []store_interface.LedgerID, all bool, prefix string, start int, args *[]any) string {
 	if all {
 		return ""
+	}
+	if prefix != "" {
+		upper := prefix[:len(prefix)-1] + string(prefix[len(prefix)-1]+1)
+		*args = append(*args, prefix, upper)
+		return ` AND ledger_id COLLATE "C" >= ` + placeholders(start, 1) + ` AND ledger_id COLLATE "C" < ` + placeholders(start+1, 1)
 	}
 	clause := " AND ledger_id IN (" + placeholders(start, len(ids)) + ")"
 	for _, id := range ids {
@@ -219,7 +236,7 @@ func (s *PostgreSQLStore) LedgerReadBackward(space store_interface.TenancySpace,
 	} else {
 		args := []any{space.AppId, space.TenancyId}
 		query := `SELECT COALESCE(MAX(position), 0) FROM ledger WHERE app_id = $1 AND tenancy_id = $2`
-		query += postgresLedgerSelectorSQL(ids, selector.All, 3, &args)
+		query += postgresLedgerSelectorSQL(ids, selector.All, selector.Prefix, 3, &args)
 		if err := s.db.QueryRow(query, args...).Scan(&upper); err != nil {
 			return store_interface.LedgerPage{}, err
 		}
@@ -235,8 +252,8 @@ func (s *PostgreSQLStore) LedgerReadBackward(space store_interface.TenancySpace,
 		args = append(args, before)
 		nextArg++
 	}
-	query += postgresLedgerSelectorSQL(ids, selector.All, nextArg, &args)
-	nextArg += len(ids)
+	query += postgresLedgerSelectorSQL(ids, selector.All, selector.Prefix, nextArg, &args)
+	nextArg = len(args) + 1
 	query += ` ORDER BY position DESC LIMIT ` + placeholders(nextArg, 1)
 	args = append(args, limit+1)
 	rows, err := s.db.Query(query, args...)
@@ -283,8 +300,8 @@ func (s *PostgreSQLStore) LedgerReadForward(space store_interface.TenancySpace, 
 		args = append(args, int64(*through))
 		nextArg++
 	}
-	query += postgresLedgerSelectorSQL(ids, selector.All, nextArg, &args)
-	nextArg += len(ids)
+	query += postgresLedgerSelectorSQL(ids, selector.All, selector.Prefix, nextArg, &args)
+	nextArg = len(args) + 1
 	query += ` ORDER BY position ASC LIMIT ` + placeholders(nextArg, 1)
 	args = append(args, limit)
 	rows, err := s.db.Query(query, args...)

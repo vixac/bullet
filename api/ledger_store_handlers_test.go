@@ -97,3 +97,28 @@ func TestLedgerRESTValidation(t *testing.T) {
 		t.Fatalf("invalid position status = %d", invalidPosition.Code)
 	}
 }
+
+func TestLedgerRESTPrefix(t *testing.T) {
+	engine := gin.New()
+	SetupLedgerRouter(ram.NewRamStore(), "/ledger", engine)
+	for _, id := range []string{"orders_a", "orders_b", "ordersXa"} {
+		response := ledgerRequest(t, engine, http.MethodPost, "/ledger/"+id+"/entries", model.LedgerAppendRequest{AppendID: "one", Payload: id})
+		if response.Code != http.StatusCreated {
+			t.Fatal(response.Body.String())
+		}
+	}
+	for _, direction := range []string{"forward", "backward"} {
+		response := ledgerRequest(t, engine, http.MethodPost, "/ledger/read/"+direction, map[string]any{"prefix": "orders_", "limit": 10})
+		var page model.LedgerPageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || len(page.Records) != 2 {
+			t.Fatalf("%s: %d %s", direction, response.Code, response.Body.String())
+		}
+		response = ledgerRequest(t, engine, http.MethodPost, "/ledger/read/"+direction, map[string]any{"all": true, "prefix": "orders_", "limit": 10})
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid selector: %d %s", response.Code, response.Body.String())
+		}
+	}
+}

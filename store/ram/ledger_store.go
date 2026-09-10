@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/vixac/bullet/store/store_interface"
@@ -40,11 +41,23 @@ func validateRamLedgerWrite(ledgerID store_interface.LedgerID, appendID store_in
 }
 
 func normalizeRamLedgerSelector(selector store_interface.LedgerSelector) (map[store_interface.LedgerID]struct{}, string, error) {
-	if selector.All == (len(selector.LedgerIDs) > 0) || len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
+	modes := 0
+	for _, enabled := range []bool{selector.All, len(selector.LedgerIDs) > 0, selector.Prefix != ""} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes != 1 || len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
 		return nil, "", store_interface.ErrLedgerInvalidSelector
 	}
 	if selector.All {
 		return nil, "all", nil
+	}
+	if selector.Prefix != "" {
+		if !ramLedgerIDPattern.MatchString(selector.Prefix) {
+			return nil, "", store_interface.ErrLedgerInvalidID
+		}
+		return nil, "prefix:" + selector.Prefix, nil
 	}
 	ids := append([]store_interface.LedgerID(nil), selector.LedgerIDs...)
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
@@ -64,9 +77,12 @@ func normalizeRamLedgerSelector(selector store_interface.LedgerSelector) (map[st
 	return selected, base64.RawURLEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-func ramLedgerSelected(record store_interface.LedgerRecord, all bool, selected map[store_interface.LedgerID]struct{}) bool {
+func ramLedgerSelected(record store_interface.LedgerRecord, all bool, prefix string, selected map[store_interface.LedgerID]struct{}) bool {
 	if all {
 		return true
+	}
+	if prefix != "" {
+		return strings.HasPrefix(string(record.LedgerID), prefix)
 	}
 	_, ok := selected[record.LedgerID]
 	return ok
@@ -187,7 +203,7 @@ func (s *RamStore) LedgerReadBackward(space store_interface.TenancySpace, select
 			continue
 		}
 		record, ok := data.records[position]
-		if ok && ramLedgerSelected(record, selector.All, selected) {
+		if ok && ramLedgerSelected(record, selector.All, selector.Prefix, selected) {
 			records = append(records, record)
 		}
 	}
@@ -224,7 +240,7 @@ func (s *RamStore) LedgerReadForward(space store_interface.TenancySpace, selecto
 	records := make([]store_interface.LedgerRecord, 0, limit)
 	for position := after + 1; position <= upper && len(records) < limit; position++ {
 		record, ok := data.records[position]
-		if ok && ramLedgerSelected(record, selector.All, selected) {
+		if ok && ramLedgerSelected(record, selector.All, selector.Prefix, selected) {
 			records = append(records, record)
 		}
 	}

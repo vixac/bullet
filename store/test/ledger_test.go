@@ -87,3 +87,56 @@ func testLedgerContract(t *testing.T, store store_interface.LedgerStore) {
 		t.Fatalf("invalid ledger error = %v", err)
 	}
 }
+
+func TestLedgerPrefix(t *testing.T) {
+	for name, store := range ledgerStores {
+		t.Run(name, func(t *testing.T) {
+			space := store_interface.TenancySpace{AppId: 901, TenancyId: 1}
+			ids := []store_interface.LedgerID{"orders_", "orders_a", "ordersXa", "Orders_a", "orders_b", "other"}
+			for _, id := range ids {
+				if _, err := store.LedgerAppend(space, id, "one", string(id)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			other := store_interface.TenancySpace{AppId: 901, TenancyId: 2}
+			if _, err := store.LedgerAppend(other, "orders_hidden", "one", "hidden"); err != nil {
+				t.Fatal(err)
+			}
+			selector := store_interface.LedgerSelector{Prefix: "orders_"}
+			page, err := store.LedgerReadBackward(space, selector, nil, 2)
+			if err != nil || len(page.Records) != 2 || page.Records[0].LedgerID != "orders_b" || page.Records[1].LedgerID != "orders_a" || page.NextCursor == nil {
+				t.Fatalf("page = %+v, %v", page, err)
+			}
+			added, err := store.LedgerAppend(space, "orders_new", "one", "new")
+			if err != nil {
+				t.Fatal(err)
+			}
+			next, err := store.LedgerReadBackward(space, selector, page.NextCursor, 2)
+			if err != nil || len(next.Records) != 1 || next.Records[0].LedgerID != "orders_" || next.NextCursor != nil {
+				t.Fatalf("next = %+v, %v", next, err)
+			}
+			for _, changed := range []store_interface.LedgerSelector{{Prefix: "orders"}, {LedgerIDs: []store_interface.LedgerID{"orders_"}}} {
+				if _, err := store.LedgerReadBackward(space, changed, page.NextCursor, 2); !errors.Is(err, store_interface.ErrLedgerInvalidCursor) {
+					t.Fatalf("cursor error = %v", err)
+				}
+			}
+			through := added.Position - 1
+			forward, err := store.LedgerReadForward(space, selector, next.Records[0].Position, &through, 10)
+			if err != nil || len(forward) != 2 || forward[0].LedgerID != "orders_a" || forward[1].LedgerID != "orders_b" {
+				t.Fatalf("forward = %+v, %v", forward, err)
+			}
+			empty, err := store.LedgerReadForward(space, store_interface.LedgerSelector{Prefix: "missing"}, 0, nil, 10)
+			if err != nil || len(empty) != 0 {
+				t.Fatalf("missing = %+v, %v", empty, err)
+			}
+			for _, invalid := range []store_interface.LedgerSelector{{}, {All: true, Prefix: "orders"}, {LedgerIDs: []store_interface.LedgerID{"orders"}, Prefix: "orders"}, {Prefix: "bad%prefix"}} {
+				if _, err := store.LedgerReadBackward(space, invalid, nil, 10); err == nil {
+					t.Fatalf("accepted %+v", invalid)
+				}
+				if _, err := store.LedgerReadForward(space, invalid, 0, nil, 10); err == nil {
+					t.Fatalf("accepted %+v", invalid)
+				}
+			}
+		})
+	}
+}
