@@ -9,7 +9,7 @@ import (
 	"github.com/vixac/bullet/store/store_interface"
 )
 
-func (r *RamStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (r *RamStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -18,16 +18,16 @@ func (r *RamStore) TrackMutate(req store_interface.TrackMutation) (store_interfa
 	}
 
 	for _, put := range req.Puts {
-		if r.tracks[put.Space] == nil {
-			r.tracks[put.Space] = make(map[int32]map[string]model.TrackValue)
+		if r.tracks[space] == nil {
+			r.tracks[space] = make(map[int32]map[string]model.TrackValue)
 		}
-		if r.tracks[put.Space][put.BucketID] == nil {
-			r.tracks[put.Space][put.BucketID] = make(map[string]model.TrackValue)
+		if r.tracks[space][put.BucketID] == nil {
+			r.tracks[space][put.BucketID] = make(map[string]model.TrackValue)
 		}
-		r.tracks[put.Space][put.BucketID][put.Key] = cloneTrackValue(model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric})
+		r.tracks[space][put.BucketID][put.Key] = cloneTrackValue(model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric})
 	}
 	for _, key := range req.Deletes {
-		if bucket := r.tracks[key.Space][key.BucketID]; bucket != nil {
+		if bucket := r.tracks[space][key.BucketID]; bucket != nil {
 			delete(bucket, key.Key)
 		}
 	}

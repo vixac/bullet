@@ -73,13 +73,11 @@ type TenancySpace struct {
 }
 
 type TrackKey struct {
-	Space    TenancySpace
 	BucketID int32
 	Key      string
 }
 
 type TrackPut struct {
-	Space    TenancySpace
 	BucketID int32
 	Key      string
 	Value    int64
@@ -99,12 +97,13 @@ type TrackMutationResult struct {
 
 type TrackClientInterface interface {
 	// TrackMutate atomically applies all puts, then all deletes, across every
-	// requested space and bucket, and records MutationID in the same commit.
+	// requested bucket in the supplied tenancy space, and records MutationID
+	// in the same commit. All items use this one space.
 	// Either the entire mutation commits or none of it does. Mutation IDs are
 	// store-wide: replaying an ID returns Applied=false without applying changes.
 	// On success Applied=true means this call committed the mutation. A commit
 	// or transport error can leave the outcome unknown; retry with the same ID.
-	TrackMutate(req TrackMutation) (TrackMutationResult, error)
+	TrackMutate(space TenancySpace, req TrackMutation) (TrackMutationResult, error)
 }
 
 var ErrTrackMutationUnsupported = errors.New("track mutations are not supported by this store")
