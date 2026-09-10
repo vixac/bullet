@@ -221,7 +221,7 @@ func TestTrackMutateInvalidRequests(t *testing.T) {
 	}{
 		{"missing headers", `{"mutationId":"m"}`, false, http.StatusUnauthorized},
 		{"malformed JSON", `{`, true, http.StatusBadRequest},
-		{"missing mutation ID", `{"puts":[]}`, true, http.StatusBadRequest},
+		{"empty mutation ID", `{"puts":[]}`, true, http.StatusOK},
 		{"invalid value", `{"mutationId":"m","puts":[{"value":"invalid"}]}`, true, http.StatusBadRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

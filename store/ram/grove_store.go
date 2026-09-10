@@ -2,6 +2,7 @@ package ram
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/vixac/bullet/model"
 )
@@ -413,14 +414,25 @@ func (r *RamStore) GetAncestors(
 		return nil, nil, model.ErrNodeNotFound
 	}
 
-	var ancestors []model.NodeID
-	for ancestor, depth := range r.groveClosure[space][treeID] {
-		if _, isAncestor := depth[node]; isAncestor && ancestor != node {
-			ancestors = append(ancestors, ancestor)
+	type ancestorEntry struct {
+		id    model.NodeID
+		depth int
+	}
+	var entries []ancestorEntry
+	for ancestor, descendants := range r.groveClosure[space][treeID] {
+		if depth, isAncestor := descendants[node]; isAncestor && ancestor != node {
+			entries = append(entries, ancestorEntry{id: ancestor, depth: depth})
 		}
 	}
 
-	// TODO: Sort by depth and implement pagination
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].depth > entries[j].depth
+	})
+	ancestors := make([]model.NodeID, len(entries))
+	for i, entry := range entries {
+		ancestors[i] = entry.id
+	}
+
 	return ancestors, &model.PaginationResult{NextCursor: nil}, nil
 }
 
@@ -514,6 +526,13 @@ func (r *RamStore) GetDescendants(
 			Depth:  relativeDepth,
 		})
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Depth != result[j].Depth {
+			return result[i].Depth < result[j].Depth
+		}
+		return result[i].NodeID < result[j].NodeID
+	})
 
 	// TODO: Implement breadth-first vs depth-first ordering, pagination
 	return result, &model.PaginationResult{NextCursor: nil}, nil

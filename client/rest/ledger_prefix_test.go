@@ -26,11 +26,11 @@ func TestLedgerPrefix(t *testing.T) {
 					assert.Equal(t, model.LedgerID("orders_a"), page.Records[1].LedgerID)
 					require.NotNil(t, page.NextCursor)
 
-					next, err := client.LedgerReadBackward(selector, page.NextCursor, 2)
+					secondPage, err := client.LedgerReadBackward(selector, page.NextCursor, 2)
 					require.NoError(t, err)
-					require.Len(t, next.Records, 1)
-					assert.Equal(t, model.LedgerID("orders_"), next.Records[0].LedgerID)
-					assert.Nil(t, next.NextCursor)
+					require.Len(t, secondPage.Records, 1)
+					assert.Equal(t, model.LedgerID("orders_"), secondPage.Records[0].LedgerID)
+					assert.Nil(t, secondPage.NextCursor)
 
 					_, err = client.LedgerReadBackward(model.LedgerSelector{Prefix: "orders"}, page.NextCursor, 2)
 					require.Error(t, err)

@@ -6,11 +6,16 @@ import (
 	"github.com/vixac/bullet/protocol"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
-func treePath(id model.TreeID) string { return "/grove/trees/" + url.PathEscape(string(id)) }
+func escapePathSegment(value string) string {
+	return strings.ReplaceAll(url.PathEscape(value), "+", "%2B")
+}
+
+func treePath(id model.TreeID) string { return "/grove/trees/" + escapePathSegment(string(id)) }
 func nodePath(tree model.TreeID, id model.NodeID) string {
-	return treePath(tree) + "/nodes/" + url.PathEscape(string(id))
+	return treePath(tree) + "/nodes/" + escapePathSegment(string(id))
 }
 func nodeStrings(ids []model.NodeID) []string {
 	if ids == nil {

@@ -1,7 +1,7 @@
 package protocol
 
 type TrackMutateRequest struct {
-	MutationID string               `json:"mutationId" binding:"required"`
+	MutationID string               `json:"mutationId"`
 	Puts       []TrackRequest       `json:"puts"`
 	Deletes    []TrackBucketKeyPair `json:"deletes"`
 }
