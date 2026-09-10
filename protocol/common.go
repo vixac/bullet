@@ -5,8 +5,8 @@ const (
 	TenancyIDHeader = "X-Tenancy-Id"
 )
 
-// ErrorResponse preserves the existing HTTP error body. Stable error codes
-// and transport-independent error reconstruction are a separate API change.
+// ErrorResponse carries a readable message and an optional stable domain code.
 type ErrorResponse struct {
+	Code  string `json:"code,omitempty"`
 	Error string `json:"error"`
 }

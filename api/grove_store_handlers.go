@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,8 @@ type groveHandler struct {
 //	POST   {prefix}/trees/:treeId/bulk/aggregates                — bulk subtree aggregates
 //	POST   {prefix}/trees/:treeId/bulk/aggregates/local          — bulk local aggregates
 func SetupGroveRouter(store store_interface.GroveStore, prefix string, engine *gin.Engine) *gin.Engine {
+	engine.UseRawPath = true
+	engine.UnescapePathValues = true
 	h := &groveHandler{store: store}
 	g := engine.Group(prefix)
 	g.POST("/trees/:treeId/nodes", h.createNode)
@@ -54,13 +57,13 @@ func SetupGroveRouter(store store_interface.GroveStore, prefix string, engine *g
 func (h *groveHandler) createNode(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	var req protocol.GroveCreateNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var parent *model.NodeID
@@ -89,7 +92,7 @@ func (h *groveHandler) createNode(c *gin.Context) {
 func (h *groveHandler) deleteNode(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
@@ -105,14 +108,14 @@ func (h *groveHandler) deleteNode(c *gin.Context) {
 func (h *groveHandler) moveNode(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	nodeID := model.NodeID(c.Param("nodeId"))
 	var req protocol.GroveMoveNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var newParent *model.NodeID
@@ -136,7 +139,7 @@ func (h *groveHandler) moveNode(c *gin.Context) {
 func (h *groveHandler) getNodeInfo(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
@@ -168,14 +171,14 @@ func (h *groveHandler) getNodeInfo(c *gin.Context) {
 func (h *groveHandler) exists(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	nodeID := model.NodeID(c.Param("nodeId"))
 	ok, err := h.store.Exists(space, treeID, nodeID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "grove", "read", 1)
@@ -185,77 +188,107 @@ func (h *groveHandler) exists(c *gin.Context) {
 func (h *groveHandler) getChildren(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	nodeID := model.NodeID(c.Param("nodeId"))
-	children, _, err := h.store.GetChildren(space, treeID, nodeID, nil)
+	var pagination *protocol.PaginationRequest
+	if raw, ok := c.GetQuery("pagination"); ok {
+		if err := json.Unmarshal([]byte(raw), &pagination); err != nil {
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
+			return
+		}
+	}
+	children, page, err := h.store.GetChildren(space, treeID, nodeID, pagination.Model())
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", len(children))
-	strs := make([]string, len(children))
+	var strs []string
+	if children != nil {
+		strs = make([]string, len(children))
+	}
 	for i, ch := range children {
 		strs[i] = string(ch)
 	}
-	c.JSON(http.StatusOK, protocol.GroveChildrenResponse{Children: strs})
+	c.JSON(http.StatusOK, protocol.GroveChildrenResponse{Children: strs, Pagination: protocol.PaginationResponseFromModel(page)})
 }
 
 func (h *groveHandler) getAncestors(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	nodeID := model.NodeID(c.Param("nodeId"))
-	ancestors, _, err := h.store.GetAncestors(space, treeID, nodeID, nil)
+	var pagination *protocol.PaginationRequest
+	if raw, ok := c.GetQuery("pagination"); ok {
+		if err := json.Unmarshal([]byte(raw), &pagination); err != nil {
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
+			return
+		}
+	}
+	ancestors, page, err := h.store.GetAncestors(space, treeID, nodeID, pagination.Model())
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", len(ancestors))
-	strs := make([]string, len(ancestors))
+	var strs []string
+	if ancestors != nil {
+		strs = make([]string, len(ancestors))
+	}
 	for i, a := range ancestors {
 		strs[i] = string(a)
 	}
-	c.JSON(http.StatusOK, protocol.GroveAncestorsResponse{Ancestors: strs})
+	c.JSON(http.StatusOK, protocol.GroveAncestorsResponse{Ancestors: strs, Pagination: protocol.PaginationResponseFromModel(page)})
 }
 
 func (h *groveHandler) getDescendants(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	nodeID := model.NodeID(c.Param("nodeId"))
-	descendants, _, err := h.store.GetDescendants(space, treeID, nodeID, nil)
+	var options *protocol.DescendantOptionsRequest
+	if raw, ok := c.GetQuery("options"); ok {
+		if err := json.Unmarshal([]byte(raw), &options); err != nil {
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
+			return
+		}
+	}
+	descendants, page, err := h.store.GetDescendants(space, treeID, nodeID, options.Model())
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "grove", "read", len(descendants))
-	items := make([]protocol.GroveNodeWithDepth, len(descendants))
+	var items []protocol.GroveNodeWithDepth
+	if descendants != nil {
+		items = make([]protocol.GroveNodeWithDepth, len(descendants))
+	}
 	for i, d := range descendants {
 		items[i] = protocol.GroveNodeWithDepth{NodeID: string(d.NodeID), Depth: d.Depth}
 	}
-	c.JSON(http.StatusOK, protocol.GroveDescendantsResponse{Descendants: items})
+	c.JSON(http.StatusOK, protocol.GroveDescendantsResponse{Descendants: items, Pagination: protocol.PaginationResponseFromModel(page)})
 }
 
 func (h *groveHandler) applyMutation(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	nodeID := model.NodeID(c.Param("nodeId"))
 	var req protocol.GroveApplyMutationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	deltas := make(model.AggregateDeltas, len(req.Deltas))
@@ -273,7 +306,7 @@ func (h *groveHandler) applyMutation(c *gin.Context) {
 func (h *groveHandler) getSubtreeAggregates(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
@@ -290,7 +323,7 @@ func (h *groveHandler) getSubtreeAggregates(c *gin.Context) {
 func (h *groveHandler) getLocalAggregates(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
@@ -307,25 +340,28 @@ func (h *groveHandler) getLocalAggregates(c *gin.Context) {
 func (h *groveHandler) getAncestorsBulk(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	var req protocol.GroveBulkNodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	nodeIDs := toNodeIDs(req.NodeIDs)
 	ancestorsMap, missing, err := h.store.GetAncestorsBulk(space, treeID, nodeIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "grove", "read", len(ancestorsMap))
 	result := make(map[string][]string, len(ancestorsMap))
 	for node, ancestors := range ancestorsMap {
-		strs := make([]string, len(ancestors))
+		var strs []string
+		if ancestors != nil {
+			strs = make([]string, len(ancestors))
+		}
 		for i, a := range ancestors {
 			strs[i] = string(a)
 		}
@@ -340,19 +376,19 @@ func (h *groveHandler) getAncestorsBulk(c *gin.Context) {
 func (h *groveHandler) getSubtreeAggregatesBulk(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	var req protocol.GroveBulkNodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	nodeIDs := toNodeIDs(req.NodeIDs)
 	aggsMap, missing, err := h.store.GetNodeWithDescendantsAggregatesBulk(space, treeID, nodeIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "grove", "read", len(aggsMap))
@@ -365,19 +401,19 @@ func (h *groveHandler) getSubtreeAggregatesBulk(c *gin.Context) {
 func (h *groveHandler) getLocalAggregatesBulk(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	treeID := model.TreeID(c.Param("treeId"))
 	var req protocol.GroveBulkNodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	nodeIDs := toNodeIDs(req.NodeIDs)
 	aggsMap, missing, err := h.store.GetNodeLocalAggregatesBulk(space, treeID, nodeIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "grove", "read", len(aggsMap))
@@ -390,6 +426,9 @@ func (h *groveHandler) getLocalAggregatesBulk(c *gin.Context) {
 // helpers
 
 func aggregatesToMap(aggs map[model.AggregateKey]model.AggregateValue) map[string]int64 {
+	if aggs == nil {
+		return nil
+	}
 	m := make(map[string]int64, len(aggs))
 	for k, v := range aggs {
 		m[string(k)] = int64(v)
@@ -398,6 +437,9 @@ func aggregatesToMap(aggs map[model.AggregateKey]model.AggregateValue) map[strin
 }
 
 func aggregatesBulkToMap(bulk map[model.NodeID]map[model.AggregateKey]model.AggregateValue) map[string]map[string]int64 {
+	if bulk == nil {
+		return nil
+	}
 	result := make(map[string]map[string]int64, len(bulk))
 	for node, aggs := range bulk {
 		result[string(node)] = aggregatesToMap(aggs)
@@ -414,6 +456,9 @@ func toNodeIDs(strs []string) []model.NodeID {
 }
 
 func nodeIDsToStrings(ids []model.NodeID) []string {
+	if ids == nil {
+		return nil
+	}
 	strs := make([]string, len(ids))
 	for i, id := range ids {
 		strs[i] = string(id)

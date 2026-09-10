@@ -15,12 +15,12 @@ func SetupWarehouseRouter(store si.WarehouseStore, prefix string, engine *gin.En
 	g.POST("/blobs", func(c *gin.Context) {
 		space, err := extractSpace(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 			return
 		}
 		var req protocol.PutBlobRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 			return
 		}
 		blob, err := store.WarehousePut(c.Request.Context(), space, req.Model())
@@ -34,7 +34,7 @@ func SetupWarehouseRouter(store si.WarehouseStore, prefix string, engine *gin.En
 	g.GET("/blobs/:id", func(c *gin.Context) {
 		space, err := extractSpace(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 			return
 		}
 		blob, err := store.WarehouseGet(c.Request.Context(), space, model.BlobID(c.Param("id")))
@@ -48,12 +48,12 @@ func SetupWarehouseRouter(store si.WarehouseStore, prefix string, engine *gin.En
 	g.POST("/blobs/batch-get", func(c *gin.Context) {
 		space, err := extractSpace(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 			return
 		}
 		var req protocol.WarehouseGetManyRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 			return
 		}
 		blobs, err := store.WarehouseGetMany(c.Request.Context(), space, req.IDs)

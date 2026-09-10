@@ -44,12 +44,12 @@ func SetupTrackRouter(store store_interface.TrackStore, prefix string, engine *g
 func (h *trackHandler) mutate(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackMutateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	mutation := model.TrackMutation{MutationID: model.MutationID(req.MutationID)}
@@ -70,7 +70,7 @@ func (h *trackHandler) mutate(c *gin.Context) {
 		if errors.Is(err, model.ErrTrackMutationUnsupported) {
 			status = http.StatusNotImplemented
 		}
-		c.JSON(status, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(status, protocol.ErrorResponseFrom(err))
 		return
 	}
 	if result.Applied {
@@ -82,16 +82,16 @@ func (h *trackHandler) mutate(c *gin.Context) {
 func (h *trackHandler) upsertOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	if err := h.store.TrackPut(space, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "track", "written", 1)
@@ -101,17 +101,17 @@ func (h *trackHandler) upsertOne(c *gin.Context) {
 func (h *trackHandler) upsertMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackPutManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	items := req.Model()
 	if err := h.store.TrackPutMany(space, items); err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	count := 0
@@ -125,17 +125,17 @@ func (h *trackHandler) upsertMany(c *gin.Context) {
 func (h *trackHandler) getOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	value, err := h.store.TrackGet(space, req.BucketID, req.Key)
 	if err != nil {
-		c.JSON(http.StatusNotFound, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "track", "read", 1)
@@ -145,12 +145,12 @@ func (h *trackHandler) getOne(c *gin.Context) {
 func (h *trackHandler) getMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackGetManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	keys := make(map[int32][]string)
@@ -159,7 +159,7 @@ func (h *trackHandler) getMany(c *gin.Context) {
 	}
 	values, missing, err := h.store.TrackGetMany(space, keys)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	count := 0
@@ -186,16 +186,16 @@ func (h *trackHandler) getMany(c *gin.Context) {
 func (h *trackHandler) deleteMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackDeleteManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	if err := h.store.TrackDeleteMany(space, req.Model()); err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	c.Status(http.StatusOK)
@@ -204,12 +204,12 @@ func (h *trackHandler) deleteMany(c *gin.Context) {
 func (h *trackHandler) queryByPrefix(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackGetItemsByPrefixRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var metricValue *float64
@@ -220,7 +220,7 @@ func (h *trackHandler) queryByPrefix(c *gin.Context) {
 	}
 	items, err := h.store.GetItemsByKeyPrefix(space, req.BucketID, req.Prefix, req.Tags, metricValue, isGt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "track", "read", len(items))
@@ -230,12 +230,12 @@ func (h *trackHandler) queryByPrefix(c *gin.Context) {
 func (h *trackHandler) queryByPrefixes(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.TrackGetItemsByPrefixesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var metricValue *float64
@@ -246,7 +246,7 @@ func (h *trackHandler) queryByPrefixes(c *gin.Context) {
 	}
 	items, err := h.store.GetItemsByKeyPrefixes(space, req.BucketID, req.Prefixes, req.Tags, metricValue, isGt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "track", "read", len(items))

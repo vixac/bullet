@@ -46,12 +46,12 @@ func ledgerRecordsResponse(records []model.LedgerRecord) []protocol.LedgerRecord
 func (h *ledgerHandler) appendOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.LedgerAppendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	record, err := h.store.LedgerAppend(space, model.LedgerID(c.Param("ledgerId")), model.LedgerAppendID(req.AppendID), req.Payload)
@@ -66,12 +66,12 @@ func (h *ledgerHandler) appendOne(c *gin.Context) {
 func (h *ledgerHandler) appendMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.LedgerAppendManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	items := make([]model.LedgerAppendItem, len(req.Items))
@@ -90,12 +90,12 @@ func (h *ledgerHandler) appendMany(c *gin.Context) {
 func (h *ledgerHandler) readBackward(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.LedgerReadBackwardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	page, err := h.store.LedgerReadBackward(space, ledgerSelector(req.LedgerSelectorRequest), req.Cursor, req.Limit)
@@ -118,12 +118,12 @@ func parseLedgerPosition(value string) (model.LedgerPosition, error) {
 func (h *ledgerHandler) readForward(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	var req protocol.LedgerReadForwardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	after, err := parseLedgerPosition(req.AfterPosition)
@@ -152,7 +152,7 @@ func (h *ledgerHandler) readForward(c *gin.Context) {
 func (h *ledgerHandler) deleteLedger(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
 	if err := h.store.LedgerDelete(space, model.LedgerID(c.Param("ledgerId"))); err != nil {

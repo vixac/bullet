@@ -41,34 +41,34 @@ func extractSpace(c *gin.Context) (model.TenancySpace, error) {
 func respondError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, model.ErrWarehouseUnsupported):
-		c.JSON(http.StatusNotImplemented, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusNotImplemented, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrWarehouseInvalidPutID):
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrWarehousePutConflict):
-		c.JSON(http.StatusConflict, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrBlobNotFound):
-		c.JSON(http.StatusNotFound, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrLedgerInvalidID),
 		errors.Is(err, model.ErrLedgerInvalidAppendID),
 		errors.Is(err, model.ErrLedgerPayloadTooLarge),
 		errors.Is(err, model.ErrLedgerInvalidSelector),
 		errors.Is(err, model.ErrLedgerInvalidPageSize),
 		errors.Is(err, model.ErrLedgerInvalidCursor):
-		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrLedgerAppendConflict),
 		errors.Is(err, model.ErrLedgerBatchConflict):
-		c.JSON(http.StatusConflict, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrLedgerUnsupported):
-		c.JSON(http.StatusNotImplemented, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusNotImplemented, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrNodeNotFound):
-		c.JSON(http.StatusNotFound, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrNodeAlreadyExists):
-		c.JSON(http.StatusConflict, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrCycleDetected):
-		c.JSON(http.StatusUnprocessableEntity, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnprocessableEntity, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrMutationConflict):
-		c.JSON(http.StatusConflict, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
 	default:
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 	}
 }
