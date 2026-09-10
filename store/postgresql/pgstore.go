@@ -103,6 +103,7 @@ func (s *PostgreSQLStore) initSchema() error {
 
 		`CREATE INDEX IF NOT EXISTS ledger_space_ledger_position_idx
 		 ON ledger(app_id, tenancy_id, ledger_id, position);`,
+		`CREATE INDEX IF NOT EXISTS idx_ledger_prefix ON ledger(app_id, tenancy_id, ledger_id COLLATE "C", position);`,
 
 		`CREATE INDEX IF NOT EXISTS ledger_space_position_idx
 		 ON ledger(app_id, tenancy_id, position);`,

@@ -37,7 +37,13 @@ func validateLedgerWrite(ledgerID store_interface.LedgerID, appendID store_inter
 }
 
 func normalizeLedgerSelector(selector store_interface.LedgerSelector) ([]store_interface.LedgerID, string, error) {
-	if selector.All == (len(selector.LedgerIDs) > 0) {
+	modes := 0
+	for _, enabled := range []bool{selector.All, len(selector.LedgerIDs) > 0, selector.Prefix != ""} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes != 1 {
 		return nil, "", store_interface.ErrLedgerInvalidSelector
 	}
 	if selector.All {
@@ -45,6 +51,12 @@ func normalizeLedgerSelector(selector store_interface.LedgerSelector) ([]store_i
 	}
 	if len(selector.LedgerIDs) > store_interface.LedgerMaxSelected {
 		return nil, "", store_interface.ErrLedgerInvalidSelector
+	}
+	if selector.Prefix != "" {
+		if !ledgerIDPattern.MatchString(selector.Prefix) {
+			return nil, "", store_interface.ErrLedgerInvalidID
+		}
+		return nil, "prefix:" + selector.Prefix, nil
 	}
 	ids := append([]store_interface.LedgerID(nil), selector.LedgerIDs...)
 	for _, id := range ids {
@@ -66,9 +78,15 @@ func normalizeLedgerSelector(selector store_interface.LedgerSelector) ([]store_i
 	return ids, base64.RawURLEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-func selectorSQL(ids []store_interface.LedgerID, all bool, args *[]any) string {
+func selectorSQL(ids []store_interface.LedgerID, all bool, prefix string, args *[]any) string {
 	if all {
 		return ""
+	}
+	if prefix != "" {
+		// Valid ledger IDs are ASCII, so incrementing the last byte gives an exclusive upper bound.
+		upper := prefix[:len(prefix)-1] + string(prefix[len(prefix)-1]+1)
+		*args = append(*args, prefix, upper)
+		return " AND ledger_id >= ? AND ledger_id < ?"
 	}
 	clause := " AND ledger_id IN (" + placeholders(len(ids)) + ")"
 	for _, id := range ids {
@@ -263,7 +281,7 @@ func (s *SQLiteStore) LedgerReadBackward(space store_interface.TenancySpace, sel
 	} else {
 		args := []any{space.AppId, space.TenancyId}
 		query := `SELECT COALESCE(MAX(position), 0) FROM ledger WHERE app_id = ? AND tenancy_id = ?`
-		query += selectorSQL(ids, selector.All, &args)
+		query += selectorSQL(ids, selector.All, selector.Prefix, &args)
 		if err := s.db.QueryRow(query, args...).Scan(&upper); err != nil {
 			return store_interface.LedgerPage{}, err
 		}
@@ -278,7 +296,7 @@ func (s *SQLiteStore) LedgerReadBackward(space store_interface.TenancySpace, sel
 		query += ` AND position < ?`
 		args = append(args, before)
 	}
-	query += selectorSQL(ids, selector.All, &args)
+	query += selectorSQL(ids, selector.All, selector.Prefix, &args)
 	query += ` ORDER BY position DESC LIMIT ?`
 	args = append(args, limit+1)
 	rows, err := s.db.Query(query, args...)
@@ -326,7 +344,7 @@ func (s *SQLiteStore) LedgerReadForward(space store_interface.TenancySpace, sele
 		query += ` AND position <= ?`
 		args = append(args, int64(*through))
 	}
-	query += selectorSQL(ids, selector.All, &args)
+	query += selectorSQL(ids, selector.All, selector.Prefix, &args)
 	query += ` ORDER BY position ASC LIMIT ?`
 	args = append(args, limit)
 	rows, err := s.db.Query(query, args...)

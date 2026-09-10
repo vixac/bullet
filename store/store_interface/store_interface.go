@@ -30,11 +30,13 @@ type LedgerRecord struct {
 	Payload   string
 }
 
-// LedgerSelector selects either all ledgers in a tenancy space or an explicit
-// set of ledgers. Exactly one of All and LedgerIDs must be supplied.
+// LedgerSelector selects all ledgers, explicit IDs, or IDs with a literal,
+// case-sensitive prefix within a tenancy space. Exactly one of All, nonempty
+// LedgerIDs, and nonempty Prefix must be supplied. Prefix follows ledger ID syntax.
 type LedgerSelector struct {
 	All       bool
 	LedgerIDs []LedgerID
+	Prefix    string
 }
 
 type LedgerPage struct {

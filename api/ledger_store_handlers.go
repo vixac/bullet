@@ -27,7 +27,7 @@ func ledgerSelector(req model.LedgerSelectorRequest) store_interface.LedgerSelec
 	for i, id := range req.LedgerIDs {
 		ids[i] = store_interface.LedgerID(id)
 	}
-	return store_interface.LedgerSelector{All: req.All, LedgerIDs: ids}
+	return store_interface.LedgerSelector{All: req.All, LedgerIDs: ids, Prefix: req.Prefix}
 }
 
 func ledgerRecordResponse(record store_interface.LedgerRecord) model.LedgerRecordResponse {

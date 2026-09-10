@@ -14,6 +14,7 @@ type LedgerAppendManyRequest struct {
 type LedgerSelectorRequest struct {
 	All       bool     `json:"all"`
 	LedgerIDs []string `json:"ledger_ids,omitempty"`
+	Prefix    string   `json:"prefix,omitempty"`
 }
 
 type LedgerReadBackwardRequest struct {
