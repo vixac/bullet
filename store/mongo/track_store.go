@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
-func (m *MongoStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (m *MongoStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
 	mutations := m.trackCollection.Database().Collection("track_mutations")
 	var applied bool
 	err := m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
@@ -30,11 +30,11 @@ func (m *MongoStore) TrackMutate(req store_interface.TrackMutation) (store_inter
 		}
 		writes := make([]mongo.WriteModel, 0, len(req.Puts)+len(req.Deletes))
 		for _, put := range req.Puts {
-			writes = append(writes, trackPutModel(put.Space, put.BucketID, put.Key,
+			writes = append(writes, trackPutModel(space, put.BucketID, put.Key,
 				model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}))
 		}
 		for _, key := range req.Deletes {
-			writes = append(writes, mongo.NewDeleteOneModel().SetFilter(trackKeyFilter(key.Space, key.BucketID, key.Key)))
+			writes = append(writes, mongo.NewDeleteOneModel().SetFilter(trackKeyFilter(space, key.BucketID, key.Key)))
 		}
 		if len(writes) > 0 {
 			if _, err := m.trackCollection.BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(true)); err != nil {

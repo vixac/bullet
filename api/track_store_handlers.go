@@ -54,16 +54,16 @@ func (h *trackHandler) mutate(c *gin.Context) {
 	mutation := store_interface.TrackMutation{MutationID: store_interface.MutationID(req.MutationID)}
 	for _, put := range req.Puts {
 		mutation.Puts = append(mutation.Puts, store_interface.TrackPut{
-			Space: space, BucketID: put.BucketID, Key: put.Key,
+			BucketID: put.BucketID, Key: put.Key,
 			Value: put.Value, Tag: put.Tag, Metric: put.Metric,
 		})
 	}
 	for _, key := range req.Deletes {
 		mutation.Deletes = append(mutation.Deletes, store_interface.TrackKey{
-			Space: space, BucketID: key.BucketID, Key: key.Key,
+			BucketID: key.BucketID, Key: key.Key,
 		})
 	}
-	result, err := h.store.TrackMutate(mutation)
+	result, err := h.store.TrackMutate(space, mutation)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, store_interface.ErrTrackMutationUnsupported) {

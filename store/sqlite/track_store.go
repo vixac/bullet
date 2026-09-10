@@ -12,7 +12,7 @@ type sqlQueryer interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
-func (s *SQLiteStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (s *SQLiteStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return store_interface.TrackMutationResult{}, err
@@ -41,7 +41,7 @@ func (s *SQLiteStore) TrackMutate(req store_interface.TrackMutation) (store_inte
 	}
 	defer putStmt.Close()
 	for _, put := range req.Puts {
-		if _, err := putStmt.Exec(put.Space.AppId, put.Space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric); err != nil {
+		if _, err := putStmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric); err != nil {
 			return store_interface.TrackMutationResult{}, err
 		}
 	}
@@ -52,7 +52,7 @@ func (s *SQLiteStore) TrackMutate(req store_interface.TrackMutation) (store_inte
 	}
 	defer deleteStmt.Close()
 	for _, key := range req.Deletes {
-		if _, err := deleteStmt.Exec(key.Space.AppId, key.Space.TenancyId, key.BucketID, key.Key); err != nil {
+		if _, err := deleteStmt.Exec(space.AppId, space.TenancyId, key.BucketID, key.Key); err != nil {
 			return store_interface.TrackMutationResult{}, err
 		}
 	}

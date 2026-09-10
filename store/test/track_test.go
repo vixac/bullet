@@ -20,11 +20,11 @@ func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 			req := store_interface.TrackMutation{
 				MutationID: store_interface.MutationID("track-mutation-test-901-902"),
 				Puts: []store_interface.TrackPut{
-					{Space: space, BucketID: 1, Key: "put-me", Value: 42},
+					{BucketID: 1, Key: "put-me", Value: 42},
 				},
-				Deletes: []store_interface.TrackKey{{Space: space, BucketID: 1, Key: "delete-me"}},
+				Deletes: []store_interface.TrackKey{{BucketID: 1, Key: "delete-me"}},
 			}
-			result, err := trackStore.TrackMutate(req)
+			result, err := trackStore.TrackMutate(space, req)
 			if errors.Is(err, store_interface.ErrTrackMutationUnsupported) {
 				t.Skip("track mutations are intentionally unsupported")
 			}
@@ -43,7 +43,7 @@ func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 
 			// Changing the replay proves the mutation body is not executed twice.
 			req.Puts[0].Value = 99
-			result, err = trackStore.TrackMutate(req)
+			result, err = trackStore.TrackMutate(space, req)
 			if err != nil {
 				t.Fatalf("replayed mutation: %v", err)
 			}

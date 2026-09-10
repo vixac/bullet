@@ -11,7 +11,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func (b *BoltStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (b *BoltStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
 	var result store_interface.TrackMutationResult
 	err := b.db.Update(func(tx *bbolt.Tx) error {
 		// The marker and every data change belong to the same write transaction.
@@ -25,7 +25,7 @@ func (b *BoltStore) TrackMutate(req store_interface.TrackMutation) (store_interf
 			return nil
 		}
 		for _, put := range req.Puts {
-			bucket, err := tx.CreateBucketIfNotExists(getTrackBucketName(put.Space, put.BucketID))
+			bucket, err := tx.CreateBucketIfNotExists(getTrackBucketName(space, put.BucketID))
 			if err != nil {
 				return err
 			}
@@ -34,7 +34,7 @@ func (b *BoltStore) TrackMutate(req store_interface.TrackMutation) (store_interf
 			}
 		}
 		for _, key := range req.Deletes {
-			bucket := tx.Bucket(getTrackBucketName(key.Space, key.BucketID))
+			bucket := tx.Bucket(getTrackBucketName(space, key.BucketID))
 			if bucket == nil {
 				continue
 			}
