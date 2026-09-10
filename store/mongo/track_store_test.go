@@ -9,7 +9,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/vixac/bullet/model"
-	si "github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -47,7 +46,7 @@ func TestTrackBatchTransactions(t *testing.T) {
 	db := client.Database("track_atomicity")
 	require.NoError(t, db.CreateCollection(ctx, "track", options.CreateCollection().SetValidator(bson.M{"value": bson.M{"$gte": 0}})))
 	s := &MongoStore{client: client, trackCollection: db.Collection("track")}
-	space := si.TenancySpace{AppId: 1, TenancyId: 2}
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
 	tag, metric := int64(7), 1.5
 	require.NoError(t, s.TrackPutMany(space, map[int32][]model.TrackKeyValueItem{
 		1: {{Key: "first", Value: model.TrackValue{Value: 10, Tag: &tag, Metric: &metric}}},
@@ -66,7 +65,7 @@ func TestTrackBatchTransactions(t *testing.T) {
 	require.ElementsMatch(t, []string{"new", "fail"}, missing[1])
 	require.Equal(t, int64(20), found[2]["second"].Value)
 
-	deletes := []model.TrackBucketKeyPair{{BucketID: 1, Key: "first"}, {BucketID: 2, Key: "second"}}
+	deletes := []model.TrackKey{{BucketID: 1, Key: "first"}, {BucketID: 2, Key: "second"}}
 	// Reject commit after DeleteMany executes. No deleted document may become visible.
 	require.NoError(t, client.Database("admin").RunCommand(ctx, bson.D{
 		{Key: "configureFailPoint", Value: "failCommand"},

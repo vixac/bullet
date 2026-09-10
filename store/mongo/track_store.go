@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -14,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
-func (m *MongoStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
+func (m *MongoStore) TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error) {
 	mutations := m.trackCollection.Database().Collection("track_mutations")
 	var applied bool
 	err := m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
@@ -45,12 +44,12 @@ func (m *MongoStore) TrackMutate(space store_interface.TenancySpace, req store_i
 		return nil, nil
 	})
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
-	return store_interface.TrackMutationResult{Applied: applied}, nil
+	return model.TrackMutationResult{Applied: applied}, nil
 }
 
-func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
+func (m *MongoStore) TrackDeleteMany(space model.TenancySpace, items []model.TrackKey) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -77,13 +76,13 @@ func (m *MongoStore) TrackDeleteMany(space store_interface.TenancySpace, items [
 	})
 }
 
-func (m *MongoStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (m *MongoStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	put := trackPutModel(space, bucketID, key, model.TrackValue{Value: value, Tag: tag, Metric: metric})
 	_, err := m.trackCollection.ReplaceOne(context.TODO(), put.Filter, put.Replacement, options.Replace().SetUpsert(true))
 	return err
 }
 
-func (m *MongoStore) TrackGet(space store_interface.TenancySpace, bucketID int32, key string) (int64, error) {
+func (m *MongoStore) TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error) {
 	var result struct{ Value int64 }
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
 	err := m.trackCollection.FindOne(context.TODO(), filter).Decode(&result)
@@ -93,7 +92,7 @@ func (m *MongoStore) TrackGet(space store_interface.TenancySpace, bucketID int32
 	return result.Value, nil
 }
 
-func (m *MongoStore) TrackDelete(space store_interface.TenancySpace, bucketID int32, key string) error {
+func (m *MongoStore) TrackDelete(space model.TenancySpace, bucketID int32, key string) error {
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
 	_, err := m.trackCollection.DeleteOne(context.TODO(), filter)
 	return err
@@ -103,7 +102,7 @@ func (m *MongoStore) TrackClose() error {
 	return m.client.Disconnect(context.TODO())
 }
 
-func (m *MongoStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
+func (m *MongoStore) TrackPutMany(space model.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
 	var writes []mongo.WriteModel
 
 	for bucketID, kvItems := range items {
@@ -138,11 +137,11 @@ func (m *MongoStore) trackTransaction(fn func(mongo.SessionContext) (interface{}
 	return err
 }
 
-func trackKeyFilter(space store_interface.TenancySpace, bucketID int32, key string) bson.M {
+func trackKeyFilter(space model.TenancySpace, bucketID int32, key string) bson.M {
 	return bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
 }
 
-func trackPutModel(space store_interface.TenancySpace, bucketID int32, key string, value model.TrackValue) *mongo.ReplaceOneModel {
+func trackPutModel(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) *mongo.ReplaceOneModel {
 	doc := trackKeyFilter(space, bucketID, key)
 	doc["value"] = value.Value
 	if value.Tag != nil {
@@ -182,7 +181,7 @@ func (m *MongoStore) trackFind(filter bson.M) ([]trackDocument, error) {
 }
 
 func (b *MongoStore) GetItemsByKeyPrefix(
-	space store_interface.TenancySpace, bucketID int32,
+	space model.TenancySpace, bucketID int32,
 	prefix string,
 	tags []int64,
 	metricValue *float64,
@@ -191,7 +190,7 @@ func (b *MongoStore) GetItemsByKeyPrefix(
 	return b.GetItemsByKeyPrefixes(space, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
 }
 
-func (m *MongoStore) TrackGetMany(space store_interface.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+func (m *MongoStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
@@ -265,7 +264,7 @@ func nextLexicographicString(s string) string {
 	return s + "\x00"
 }
 func (m *MongoStore) GetItemsByKeyPrefixes(
-	space store_interface.TenancySpace, bucketID int32,
+	space model.TenancySpace, bucketID int32,
 	prefixes []string, // multiple prefixes allowed
 	tags []int64, // optional
 	metricValue *float64, // optional

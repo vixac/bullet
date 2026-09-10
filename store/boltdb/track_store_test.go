@@ -6,14 +6,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vixac/bullet/model"
-	si "github.com/vixac/bullet/store/store_interface"
 )
 
 func TestTrackBatchRollback(t *testing.T) {
 	s, err := NewBoltStore(filepath.Join(t.TempDir(), "track.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, s.TrackClose()) })
-	space := si.TenancySpace{AppId: 1, TenancyId: 2}
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
 	require.NoError(t, s.TrackPut(space, 1, "first", 10, nil, nil))
 	err = s.TrackPutMany(space, map[int32][]model.TrackKeyValueItem{1: {
 		{Key: "first", Value: model.TrackValue{Value: 99}},
@@ -26,7 +25,7 @@ func TestTrackBatchRollback(t *testing.T) {
 	require.Equal(t, int64(10), got)
 	_, err = s.TrackGet(space, 1, "new")
 	require.Error(t, err)
-	err = s.TrackDeleteMany(space, []model.TrackBucketKeyPair{{BucketID: 1, Key: "first"}, {BucketID: 2, Key: "missing-bucket"}})
+	err = s.TrackDeleteMany(space, []model.TrackKey{{BucketID: 1, Key: "first"}, {BucketID: 2, Key: "missing-bucket"}})
 	require.Error(t, err)
 	got, err = s.TrackGet(space, 1, "first")
 	require.NoError(t, err)

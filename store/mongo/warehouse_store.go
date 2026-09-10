@@ -2,15 +2,16 @@ package mongodb
 
 import (
 	"context"
-	si "github.com/vixac/bullet/store/store_interface"
+
+	"github.com/vixac/bullet/model"
 )
 
-func (s *MongoStore) WarehousePut(context.Context, si.TenancySpace, si.PutBlobRequest) (si.Blob, error) {
-	return si.Blob{}, si.ErrWarehouseUnsupported
+func (s *MongoStore) WarehousePut(context.Context, model.TenancySpace, model.PutBlobRequest) (model.Blob, error) {
+	return model.Blob{}, model.ErrWarehouseUnsupported
 }
-func (s *MongoStore) WarehouseGet(context.Context, si.TenancySpace, si.BlobID) (si.Blob, error) {
-	return si.Blob{}, si.ErrWarehouseUnsupported
+func (s *MongoStore) WarehouseGet(context.Context, model.TenancySpace, model.BlobID) (model.Blob, error) {
+	return model.Blob{}, model.ErrWarehouseUnsupported
 }
-func (s *MongoStore) WarehouseGetMany(context.Context, si.TenancySpace, []si.BlobID) (map[si.BlobID]si.Blob, error) {
-	return nil, si.ErrWarehouseUnsupported
+func (s *MongoStore) WarehouseGetMany(context.Context, model.TenancySpace, []model.BlobID) (map[model.BlobID]model.Blob, error) {
+	return nil, model.ErrWarehouseUnsupported
 }

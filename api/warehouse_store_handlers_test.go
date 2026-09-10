@@ -10,6 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	"github.com/vixac/bullet/store/boltdb"
 	mongodb "github.com/vixac/bullet/store/mongo"
 	"github.com/vixac/bullet/store/ram"
@@ -43,10 +45,10 @@ func TestWarehouseHTTP(t *testing.T) {
 
 func testWarehouseHTTP(t *testing.T, store si.WarehouseStore) {
 	e := SetupWarehouseRouter(store, "/warehouse", gin.New())
-	req := si.PutBlobRequest{PutID: "retry", Value: []byte{0, 255}, ContentType: "application/octet-stream", Checksum: "unchecked"}
+	req := protocol.PutBlobRequest{PutID: "retry", Value: []byte{0, 255}, ContentType: "application/octet-stream", Checksum: "unchecked"}
 	w := warehouseRequest(t, e, "POST", "/warehouse/blobs", req, true)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	var b si.Blob
+	var b protocol.Blob
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &b))
 	require.Equal(t, req.Value, b.Value)
 	retry := warehouseRequest(t, e, "POST", "/warehouse/blobs", req, true)
@@ -56,9 +58,9 @@ func testWarehouseHTTP(t *testing.T, store si.WarehouseStore) {
 	require.JSONEq(t, w.Body.String(), got.Body.String())
 	many := warehouseRequest(t, e, "POST", "/warehouse/blobs/batch-get", gin.H{"ids": []string{string(b.ID), "missing"}}, true)
 	require.Equal(t, http.StatusOK, many.Code)
-	var blobs map[si.BlobID]si.Blob
+	var blobs map[model.BlobID]protocol.Blob
 	require.NoError(t, json.Unmarshal(many.Body.Bytes(), &blobs))
-	require.Equal(t, map[si.BlobID]si.Blob{b.ID: b}, blobs)
+	require.Equal(t, map[model.BlobID]protocol.Blob{b.ID: b}, blobs)
 	empty := warehouseRequest(t, e, "POST", "/warehouse/blobs/batch-get", gin.H{"ids": []string{}}, true)
 	require.JSONEq(t, "{}", empty.Body.String())
 	req.Checksum = "changed"

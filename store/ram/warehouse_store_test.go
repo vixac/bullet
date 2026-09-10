@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	si "github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 func TestWarehouseImmutableAndIsolated(t *testing.T) {
 	s := NewRamStore()
 	ctx := context.Background()
-	space := si.TenancySpace{AppId: 1, TenancyId: 2}
-	req := si.PutBlobRequest{PutID: "retry", ContentType: "application/octet-stream", Value: []byte{0, 255, 1}, Checksum: "opaque"}
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
+	req := model.PutBlobRequest{PutID: "retry", ContentType: "application/octet-stream", Value: []byte{0, 255, 1}, Checksum: "opaque"}
 	b, err := s.WarehousePut(ctx, space, req)
 	require.NoError(t, err)
 	original := cloneBlob(b)
@@ -29,7 +29,7 @@ func TestWarehouseImmutableAndIsolated(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, original, got)
 	got.Value[0] = 7
-	many, err := s.WarehouseGetMany(ctx, space, []si.BlobID{b.ID, b.ID, "missing"})
+	many, err := s.WarehouseGetMany(ctx, space, []model.BlobID{b.ID, b.ID, "missing"})
 	require.NoError(t, err)
 	require.Len(t, many, 1)
 	require.Equal(t, original, many[b.ID])
@@ -37,14 +37,14 @@ func TestWarehouseImmutableAndIsolated(t *testing.T) {
 	got, err = s.WarehouseGet(ctx, space, b.ID)
 	require.NoError(t, err)
 	require.Equal(t, original, got)
-	for _, other := range []si.TenancySpace{{AppId: 2, TenancyId: 2}, {AppId: 1, TenancyId: 3}} {
+	for _, other := range []model.TenancySpace{{AppId: 2, TenancyId: 2}, {AppId: 1, TenancyId: 3}} {
 		_, err := s.WarehouseGet(ctx, other, b.ID)
-		require.ErrorIs(t, err, si.ErrBlobNotFound)
+		require.ErrorIs(t, err, model.ErrBlobNotFound)
 		otherBlob, err := s.WarehousePut(ctx, other, req)
 		require.NoError(t, err)
 		require.NotEqual(t, b.ID, otherBlob.ID)
 	}
-	for _, ids := range [][]si.BlobID{nil, {"missing"}} {
+	for _, ids := range [][]model.BlobID{nil, {"missing"}} {
 		got, err := s.WarehouseGetMany(ctx, space, ids)
 		require.NoError(t, err)
 		require.NotNil(t, got)
@@ -55,8 +55,8 @@ func TestWarehouseImmutableAndIsolated(t *testing.T) {
 func TestWarehouseConflictsAndCancellation(t *testing.T) {
 	s := NewRamStore()
 	ctx := context.Background()
-	space := si.TenancySpace{}
-	req := si.PutBlobRequest{PutID: "p", Value: []byte("hello"), ContentType: "text/plain", Checksum: "metadata"}
+	space := model.TenancySpace{}
+	req := model.PutBlobRequest{PutID: "p", Value: []byte("hello"), ContentType: "text/plain", Checksum: "metadata"}
 	original, err := s.WarehousePut(ctx, space, req)
 	require.NoError(t, err)
 	for _, field := range []string{"value", "content_type", "checksum"} {
@@ -70,13 +70,13 @@ func TestWarehouseConflictsAndCancellation(t *testing.T) {
 			changed.Checksum = "other"
 		}
 		_, err := s.WarehousePut(ctx, space, changed)
-		require.ErrorIs(t, err, si.ErrWarehousePutConflict)
+		require.ErrorIs(t, err, model.ErrWarehousePutConflict)
 	}
-	_, err = s.WarehousePut(ctx, space, si.PutBlobRequest{})
-	require.ErrorIs(t, err, si.ErrWarehouseInvalidPutID)
+	_, err = s.WarehousePut(ctx, space, model.PutBlobRequest{})
+	require.ErrorIs(t, err, model.ErrWarehouseInvalidPutID)
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
-	_, err = s.WarehousePut(cancelled, space, si.PutBlobRequest{PutID: "cancelled"})
+	_, err = s.WarehousePut(cancelled, space, model.PutBlobRequest{PutID: "cancelled"})
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = s.WarehouseGet(cancelled, space, original.ID)
 	require.ErrorIs(t, err, context.Canceled)
@@ -90,13 +90,13 @@ func TestWarehouseConflictsAndCancellation(t *testing.T) {
 func TestWarehouseConcurrentRetries(t *testing.T) {
 	s := NewRamStore()
 	var wg sync.WaitGroup
-	ids := make(chan si.BlobID, 32)
+	ids := make(chan model.BlobID, 32)
 	errs := make(chan error, 32)
 	for i := 0; i < 32; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b, err := s.WarehousePut(context.Background(), si.TenancySpace{}, si.PutBlobRequest{PutID: "same", Value: []byte("value")})
+			b, err := s.WarehousePut(context.Background(), model.TenancySpace{}, model.PutBlobRequest{PutID: "same", Value: []byte("value")})
 			ids <- b.ID
 			errs <- err
 		}()
@@ -107,7 +107,7 @@ func TestWarehouseConcurrentRetries(t *testing.T) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	var first si.BlobID
+	var first model.BlobID
 	for id := range ids {
 		if first == "" {
 			first = id

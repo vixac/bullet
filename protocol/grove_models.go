@@ -1,4 +1,4 @@
-package model
+package protocol
 
 // ===== REQUESTS =====
 
@@ -38,11 +38,13 @@ type GroveNodeInfoResponse struct {
 }
 
 type GroveChildrenResponse struct {
-	Children []string `json:"children"`
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Children   []string            `json:"children"`
 }
 
 type GroveAncestorsResponse struct {
-	Ancestors []string `json:"ancestors"`
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Ancestors  []string            `json:"ancestors"`
 }
 
 type GroveAncestorsBulkResponse struct {
@@ -56,6 +58,7 @@ type GroveNodeWithDepth struct {
 }
 
 type GroveDescendantsResponse struct {
+	Pagination  *PaginationResponse  `json:"pagination,omitempty"`
 	Descendants []GroveNodeWithDepth `json:"descendants"`
 }
 

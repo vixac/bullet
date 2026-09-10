@@ -3,21 +3,22 @@ package migrator
 import (
 	"fmt"
 
+	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
 type GroveMigrator struct {
 	SourceGrove store_interface.GroveStore
 	TargetGrove store_interface.GroveStore
-	Tenancy     store_interface.TenancySpace
+	Tenancy     model.TenancySpace
 }
 
 // MigrateTree migrates a single tree's node structure from source to target.
 // Note: This migrates node hierarchy, positions, and metadata.
 // Aggregate migrations are not supported yet as mutation enumeration is not available in the interface.
-func (g *GroveMigrator) MigrateTree(treeID store_interface.TreeID, rootNode store_interface.NodeID) error {
+func (g *GroveMigrator) MigrateTree(treeID model.TreeID, rootNode model.NodeID) error {
 	// Get all descendants in breadth-first order (ensures parents are created before children)
-	opts := &store_interface.DescendantOptions{
+	opts := &model.DescendantOptions{
 		IncludeDepth: true,
 		BreadthFirst: true,
 	}
@@ -28,7 +29,7 @@ func (g *GroveMigrator) MigrateTree(treeID store_interface.TreeID, rootNode stor
 	}
 
 	// Start with the root node
-	allNodes := append([]store_interface.NodeWithDepth{{NodeID: rootNode, Depth: 0}}, descendants...)
+	allNodes := append([]model.NodeWithDepth{{NodeID: rootNode, Depth: 0}}, descendants...)
 
 	fmt.Printf("Grove: migrating tree %s with %d nodes\n", treeID, len(allNodes))
 
@@ -61,7 +62,7 @@ func (g *GroveMigrator) MigrateTree(treeID store_interface.TreeID, rootNode stor
 }
 
 // MigrateTrees migrates multiple trees
-func (g *GroveMigrator) MigrateTrees(trees map[store_interface.TreeID]store_interface.NodeID) error {
+func (g *GroveMigrator) MigrateTrees(trees map[model.TreeID]model.NodeID) error {
 	for treeID, rootNode := range trees {
 		if err := g.MigrateTree(treeID, rootNode); err != nil {
 			return err

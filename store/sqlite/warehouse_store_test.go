@@ -10,14 +10,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	si "github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 func TestWarehouseImmutableAndIsolated(t *testing.T) {
 	s := newWarehouseTestStore(t, ":memory:")
 	ctx := context.Background()
-	space := si.TenancySpace{AppId: 1, TenancyId: 2}
-	req := si.PutBlobRequest{PutID: "retry", ContentType: "application/octet-stream", Value: []byte{0, 255, 1}, Checksum: "opaque"}
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
+	req := model.PutBlobRequest{PutID: "retry", ContentType: "application/octet-stream", Value: []byte{0, 255, 1}, Checksum: "opaque"}
 	b, err := s.WarehousePut(ctx, space, req)
 	require.NoError(t, err)
 	original := b
@@ -34,7 +34,7 @@ func TestWarehouseImmutableAndIsolated(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, original, got)
 	got.Value[0] = 7
-	many, err := s.WarehouseGetMany(ctx, space, []si.BlobID{b.ID, b.ID, "missing"})
+	many, err := s.WarehouseGetMany(ctx, space, []model.BlobID{b.ID, b.ID, "missing"})
 	require.NoError(t, err)
 	require.Len(t, many, 1)
 	require.Equal(t, original, many[b.ID])
@@ -42,14 +42,14 @@ func TestWarehouseImmutableAndIsolated(t *testing.T) {
 	got, err = s.WarehouseGet(ctx, space, b.ID)
 	require.NoError(t, err)
 	require.Equal(t, original, got)
-	for _, other := range []si.TenancySpace{{AppId: 2, TenancyId: 2}, {AppId: 1, TenancyId: 3}} {
+	for _, other := range []model.TenancySpace{{AppId: 2, TenancyId: 2}, {AppId: 1, TenancyId: 3}} {
 		_, err := s.WarehouseGet(ctx, other, b.ID)
-		require.ErrorIs(t, err, si.ErrBlobNotFound)
+		require.ErrorIs(t, err, model.ErrBlobNotFound)
 		otherBlob, err := s.WarehousePut(ctx, other, req)
 		require.NoError(t, err)
 		require.NotEqual(t, b.ID, otherBlob.ID)
 	}
-	for _, ids := range [][]si.BlobID{nil, {"missing"}} {
+	for _, ids := range [][]model.BlobID{nil, {"missing"}} {
 		got, err := s.WarehouseGetMany(ctx, space, ids)
 		require.NoError(t, err)
 		require.NotNil(t, got)
@@ -60,8 +60,8 @@ func TestWarehouseImmutableAndIsolated(t *testing.T) {
 func TestWarehouseConflictsAndCancellation(t *testing.T) {
 	s := newWarehouseTestStore(t, ":memory:")
 	ctx := context.Background()
-	space := si.TenancySpace{}
-	req := si.PutBlobRequest{PutID: "p", Value: []byte("hello"), ContentType: "text/plain", Checksum: "metadata"}
+	space := model.TenancySpace{}
+	req := model.PutBlobRequest{PutID: "p", Value: []byte("hello"), ContentType: "text/plain", Checksum: "metadata"}
 	original, err := s.WarehousePut(ctx, space, req)
 	require.NoError(t, err)
 	for _, field := range []string{"value", "content_type", "checksum"} {
@@ -75,13 +75,13 @@ func TestWarehouseConflictsAndCancellation(t *testing.T) {
 			changed.Checksum = "other"
 		}
 		_, err := s.WarehousePut(ctx, space, changed)
-		require.ErrorIs(t, err, si.ErrWarehousePutConflict)
+		require.ErrorIs(t, err, model.ErrWarehousePutConflict)
 	}
-	_, err = s.WarehousePut(ctx, space, si.PutBlobRequest{})
-	require.ErrorIs(t, err, si.ErrWarehouseInvalidPutID)
+	_, err = s.WarehousePut(ctx, space, model.PutBlobRequest{})
+	require.ErrorIs(t, err, model.ErrWarehouseInvalidPutID)
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
-	_, err = s.WarehousePut(cancelled, space, si.PutBlobRequest{PutID: "cancelled"})
+	_, err = s.WarehousePut(cancelled, space, model.PutBlobRequest{PutID: "cancelled"})
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = s.WarehouseGet(cancelled, space, original.ID)
 	require.ErrorIs(t, err, context.Canceled)
@@ -95,13 +95,13 @@ func TestWarehouseConflictsAndCancellation(t *testing.T) {
 func TestWarehouseConcurrentRetries(t *testing.T) {
 	s := newWarehouseTestStore(t, ":memory:")
 	var wg sync.WaitGroup
-	ids := make(chan si.BlobID, 32)
+	ids := make(chan model.BlobID, 32)
 	errs := make(chan error, 32)
 	for i := 0; i < 32; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b, err := s.WarehousePut(context.Background(), si.TenancySpace{}, si.PutBlobRequest{PutID: "same", Value: []byte("value")})
+			b, err := s.WarehousePut(context.Background(), model.TenancySpace{}, model.PutBlobRequest{PutID: "same", Value: []byte("value")})
 			ids <- b.ID
 			errs <- err
 		}()
@@ -112,7 +112,7 @@ func TestWarehouseConcurrentRetries(t *testing.T) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	var first si.BlobID
+	var first model.BlobID
 	for id := range ids {
 		if first == "" {
 			first = id
@@ -140,8 +140,8 @@ func TestWarehousePersistenceAndExistingDatabase(t *testing.T) {
 	require.NoError(t, db.Close())
 	s := newWarehouseTestStore(t, path)
 	ctx := context.Background()
-	space := si.TenancySpace{AppId: 1, TenancyId: 2}
-	req := si.PutBlobRequest{PutID: "persist", ContentType: "binary", Value: []byte{0, 255, 0}, Checksum: "opaque"}
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
+	req := model.PutBlobRequest{PutID: "persist", ContentType: "binary", Value: []byte{0, 255, 0}, Checksum: "opaque"}
 	b, err := s.WarehousePut(ctx, space, req)
 	require.NoError(t, err)
 	require.NoError(t, s.db.Close())
@@ -154,7 +154,7 @@ func TestWarehousePersistenceAndExistingDatabase(t *testing.T) {
 	require.Equal(t, b, retry)
 	req.Value = []byte("changed")
 	_, err = reopened.WarehousePut(ctx, space, req)
-	require.ErrorIs(t, err, si.ErrWarehousePutConflict)
+	require.ErrorIs(t, err, model.ErrWarehousePutConflict)
 	value, err := reopened.DepotGet(space, 1)
 	require.NoError(t, err)
 	require.Equal(t, "existing", value)
@@ -163,19 +163,19 @@ func TestWarehousePersistenceAndExistingDatabase(t *testing.T) {
 func TestWarehouseEmptyAndLargeBatch(t *testing.T) {
 	s := newWarehouseTestStore(t, ":memory:")
 	ctx := context.Background()
-	space := si.TenancySpace{}
+	space := model.TenancySpace{}
 	for _, value := range [][]byte{nil, {}} {
-		b, err := s.WarehousePut(ctx, space, si.PutBlobRequest{PutID: "empty", Value: value})
+		b, err := s.WarehousePut(ctx, space, model.PutBlobRequest{PutID: "empty", Value: value})
 		require.NoError(t, err)
 		require.Empty(t, b.Value)
 	}
-	ids := make([]si.BlobID, 1900)
+	ids := make([]model.BlobID, 1900)
 	for i := range ids {
-		ids[i] = si.BlobID(fmt.Sprintf("missing-%d", i))
+		ids[i] = model.BlobID(fmt.Sprintf("missing-%d", i))
 	}
-	expected := make(map[si.BlobID]si.Blob)
+	expected := make(map[model.BlobID]model.Blob)
 	for _, i := range []int{0, 899, 900, 1799, 1800, 1899} {
-		b, err := s.WarehousePut(ctx, space, si.PutBlobRequest{PutID: si.PutID(fmt.Sprint(i)), Value: []byte{0, 255}})
+		b, err := s.WarehousePut(ctx, space, model.PutBlobRequest{PutID: model.PutID(fmt.Sprint(i)), Value: []byte{0, 255}})
 		require.NoError(t, err)
 		ids[i] = b.ID
 		expected[b.ID] = b
@@ -189,9 +189,9 @@ func TestWarehouseConcurrentStoreInstances(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "concurrent.db")
 	stores := []*SQLiteStore{newWarehouseTestStore(t, path), newWarehouseTestStore(t, path)}
 	ctx := context.Background()
-	space := si.TenancySpace{}
+	space := model.TenancySpace{}
 	type outcome struct {
-		blob  si.Blob
+		blob  model.Blob
 		err   error
 		value string
 	}
@@ -201,12 +201,12 @@ func TestWarehouseConcurrentStoreInstances(t *testing.T) {
 		go func(i int) {
 			<-start
 			value := fmt.Sprint(i % 2)
-			b, err := stores[i%2].WarehousePut(ctx, space, si.PutBlobRequest{PutID: "race", Value: []byte(value)})
+			b, err := stores[i%2].WarehousePut(ctx, space, model.PutBlobRequest{PutID: "race", Value: []byte(value)})
 			results <- outcome{b, err, value}
 		}(i)
 	}
 	close(start)
-	var winner si.Blob
+	var winner model.Blob
 	var outcomes []outcome
 	for i := 0; i < 32; i++ {
 		result := <-results
@@ -221,7 +221,7 @@ func TestWarehouseConcurrentStoreInstances(t *testing.T) {
 			require.NoError(t, result.err)
 			require.Equal(t, winner, result.blob)
 		} else {
-			require.ErrorIs(t, result.err, si.ErrWarehousePutConflict)
+			require.ErrorIs(t, result.err, model.ErrWarehousePutConflict)
 		}
 	}
 	var count int

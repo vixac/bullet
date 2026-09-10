@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	"github.com/vixac/bullet/store/ram"
 )
 
@@ -47,7 +47,7 @@ func (g *groveClient) do(method, path string, body any) *http.Response {
 
 func (g *groveClient) createNode(nodeID string, parentID *string) {
 	g.t.Helper()
-	resp := g.do(http.MethodPost, "/nodes", model.GroveCreateNodeRequest{
+	resp := g.do(http.MethodPost, "/nodes", protocol.GroveCreateNodeRequest{
 		NodeID:   nodeID,
 		ParentID: parentID,
 	})
@@ -70,13 +70,13 @@ func TestGroveBasicTree(t *testing.T) {
 	// Exists
 	existsResp := c.do(http.MethodGet, "/nodes/root/exists", nil)
 	assert.Equal(t, http.StatusOK, existsResp.StatusCode)
-	var existsBody model.GroveExistsResponse
+	var existsBody protocol.GroveExistsResponse
 	json.NewDecoder(existsResp.Body).Decode(&existsBody)
 	existsResp.Body.Close()
 	assert.True(t, existsBody.Exists)
 
 	noExistsResp := c.do(http.MethodGet, "/nodes/ghost/exists", nil)
-	var noExistsBody model.GroveExistsResponse
+	var noExistsBody protocol.GroveExistsResponse
 	json.NewDecoder(noExistsResp.Body).Decode(&noExistsBody)
 	noExistsResp.Body.Close()
 	assert.False(t, noExistsBody.Exists)
@@ -84,7 +84,7 @@ func TestGroveBasicTree(t *testing.T) {
 	// Node info for A
 	infoResp := c.do(http.MethodGet, "/nodes/A", nil)
 	assert.Equal(t, http.StatusOK, infoResp.StatusCode)
-	var infoBody model.GroveNodeInfoResponse
+	var infoBody protocol.GroveNodeInfoResponse
 	json.NewDecoder(infoResp.Body).Decode(&infoBody)
 	infoResp.Body.Close()
 	assert.Equal(t, "A", infoBody.ID)
@@ -95,7 +95,7 @@ func TestGroveBasicTree(t *testing.T) {
 	// Children of root
 	childResp := c.do(http.MethodGet, "/nodes/root/children", nil)
 	assert.Equal(t, http.StatusOK, childResp.StatusCode)
-	var childBody model.GroveChildrenResponse
+	var childBody protocol.GroveChildrenResponse
 	json.NewDecoder(childResp.Body).Decode(&childBody)
 	childResp.Body.Close()
 	assert.ElementsMatch(t, []string{"A", "C"}, childBody.Children)
@@ -103,7 +103,7 @@ func TestGroveBasicTree(t *testing.T) {
 	// Ancestors of B
 	ancestorResp := c.do(http.MethodGet, "/nodes/B/ancestors", nil)
 	assert.Equal(t, http.StatusOK, ancestorResp.StatusCode)
-	var ancestorBody model.GroveAncestorsResponse
+	var ancestorBody protocol.GroveAncestorsResponse
 	json.NewDecoder(ancestorResp.Body).Decode(&ancestorBody)
 	ancestorResp.Body.Close()
 	assert.Contains(t, ancestorBody.Ancestors, "A")
@@ -112,7 +112,7 @@ func TestGroveBasicTree(t *testing.T) {
 	// Descendants of root
 	descResp := c.do(http.MethodGet, "/nodes/root/descendants", nil)
 	assert.Equal(t, http.StatusOK, descResp.StatusCode)
-	var descBody model.GroveDescendantsResponse
+	var descBody protocol.GroveDescendantsResponse
 	json.NewDecoder(descResp.Body).Decode(&descBody)
 	descResp.Body.Close()
 	descIDs := make([]string, len(descBody.Descendants))
@@ -131,13 +131,13 @@ func TestGroveMoveNode(t *testing.T) {
 	c.createNode("C", ptr("root"))
 
 	// Move C to be a child of A
-	moveResp := c.do(http.MethodPatch, "/nodes/C", model.GroveMoveNodeRequest{NewParentID: ptr("A")})
+	moveResp := c.do(http.MethodPatch, "/nodes/C", protocol.GroveMoveNodeRequest{NewParentID: ptr("A")})
 	assert.Equal(t, http.StatusOK, moveResp.StatusCode)
 	moveResp.Body.Close()
 
 	// Ancestors of C should now include A and root
 	ancestorResp := c.do(http.MethodGet, "/nodes/C/ancestors", nil)
-	var ancestorBody model.GroveAncestorsResponse
+	var ancestorBody protocol.GroveAncestorsResponse
 	json.NewDecoder(ancestorResp.Body).Decode(&ancestorBody)
 	ancestorResp.Body.Close()
 	assert.Contains(t, ancestorBody.Ancestors, "A")
@@ -156,7 +156,7 @@ func TestGroveDeleteNode(t *testing.T) {
 	delResp.Body.Close()
 
 	existsResp := c.do(http.MethodGet, "/nodes/leaf/exists", nil)
-	var existsBody model.GroveExistsResponse
+	var existsBody protocol.GroveExistsResponse
 	json.NewDecoder(existsResp.Body).Decode(&existsBody)
 	existsResp.Body.Close()
 	assert.False(t, existsBody.Exists)
@@ -171,7 +171,7 @@ func TestGroveAggregates(t *testing.T) {
 	c.createNode("B", ptr("A"))
 
 	// Apply mutation to A
-	mutResp := c.do(http.MethodPost, "/nodes/A/mutations", model.GroveApplyMutationRequest{
+	mutResp := c.do(http.MethodPost, "/nodes/A/mutations", protocol.GroveApplyMutationRequest{
 		MutationID: "mut1",
 		Deltas:     map[string]int64{"score": 10, "count": 1},
 	})
@@ -179,7 +179,7 @@ func TestGroveAggregates(t *testing.T) {
 	mutResp.Body.Close()
 
 	// Apply mutation to B
-	mutResp2 := c.do(http.MethodPost, "/nodes/B/mutations", model.GroveApplyMutationRequest{
+	mutResp2 := c.do(http.MethodPost, "/nodes/B/mutations", protocol.GroveApplyMutationRequest{
 		MutationID: "mut2",
 		Deltas:     map[string]int64{"score": 5},
 	})
@@ -187,7 +187,7 @@ func TestGroveAggregates(t *testing.T) {
 	mutResp2.Body.Close()
 
 	// Idempotency: applying same mutation again should be a no-op (409)
-	idempResp := c.do(http.MethodPost, "/nodes/A/mutations", model.GroveApplyMutationRequest{
+	idempResp := c.do(http.MethodPost, "/nodes/A/mutations", protocol.GroveApplyMutationRequest{
 		MutationID: "mut1",
 		Deltas:     map[string]int64{"score": 10},
 	})
@@ -197,7 +197,7 @@ func TestGroveAggregates(t *testing.T) {
 	// Local aggregates on A (score=10, count=1 — B's score not included)
 	localResp := c.do(http.MethodGet, "/nodes/A/aggregates/local", nil)
 	assert.Equal(t, http.StatusOK, localResp.StatusCode)
-	var localBody model.GroveAggregatesResponse
+	var localBody protocol.GroveAggregatesResponse
 	json.NewDecoder(localResp.Body).Decode(&localBody)
 	localResp.Body.Close()
 	assert.Equal(t, int64(10), localBody.Aggregates["score"])
@@ -206,7 +206,7 @@ func TestGroveAggregates(t *testing.T) {
 	// Subtree aggregates on A (score = 10+5 = 15)
 	subtreeResp := c.do(http.MethodGet, "/nodes/A/aggregates", nil)
 	assert.Equal(t, http.StatusOK, subtreeResp.StatusCode)
-	var subtreeBody model.GroveAggregatesResponse
+	var subtreeBody protocol.GroveAggregatesResponse
 	json.NewDecoder(subtreeResp.Body).Decode(&subtreeBody)
 	subtreeResp.Body.Close()
 	assert.Equal(t, int64(15), subtreeBody.Aggregates["score"])
@@ -221,19 +221,19 @@ func TestGroveBulkOps(t *testing.T) {
 	c.createNode("B", ptr("A"))
 
 	// Apply some mutations
-	c.do(http.MethodPost, "/nodes/A/mutations", model.GroveApplyMutationRequest{
+	c.do(http.MethodPost, "/nodes/A/mutations", protocol.GroveApplyMutationRequest{
 		MutationID: "m1", Deltas: map[string]int64{"pts": 20},
 	}).Body.Close()
-	c.do(http.MethodPost, "/nodes/B/mutations", model.GroveApplyMutationRequest{
+	c.do(http.MethodPost, "/nodes/B/mutations", protocol.GroveApplyMutationRequest{
 		MutationID: "m2", Deltas: map[string]int64{"pts": 10},
 	}).Body.Close()
 
 	// Bulk ancestors for A and B
-	bulkAncResp := c.do(http.MethodPost, "/bulk/ancestors", model.GroveBulkNodesRequest{
+	bulkAncResp := c.do(http.MethodPost, "/bulk/ancestors", protocol.GroveBulkNodesRequest{
 		NodeIDs: []string{"A", "B"},
 	})
 	assert.Equal(t, http.StatusOK, bulkAncResp.StatusCode)
-	var bulkAncBody model.GroveAncestorsBulkResponse
+	var bulkAncBody protocol.GroveAncestorsBulkResponse
 	json.NewDecoder(bulkAncResp.Body).Decode(&bulkAncBody)
 	bulkAncResp.Body.Close()
 	assert.Contains(t, bulkAncBody.Ancestors["A"], "root")
@@ -241,11 +241,11 @@ func TestGroveBulkOps(t *testing.T) {
 	assert.Contains(t, bulkAncBody.Ancestors["B"], "root")
 
 	// Bulk local aggregates
-	bulkLocalResp := c.do(http.MethodPost, "/bulk/aggregates/local", model.GroveBulkNodesRequest{
+	bulkLocalResp := c.do(http.MethodPost, "/bulk/aggregates/local", protocol.GroveBulkNodesRequest{
 		NodeIDs: []string{"A", "B", "missing"},
 	})
 	assert.Equal(t, http.StatusOK, bulkLocalResp.StatusCode)
-	var bulkLocalBody model.GroveAggregatesBulkResponse
+	var bulkLocalBody protocol.GroveAggregatesBulkResponse
 	json.NewDecoder(bulkLocalResp.Body).Decode(&bulkLocalBody)
 	bulkLocalResp.Body.Close()
 	assert.Equal(t, int64(20), bulkLocalBody.Aggregates["A"]["pts"])
@@ -253,11 +253,11 @@ func TestGroveBulkOps(t *testing.T) {
 	assert.Contains(t, bulkLocalBody.Missing, "missing")
 
 	// Bulk subtree aggregates
-	bulkSubResp := c.do(http.MethodPost, "/bulk/aggregates", model.GroveBulkNodesRequest{
+	bulkSubResp := c.do(http.MethodPost, "/bulk/aggregates", protocol.GroveBulkNodesRequest{
 		NodeIDs: []string{"A"},
 	})
 	assert.Equal(t, http.StatusOK, bulkSubResp.StatusCode)
-	var bulkSubBody model.GroveAggregatesBulkResponse
+	var bulkSubBody protocol.GroveAggregatesBulkResponse
 	json.NewDecoder(bulkSubResp.Body).Decode(&bulkSubBody)
 	bulkSubResp.Body.Close()
 	// A subtree includes B, so total pts = 20+10 = 30
@@ -280,7 +280,7 @@ func TestGroveConflict(t *testing.T) {
 	c.createNode("root", nil)
 
 	// Creating the same node twice → 409
-	dupResp := c.do(http.MethodPost, "/nodes", model.GroveCreateNodeRequest{NodeID: "root"})
+	dupResp := c.do(http.MethodPost, "/nodes", protocol.GroveCreateNodeRequest{NodeID: "root"})
 	assert.Equal(t, http.StatusConflict, dupResp.StatusCode)
 	dupResp.Body.Close()
 }

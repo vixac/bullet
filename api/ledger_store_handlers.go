@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -22,20 +23,20 @@ func SetupLedgerRouter(store store_interface.LedgerStore, prefix string, engine 
 	return engine
 }
 
-func ledgerSelector(req model.LedgerSelectorRequest) store_interface.LedgerSelector {
-	ids := make([]store_interface.LedgerID, len(req.LedgerIDs))
+func ledgerSelector(req protocol.LedgerSelectorRequest) model.LedgerSelector {
+	ids := make([]model.LedgerID, len(req.LedgerIDs))
 	for i, id := range req.LedgerIDs {
-		ids[i] = store_interface.LedgerID(id)
+		ids[i] = model.LedgerID(id)
 	}
-	return store_interface.LedgerSelector{All: req.All, LedgerIDs: ids, Prefix: req.Prefix}
+	return model.LedgerSelector{All: req.All, LedgerIDs: ids, Prefix: req.Prefix}
 }
 
-func ledgerRecordResponse(record store_interface.LedgerRecord) model.LedgerRecordResponse {
-	return model.LedgerRecordResponse{LedgerID: string(record.LedgerID), Position: strconv.FormatInt(int64(record.Position), 10), AppendID: string(record.AppendID), CreatedAt: record.CreatedAt, Payload: record.Payload}
+func ledgerRecordResponse(record model.LedgerRecord) protocol.LedgerRecordResponse {
+	return protocol.LedgerRecordResponse{LedgerID: string(record.LedgerID), Position: strconv.FormatInt(int64(record.Position), 10), AppendID: string(record.AppendID), CreatedAt: record.CreatedAt, Payload: record.Payload}
 }
 
-func ledgerRecordsResponse(records []store_interface.LedgerRecord) []model.LedgerRecordResponse {
-	result := make([]model.LedgerRecordResponse, len(records))
+func ledgerRecordsResponse(records []model.LedgerRecord) []protocol.LedgerRecordResponse {
+	result := make([]protocol.LedgerRecordResponse, len(records))
 	for i, record := range records {
 		result[i] = ledgerRecordResponse(record)
 	}
@@ -45,15 +46,15 @@ func ledgerRecordsResponse(records []store_interface.LedgerRecord) []model.Ledge
 func (h *ledgerHandler) appendOne(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
-	var req model.LedgerAppendRequest
+	var req protocol.LedgerAppendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
-	record, err := h.store.LedgerAppend(space, store_interface.LedgerID(c.Param("ledgerId")), store_interface.LedgerAppendID(req.AppendID), req.Payload)
+	record, err := h.store.LedgerAppend(space, model.LedgerID(c.Param("ledgerId")), model.LedgerAppendID(req.AppendID), req.Payload)
 	if err != nil {
 		respondError(c, err)
 		return
@@ -65,36 +66,36 @@ func (h *ledgerHandler) appendOne(c *gin.Context) {
 func (h *ledgerHandler) appendMany(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
-	var req model.LedgerAppendManyRequest
+	var req protocol.LedgerAppendManyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
-	items := make([]store_interface.LedgerAppendItem, len(req.Items))
+	items := make([]model.LedgerAppendItem, len(req.Items))
 	for i, item := range req.Items {
-		items[i] = store_interface.LedgerAppendItem{AppendID: store_interface.LedgerAppendID(item.AppendID), Payload: item.Payload}
+		items[i] = model.LedgerAppendItem{AppendID: model.LedgerAppendID(item.AppendID), Payload: item.Payload}
 	}
-	records, err := h.store.LedgerAppendMany(space, store_interface.LedgerID(c.Param("ledgerId")), items)
+	records, err := h.store.LedgerAppendMany(space, model.LedgerID(c.Param("ledgerId")), items)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "ledger", "written", len(records))
-	c.JSON(http.StatusCreated, model.LedgerAppendManyResponse{Records: ledgerRecordsResponse(records)})
+	c.JSON(http.StatusCreated, protocol.LedgerAppendManyResponse{Records: ledgerRecordsResponse(records)})
 }
 
 func (h *ledgerHandler) readBackward(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
-	var req model.LedgerReadBackwardRequest
+	var req protocol.LedgerReadBackwardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	page, err := h.store.LedgerReadBackward(space, ledgerSelector(req.LedgerSelectorRequest), req.Cursor, req.Limit)
@@ -103,38 +104,38 @@ func (h *ledgerHandler) readBackward(c *gin.Context) {
 		return
 	}
 	incrementObjects(c, "ledger", "read", len(page.Records))
-	c.JSON(http.StatusOK, model.LedgerPageResponse{Records: ledgerRecordsResponse(page.Records), NextCursor: page.NextCursor})
+	c.JSON(http.StatusOK, protocol.LedgerPageResponse{Records: ledgerRecordsResponse(page.Records), NextCursor: page.NextCursor})
 }
 
-func parseLedgerPosition(value string) (store_interface.LedgerPosition, error) {
+func parseLedgerPosition(value string) (model.LedgerPosition, error) {
 	if value == "" {
 		return 0, nil
 	}
 	position, err := strconv.ParseInt(value, 10, 64)
-	return store_interface.LedgerPosition(position), err
+	return model.LedgerPosition(position), err
 }
 
 func (h *ledgerHandler) readForward(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
-	var req model.LedgerReadForwardRequest
+	var req protocol.LedgerReadForwardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
 	after, err := parseLedgerPosition(req.AfterPosition)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid after_position"})
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid after_position"})
 		return
 	}
-	var through *store_interface.LedgerPosition
+	var through *model.LedgerPosition
 	if req.ThroughPosition != nil {
 		parsed, err := parseLedgerPosition(*req.ThroughPosition)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid through_position"})
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "invalid through_position"})
 			return
 		}
 		through = &parsed
@@ -145,16 +146,16 @@ func (h *ledgerHandler) readForward(c *gin.Context) {
 		return
 	}
 	incrementObjects(c, "ledger", "read", len(records))
-	c.JSON(http.StatusOK, model.LedgerReadForwardResponse{Records: ledgerRecordsResponse(records)})
+	c.JSON(http.StatusOK, protocol.LedgerReadForwardResponse{Records: ledgerRecordsResponse(records)})
 }
 
 func (h *ledgerHandler) deleteLedger(c *gin.Context) {
 	space, err := extractSpace(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
-	if err := h.store.LedgerDelete(space, store_interface.LedgerID(c.Param("ledgerId"))); err != nil {
+	if err := h.store.LedgerDelete(space, model.LedgerID(c.Param("ledgerId"))); err != nil {
 		respondError(c, err)
 		return
 	}

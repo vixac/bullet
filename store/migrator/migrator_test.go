@@ -1,10 +1,10 @@
 package migrator
 
 import (
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
-var testTenancy = store_interface.TenancySpace{
+var testTenancy = model.TenancySpace{
 	AppId:     1,
 	TenancyId: 100,
 }
@@ -159,18 +159,18 @@ func TestGroveMigrator(t *testing.T) {
 	source := ram.NewRamStore()
 	target := ram.NewRamStore()
 
-	treeID := store_interface.TreeID("test-tree")
-	root := store_interface.NodeID("root")
-	child1 := store_interface.NodeID("child1")
-	child2 := store_interface.NodeID("child2")
-	grandchild := store_interface.NodeID("grandchild")
+	treeID := model.TreeID("test-tree")
+	root := model.NodeID("root")
+	child1 := model.NodeID("child1")
+	child2 := model.NodeID("child2")
+	grandchild := model.NodeID("grandchild")
 
-	pos1 := store_interface.ChildPosition(1.0)
-	pos2 := store_interface.ChildPosition(2.0)
-	pos3 := store_interface.ChildPosition(1.0)
+	pos1 := model.ChildPosition(1.0)
+	pos2 := model.ChildPosition(2.0)
+	pos3 := model.ChildPosition(1.0)
 
-	metadata1 := store_interface.NodeMetadata{"name": "root node"}
-	metadata2 := store_interface.NodeMetadata{"name": "child 1"}
+	metadata1 := model.NodeMetadata{"name": "root node"}
+	metadata2 := model.NodeMetadata{"name": "child 1"}
 
 	// Build a tree structure in source
 	// root

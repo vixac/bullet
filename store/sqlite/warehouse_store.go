@@ -8,30 +8,30 @@ import (
 	"errors"
 	"time"
 
-	si "github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 const warehouseColumns = `id, put_id, content_type, value, checksum, created_at_ns`
 
-func scanWarehouseBlob(row interface{ Scan(...any) error }) (si.Blob, error) {
-	var b si.Blob
+func scanWarehouseBlob(row interface{ Scan(...any) error }) (model.Blob, error) {
+	var b model.Blob
 	var createdAt int64
 	if err := row.Scan(&b.ID, &b.PutID, &b.ContentType, &b.Value, &b.Checksum, &createdAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return si.Blob{}, si.ErrBlobNotFound
+			return model.Blob{}, model.ErrBlobNotFound
 		}
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	b.CreatedAt = time.Unix(0, createdAt).UTC()
 	return b, nil
 }
 
-func (s *SQLiteStore) WarehousePut(ctx context.Context, space si.TenancySpace, req si.PutBlobRequest) (si.Blob, error) {
+func (s *SQLiteStore) WarehousePut(ctx context.Context, space model.TenancySpace, req model.PutBlobRequest) (model.Blob, error) {
 	if err := ctx.Err(); err != nil {
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	if req.PutID == "" {
-		return si.Blob{}, si.ErrWarehouseInvalidPutID
+		return model.Blob{}, model.ErrWarehouseInvalidPutID
 	}
 	// Insert first: the unique constraint arbitrates concurrent retries, including
 	// writers using different store instances. Never overwrite an existing blob.
@@ -41,30 +41,30 @@ func (s *SQLiteStore) WarehousePut(ctx context.Context, space si.TenancySpace, r
   ON CONFLICT(app_id, tenancy_id, put_id) DO NOTHING`,
 		space.AppId, space.TenancyId, rand.Text(), req.PutID, req.ContentType, req.Value, req.Checksum, time.Now().UTC().UnixNano())
 	if err != nil {
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	// Blobs are immutable, so a separate read safely returns the winning insert.
 	b, err := scanWarehouseBlob(s.db.QueryRowContext(ctx, `SELECT `+warehouseColumns+`
   FROM warehouse WHERE app_id=? AND tenancy_id=? AND put_id=?`, space.AppId, space.TenancyId, req.PutID))
 	if err != nil {
-		return si.Blob{}, err
+		return model.Blob{}, err
 	}
 	if b.ContentType != req.ContentType || b.Checksum != req.Checksum || !bytes.Equal(b.Value, req.Value) {
-		return si.Blob{}, si.ErrWarehousePutConflict
+		return model.Blob{}, model.ErrWarehousePutConflict
 	}
 	return b, nil
 }
 
-func (s *SQLiteStore) WarehouseGet(ctx context.Context, space si.TenancySpace, id si.BlobID) (si.Blob, error) {
+func (s *SQLiteStore) WarehouseGet(ctx context.Context, space model.TenancySpace, id model.BlobID) (model.Blob, error) {
 	return scanWarehouseBlob(s.db.QueryRowContext(ctx, `SELECT `+warehouseColumns+`
   FROM warehouse WHERE app_id=? AND tenancy_id=? AND id=?`, space.AppId, space.TenancyId, id))
 }
 
-func (s *SQLiteStore) WarehouseGetMany(ctx context.Context, space si.TenancySpace, ids []si.BlobID) (map[si.BlobID]si.Blob, error) {
+func (s *SQLiteStore) WarehouseGetMany(ctx context.Context, space model.TenancySpace, ids []model.BlobID) (map[model.BlobID]model.Blob, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	result := make(map[si.BlobID]si.Blob)
+	result := make(map[model.BlobID]model.Blob)
 	// Bound SQL parameters, not the public batch size. This also supports SQLite
 	// builds with the older 999-variable limit.
 	const chunkSize = 900

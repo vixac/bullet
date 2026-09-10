@@ -4,15 +4,14 @@ import (
 	"sync"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 )
 
 // Internal node data structure for Grove
 type nodeData struct {
-	id       store_interface.NodeID
-	parent   *store_interface.NodeID
-	position *store_interface.ChildPosition
-	metadata *store_interface.NodeMetadata
+	id       model.NodeID
+	parent   *model.NodeID
+	position *model.ChildPosition
+	metadata *model.NodeMetadata
 	depth    int // absolute depth from tree root
 }
 
@@ -23,30 +22,30 @@ type depotEntry struct {
 
 type RamStore struct {
 	mu        sync.RWMutex
-	warehouse map[store_interface.TenancySpace]*warehouseSpace
+	warehouse map[model.TenancySpace]*warehouseSpace
 
-	tracks         map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
-	trackMutations map[store_interface.MutationID]struct{}
-	depots         map[store_interface.TenancySpace]map[int64]depotEntry // space -> id -> entry
-	depotNextIDs   map[store_interface.TenancySpace]int64                // space -> next auto-increment id
-	ledgers        map[store_interface.TenancySpace]*ledgerSpaceData
+	tracks         map[model.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
+	trackMutations map[model.MutationID]struct{}
+	depots         map[model.TenancySpace]map[int64]depotEntry // space -> id -> entry
+	depotNextIDs   map[model.TenancySpace]int64                // space -> next auto-increment id
+	ledgers        map[model.TenancySpace]*ledgerSpaceData
 
 	// Grove data structures (with TreeID for logical tree separation)
-	groveNodes        map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
-	groveClosure      map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.NodeID]int // ancestor -> descendant -> relative_depth
-	groveChildren     map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID][]store_interface.NodeID       // parent -> ordered children
-	groveDeletedNodes map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]*nodeData
-	groveMutations    map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.MutationID]bool
-	groveAggregates   map[store_interface.TenancySpace]map[store_interface.TreeID]map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue
+	groveNodes        map[model.TenancySpace]map[model.TreeID]map[model.NodeID]*nodeData
+	groveClosure      map[model.TenancySpace]map[model.TreeID]map[model.NodeID]map[model.NodeID]int // ancestor -> descendant -> relative_depth
+	groveChildren     map[model.TenancySpace]map[model.TreeID]map[model.NodeID][]model.NodeID       // parent -> ordered children
+	groveDeletedNodes map[model.TenancySpace]map[model.TreeID]map[model.NodeID]*nodeData
+	groveMutations    map[model.TenancySpace]map[model.TreeID]map[model.NodeID]map[model.MutationID]bool
+	groveAggregates   map[model.TenancySpace]map[model.TreeID]map[model.NodeID]map[model.AggregateKey]model.AggregateValue
 }
 
 // NewRamStore returns a new empty in-memory store
 func NewRamStore() *RamStore {
 	return &RamStore{
-		tracks:         make(map[store_interface.TenancySpace]map[int32]map[string]model.TrackValue),
-		trackMutations: make(map[store_interface.MutationID]struct{}),
-		depots:         make(map[store_interface.TenancySpace]map[int64]depotEntry),
-		depotNextIDs:   make(map[store_interface.TenancySpace]int64),
-		ledgers:        make(map[store_interface.TenancySpace]*ledgerSpaceData),
+		tracks:         make(map[model.TenancySpace]map[int32]map[string]model.TrackValue),
+		trackMutations: make(map[model.MutationID]struct{}),
+		depots:         make(map[model.TenancySpace]map[int64]depotEntry),
+		depotNextIDs:   make(map[model.TenancySpace]int64),
+		ledgers:        make(map[model.TenancySpace]*ledgerSpaceData),
 	}
 }

@@ -3,63 +3,63 @@ package mongodb
 import (
 	"errors"
 
-	"github.com/vixac/bullet/store/store_interface"
+	"github.com/vixac/bullet/model"
 )
 
 var ErrGroveNotImplemented = errors.New("grove operations not yet implemented for mongodb")
 
-func (m *MongoStore) CreateNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, parent *store_interface.NodeID, position *store_interface.ChildPosition, metadata *store_interface.NodeMetadata) error {
+func (m *MongoStore) CreateNode(space model.TenancySpace, treeID model.TreeID, node model.NodeID, parent *model.NodeID, position *model.ChildPosition, metadata *model.NodeMetadata) error {
 	return ErrGroveNotImplemented
 }
 
-func (m *MongoStore) DeleteNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, soft bool) error {
+func (m *MongoStore) DeleteNode(space model.TenancySpace, treeID model.TreeID, node model.NodeID, soft bool) error {
 	return ErrGroveNotImplemented
 }
 
-func (m *MongoStore) MoveNode(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, newParent *store_interface.NodeID, newPosition *store_interface.ChildPosition) error {
+func (m *MongoStore) MoveNode(space model.TenancySpace, treeID model.TreeID, node model.NodeID, newParent *model.NodeID, newPosition *model.ChildPosition) error {
 	return ErrGroveNotImplemented
 }
 
-func (m *MongoStore) Exists(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (bool, error) {
+func (m *MongoStore) Exists(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (bool, error) {
 	return false, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetNodeInfo(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (*store_interface.NodeInfo, error) {
+func (m *MongoStore) GetNodeInfo(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (*model.NodeInfo, error) {
 	return nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetChildren(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, pagination *store_interface.PaginationParams) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
+func (m *MongoStore) GetChildren(space model.TenancySpace, treeID model.TreeID, node model.NodeID, pagination *model.PaginationParams) ([]model.NodeID, *model.PaginationResult, error) {
 	return nil, nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetAncestors(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, pagination *store_interface.PaginationParams) ([]store_interface.NodeID, *store_interface.PaginationResult, error) {
+func (m *MongoStore) GetAncestors(space model.TenancySpace, treeID model.TreeID, node model.NodeID, pagination *model.PaginationParams) ([]model.NodeID, *model.PaginationResult, error) {
 	return nil, nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetAncestorsBulk(space store_interface.TenancySpace, treeID store_interface.TreeID, nodes []store_interface.NodeID) (map[store_interface.NodeID][]store_interface.NodeID, []store_interface.NodeID, error) {
+func (m *MongoStore) GetAncestorsBulk(space model.TenancySpace, treeID model.TreeID, nodes []model.NodeID) (map[model.NodeID][]model.NodeID, []model.NodeID, error) {
 	return nil, nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetDescendants(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID, opts *store_interface.DescendantOptions) ([]store_interface.NodeWithDepth, *store_interface.PaginationResult, error) {
+func (m *MongoStore) GetDescendants(space model.TenancySpace, treeID model.TreeID, node model.NodeID, opts *model.DescendantOptions) ([]model.NodeWithDepth, *model.PaginationResult, error) {
 	return nil, nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) ApplyAggregateMutation(space store_interface.TenancySpace, treeID store_interface.TreeID, mutation store_interface.MutationID, node store_interface.NodeID, deltas store_interface.AggregateDeltas) error {
+func (m *MongoStore) ApplyAggregateMutation(space model.TenancySpace, treeID model.TreeID, mutation model.MutationID, node model.NodeID, deltas model.AggregateDeltas) error {
 	return ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetNodeLocalAggregates(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
+func (m *MongoStore) GetNodeLocalAggregates(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (map[model.AggregateKey]model.AggregateValue, error) {
 	return nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetNodeWithDescendantsAggregates(space store_interface.TenancySpace, treeID store_interface.TreeID, node store_interface.NodeID) (map[store_interface.AggregateKey]store_interface.AggregateValue, error) {
+func (m *MongoStore) GetNodeWithDescendantsAggregates(space model.TenancySpace, treeID model.TreeID, node model.NodeID) (map[model.AggregateKey]model.AggregateValue, error) {
 	return nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetNodeLocalAggregatesBulk(space store_interface.TenancySpace, treeID store_interface.TreeID, nodes []store_interface.NodeID) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+func (m *MongoStore) GetNodeLocalAggregatesBulk(space model.TenancySpace, treeID model.TreeID, nodes []model.NodeID) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	return nil, nil, ErrGroveNotImplemented
 }
 
-func (m *MongoStore) GetNodeWithDescendantsAggregatesBulk(space store_interface.TenancySpace, treeID store_interface.TreeID, nodes []store_interface.NodeID) (map[store_interface.NodeID]map[store_interface.AggregateKey]store_interface.AggregateValue, []store_interface.NodeID, error) {
+func (m *MongoStore) GetNodeWithDescendantsAggregatesBulk(space model.TenancySpace, treeID model.TreeID, nodes []model.NodeID) (map[model.NodeID]map[model.AggregateKey]model.AggregateValue, []model.NodeID, error) {
 	return nil, nil, ErrGroveNotImplemented
 }

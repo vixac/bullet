@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/vixac/bullet/model"
 	"github.com/vixac/bullet/store/store_interface"
 )
 
@@ -17,7 +18,7 @@ func TestDepotCreateAndGet(t *testing.T) {
 
 func testDepotCreateAndGet(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 200, TenancyId: 1}
+		space := model.TenancySpace{AppId: 200, TenancyId: 1}
 		const bucket = int32(1)
 
 		id, err := store.DepotCreate(space, bucket, "hello")
@@ -61,7 +62,7 @@ func TestDepotCreateMany(t *testing.T) {
 
 func testDepotCreateMany(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 201, TenancyId: 1}
+		space := model.TenancySpace{AppId: 201, TenancyId: 1}
 		const bucket = int32(10)
 
 		values := []string{"a", "b", "c"}
@@ -103,7 +104,7 @@ func TestDepotUpdate(t *testing.T) {
 
 func testDepotUpdate(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 202, TenancyId: 1}
+		space := model.TenancySpace{AppId: 202, TenancyId: 1}
 		const bucket = int32(1)
 
 		id, err := store.DepotCreate(space, bucket, "original")
@@ -134,7 +135,7 @@ func TestDepotDelete(t *testing.T) {
 
 func testDepotDelete(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 203, TenancyId: 1}
+		space := model.TenancySpace{AppId: 203, TenancyId: 1}
 		const bucket = int32(1)
 
 		id, err := store.DepotCreate(space, bucket, "to_delete")
@@ -168,7 +169,7 @@ func TestDepotDeleteByBucket(t *testing.T) {
 
 func testDepotDeleteByBucket(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 204, TenancyId: 1}
+		space := model.TenancySpace{AppId: 204, TenancyId: 1}
 		const bucketA = int32(100)
 		const bucketB = int32(200)
 
@@ -216,7 +217,7 @@ func TestDepotGetAllByBucket(t *testing.T) {
 
 func testDepotGetAllByBucket(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 205, TenancyId: 1}
+		space := model.TenancySpace{AppId: 205, TenancyId: 1}
 		const bucketA = int32(300)
 		const bucketB = int32(400)
 
@@ -257,7 +258,7 @@ func TestDepotGetMany(t *testing.T) {
 
 func testDepotGetMany(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 206, TenancyId: 1}
+		space := model.TenancySpace{AppId: 206, TenancyId: 1}
 		const bucket = int32(1)
 
 		ids, err := store.DepotCreateMany(space, bucket, []string{"x", "y", "z"})
@@ -310,9 +311,9 @@ func TestDepotMultiTenancy(t *testing.T) {
 
 func testDepotMultiTenancy(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space1 := store_interface.TenancySpace{AppId: 207, TenancyId: 1}
-		space2 := store_interface.TenancySpace{AppId: 207, TenancyId: 2}
-		space3 := store_interface.TenancySpace{AppId: 208, TenancyId: 1}
+		space1 := model.TenancySpace{AppId: 207, TenancyId: 1}
+		space2 := model.TenancySpace{AppId: 207, TenancyId: 2}
+		space3 := model.TenancySpace{AppId: 208, TenancyId: 1}
 		const bucket = int32(1)
 
 		id1, _ := store.DepotCreate(space1, bucket, "space1_value")
@@ -365,7 +366,7 @@ func TestDepotLargeValues(t *testing.T) {
 
 func testDepotLargeValues(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 209, TenancyId: 1}
+		space := model.TenancySpace{AppId: 209, TenancyId: 1}
 		const bucket = int32(1)
 
 		largeValue := make([]byte, 1024*1024)
@@ -409,7 +410,7 @@ func TestDepotBucketIsolationInGetAll(t *testing.T) {
 
 func testDepotBucketIsolationInGetAll(store store_interface.DepotStore, name string, t *testing.T) {
 	t.Run(name, func(t *testing.T) {
-		space := store_interface.TenancySpace{AppId: 210, TenancyId: 1}
+		space := model.TenancySpace{AppId: 210, TenancyId: 1}
 		const bucketA = int32(500)
 		const bucketB = int32(501)
 

@@ -1,9 +1,12 @@
 package api
 
 import (
-	"github.com/gin-gonic/gin"
-	si "github.com/vixac/bullet/store/store_interface"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/vixac/bullet/model"
+	"github.com/vixac/bullet/protocol"
+	si "github.com/vixac/bullet/store/store_interface"
 )
 
 // SetupWarehouseRouter serves JSON blobs; byte values use standard base64 JSON encoding.
@@ -12,47 +15,45 @@ func SetupWarehouseRouter(store si.WarehouseStore, prefix string, engine *gin.En
 	g.POST("/blobs", func(c *gin.Context) {
 		space, err := extractSpace(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 			return
 		}
-		var req si.PutBlobRequest
+		var req protocol.PutBlobRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 			return
 		}
-		blob, err := store.WarehousePut(c.Request.Context(), space, req)
+		blob, err := store.WarehousePut(c.Request.Context(), space, req.Model())
 		if err != nil {
 			respondError(c, err)
 			return
 		}
 		incrementObjects(c, "warehouse", "written", 1)
-		c.JSON(http.StatusOK, blob)
+		c.JSON(http.StatusOK, protocol.BlobFromModel(blob))
 	})
 	g.GET("/blobs/:id", func(c *gin.Context) {
 		space, err := extractSpace(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 			return
 		}
-		blob, err := store.WarehouseGet(c.Request.Context(), space, si.BlobID(c.Param("id")))
+		blob, err := store.WarehouseGet(c.Request.Context(), space, model.BlobID(c.Param("id")))
 		if err != nil {
 			respondError(c, err)
 			return
 		}
 		incrementObjects(c, "warehouse", "read", 1)
-		c.JSON(http.StatusOK, blob)
+		c.JSON(http.StatusOK, protocol.BlobFromModel(blob))
 	})
 	g.POST("/blobs/batch-get", func(c *gin.Context) {
 		space, err := extractSpace(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 			return
 		}
-		var req struct {
-			IDs []si.BlobID `json:"ids"`
-		}
+		var req protocol.WarehouseGetManyRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 			return
 		}
 		blobs, err := store.WarehouseGetMany(c.Request.Context(), space, req.IDs)
@@ -61,7 +62,7 @@ func SetupWarehouseRouter(store si.WarehouseStore, prefix string, engine *gin.En
 			return
 		}
 		incrementObjects(c, "warehouse", "read", len(blobs))
-		c.JSON(http.StatusOK, blobs)
+		c.JSON(http.StatusOK, protocol.BlobsFromModel(blobs))
 	})
 	return engine
 }

@@ -7,12 +7,11 @@ import (
 	"math"
 
 	"github.com/vixac/bullet/model"
-	"github.com/vixac/bullet/store/store_interface"
 	"go.etcd.io/bbolt"
 )
 
-func (b *BoltStore) TrackMutate(space store_interface.TenancySpace, req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
-	var result store_interface.TrackMutationResult
+func (b *BoltStore) TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error) {
+	var result model.TrackMutationResult
 	err := b.db.Update(func(tx *bbolt.Tx) error {
 		// The marker and every data change belong to the same write transaction.
 		mutations, err := tx.CreateBucketIfNotExists([]byte("track:mutations:v1"))
@@ -49,19 +48,19 @@ func (b *BoltStore) TrackMutate(space store_interface.TenancySpace, req store_in
 		return nil
 	})
 	if err != nil {
-		return store_interface.TrackMutationResult{}, err
+		return model.TrackMutationResult{}, err
 	}
 	return result, nil
 }
 
-func oldTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
+func oldTrackBucketName(space model.TenancySpace, bucketID int32) []byte {
 	return []byte(fmt.Sprintf("app_%d_bucket_%d", space.AppId, bucketID))
 }
 
-func newTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
+func newTrackBucketName(space model.TenancySpace, bucketID int32) []byte {
 	return []byte(fmt.Sprintf("track:v2:%d:%d_bucket_%d", space.AppId, space.TenancyId, bucketID))
 }
-func getTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
+func getTrackBucketName(space model.TenancySpace, bucketID int32) []byte {
 	return newTrackBucketName(space, bucketID)
 }
 func encodeTrackValue(value int64, tag *int64, metric *float64) []byte {
@@ -129,7 +128,7 @@ func decodeTrackValue(b []byte) (value int64, tag *int64, metric *float64, err e
 	return
 }
 
-func (b *BoltStore) TrackPut(space store_interface.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (b *BoltStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		bkt, err := tx.CreateBucketIfNotExists(getTrackBucketName(space, bucketID))
 		if err != nil {
@@ -141,7 +140,7 @@ func (b *BoltStore) TrackPut(space store_interface.TenancySpace, bucketID int32,
 }
 
 // VX:Note should return int64 and nil onNotFound
-func (b *BoltStore) TrackGet(space store_interface.TenancySpace, bucketID int32, key string) (int64, error) {
+func (b *BoltStore) TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error) {
 	fmt.Printf("VX: BoltStore track get called with %d bucket and key %s \n", bucketID, key)
 	var value int64
 	err := b.db.View(func(tx *bbolt.Tx) error {
@@ -163,7 +162,7 @@ func (b *BoltStore) TrackGet(space store_interface.TenancySpace, bucketID int32,
 	return value, err
 }
 
-func (b *BoltStore) TrackDeleteMany(space store_interface.TenancySpace, items []model.TrackBucketKeyPair) error {
+func (b *BoltStore) TrackDeleteMany(space model.TenancySpace, items []model.TrackKey) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		// Group deletions by bucket to avoid repeated lookups
 		buckets := make(map[int32]*bbolt.Bucket)
@@ -191,7 +190,7 @@ func (b *BoltStore) TrackClose() error {
 	return b.db.Close()
 }
 
-func (b *BoltStore) TrackPutMany(space store_interface.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
+func (b *BoltStore) TrackPutMany(space model.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		for bucketID, arr := range items {
 			bkt, err := tx.CreateBucketIfNotExists([]byte(getTrackBucketName(space, bucketID)))
@@ -210,7 +209,7 @@ func (b *BoltStore) TrackPutMany(space store_interface.TenancySpace, items map[i
 	})
 }
 
-func (b *BoltStore) TrackGetMany(space store_interface.TenancySpace, keys map[int32][]string) (
+func (b *BoltStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string) (
 	map[int32]map[string]model.TrackValue,
 	map[int32][]string,
 	error,
@@ -264,7 +263,7 @@ func (b *BoltStore) TrackGetMany(space store_interface.TenancySpace, keys map[in
 }
 
 func (b *BoltStore) GetItemsByKeyPrefix(
-	space store_interface.TenancySpace, bucketID int32,
+	space model.TenancySpace, bucketID int32,
 	prefix string,
 	tags []int64,
 	metricValue *float64,
@@ -273,7 +272,7 @@ func (b *BoltStore) GetItemsByKeyPrefix(
 	return b.GetItemsByKeyPrefixes(space, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
 }
 func (b *BoltStore) GetItemsByKeyPrefixes(
-	space store_interface.TenancySpace, bucketID int32,
+	space model.TenancySpace, bucketID int32,
 	prefixes []string,
 	tags []int64,
 	metricValue *float64,
