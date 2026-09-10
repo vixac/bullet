@@ -12,7 +12,46 @@ import (
 )
 
 func (b *BoltStore) TrackMutate(req store_interface.TrackMutation) (store_interface.TrackMutationResult, error) {
-	return store_interface.TrackMutationResult{}, store_interface.ErrTrackMutationUnsupported
+	var result store_interface.TrackMutationResult
+	err := b.db.Update(func(tx *bbolt.Tx) error {
+		// The marker and every data change belong to the same write transaction.
+		mutations, err := tx.CreateBucketIfNotExists([]byte("track:mutations:v1"))
+		if err != nil {
+			return err
+		}
+		// Prefix IDs so even an empty ID has a valid bbolt key.
+		id := []byte("id:" + string(req.MutationID))
+		if mutations.Get(id) != nil {
+			return nil
+		}
+		for _, put := range req.Puts {
+			bucket, err := tx.CreateBucketIfNotExists(getTrackBucketName(put.Space, put.BucketID))
+			if err != nil {
+				return err
+			}
+			if err := bucket.Put([]byte(put.Key), encodeTrackValue(put.Value, put.Tag, put.Metric)); err != nil {
+				return err
+			}
+		}
+		for _, key := range req.Deletes {
+			bucket := tx.Bucket(getTrackBucketName(key.Space, key.BucketID))
+			if bucket == nil {
+				continue
+			}
+			if err := bucket.Delete([]byte(key.Key)); err != nil {
+				return err
+			}
+		}
+		if err := mutations.Put(id, []byte{1}); err != nil {
+			return err
+		}
+		result.Applied = true
+		return nil
+	})
+	if err != nil {
+		return store_interface.TrackMutationResult{}, err
+	}
+	return result, nil
 }
 
 func oldTrackBucketName(space store_interface.TenancySpace, bucketID int32) []byte {
@@ -114,9 +153,13 @@ func (b *BoltStore) TrackGet(space store_interface.TenancySpace, bucketID int32,
 		if val == nil {
 			return fmt.Errorf("Track get boltstore key not found")
 		}
-		value = int64(binary.BigEndian.Uint64(val))
-		return nil
+		var err error
+		value, _, _, err = decodeTrackValue(val)
+		return err
 	})
+	if err != nil {
+		return 0, err
+	}
 	return value, err
 }
 
@@ -214,7 +257,10 @@ func (b *BoltStore) TrackGetMany(space store_interface.TenancySpace, keys map[in
 		return nil
 	})
 
-	return found, missing, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return found, missing, nil
 }
 
 func (b *BoltStore) GetItemsByKeyPrefix(
@@ -349,5 +395,8 @@ func (b *BoltStore) GetItemsByKeyPrefixes(
 		return nil
 	})
 
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }

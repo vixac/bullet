@@ -80,7 +80,10 @@ func (s *SQLiteStore) TrackGet(
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, errors.New("not found")
 	}
-	return value, err
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 func (s *SQLiteStore) GetItemsByKeyPrefix(

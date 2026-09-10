@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -76,7 +77,10 @@ func (s *PostgreSQLStore) TrackGet(
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, errors.New("not found")
 	}
-	return value, err
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 func (s *PostgreSQLStore) GetItemsByKeyPrefix(
@@ -128,6 +132,9 @@ func (s *PostgreSQLStore) GetItemsByKeyPrefix(
 			return nil, err
 		}
 		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -194,6 +201,9 @@ func (s *PostgreSQLStore) GetItemsByKeyPrefixes(
 			return nil, err
 		}
 		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -284,6 +294,16 @@ func (s *PostgreSQLStore) TrackGetMany(
 	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
+	// All bucket queries must see the same snapshot, not one per statement.
+	tx, err := s.db.BeginTx(context.Background(), &sql.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tx.Rollback()
+
 	for bucketID, bucketKeys := range keys {
 		if len(bucketKeys) == 0 {
 			continue
@@ -300,7 +320,7 @@ func (s *PostgreSQLStore) TrackGetMany(
 			args = append(args, k)
 		}
 
-		rows, err := s.db.Query(query, args...)
+		rows, err := tx.Query(query, args...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -320,7 +340,13 @@ func (s *PostgreSQLStore) TrackGetMany(
 			values[bucketID][key] = tv
 			found[key] = struct{}{}
 		}
-		rows.Close()
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		if err := rows.Close(); err != nil {
+			return nil, nil, err
+		}
 
 		for _, k := range bucketKeys {
 			if _, ok := found[k]; !ok {
@@ -329,6 +355,9 @@ func (s *PostgreSQLStore) TrackGetMany(
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return nil, nil, err
+	}
 	return values, missing, nil
 }
 

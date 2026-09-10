@@ -24,7 +24,7 @@ func (r *RamStore) TrackMutate(req store_interface.TrackMutation) (store_interfa
 		if r.tracks[put.Space][put.BucketID] == nil {
 			r.tracks[put.Space][put.BucketID] = make(map[string]model.TrackValue)
 		}
-		r.tracks[put.Space][put.BucketID][put.Key] = model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}
+		r.tracks[put.Space][put.BucketID][put.Key] = cloneTrackValue(model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric})
 	}
 	for _, key := range req.Deletes {
 		if bucket := r.tracks[key.Space][key.BucketID]; bucket != nil {
@@ -67,11 +67,11 @@ func (r *RamStore) TrackPut(space store_interface.TenancySpace, bucketID int32, 
 		r.tracks[space][bucketID] = make(map[string]model.TrackValue)
 	}
 
-	r.tracks[space][bucketID][key] = model.TrackValue{
+	r.tracks[space][bucketID][key] = cloneTrackValue(model.TrackValue{
 		Value:  value,
 		Tag:    tag,
 		Metric: metric,
-	}
+	})
 	return nil
 }
 
@@ -116,7 +116,7 @@ func (r *RamStore) TrackPutMany(space store_interface.TenancySpace, items map[in
 			if r.tracks[space][bucketID] == nil {
 				r.tracks[space][bucketID] = make(map[string]model.TrackValue)
 			}
-			r.tracks[space][bucketID][kv.Key] = kv.Value
+			r.tracks[space][bucketID][kv.Key] = cloneTrackValue(kv.Value)
 		}
 	}
 	return nil
@@ -131,12 +131,12 @@ func (r *RamStore) TrackGetMany(space store_interface.TenancySpace, keys map[int
 
 	for bucketID, keyList := range keys {
 		if r.tracks[space] == nil {
-			missing[bucketID] = keyList
+			missing[bucketID] = append([]string(nil), keyList...)
 			continue
 		}
 		bucket := r.tracks[space][bucketID]
 		if bucket == nil {
-			missing[bucketID] = keyList
+			missing[bucketID] = append([]string(nil), keyList...)
 			continue
 		}
 		for _, k := range keyList {
@@ -144,7 +144,7 @@ func (r *RamStore) TrackGetMany(space store_interface.TenancySpace, keys map[int
 				if found[bucketID] == nil {
 					found[bucketID] = make(map[string]model.TrackValue)
 				}
-				found[bucketID][k] = val
+				found[bucketID][k] = cloneTrackValue(val)
 			} else {
 				missing[bucketID] = append(missing[bucketID], k)
 			}
@@ -249,10 +249,24 @@ func (r *RamStore) GetItemsByKeyPrefixes(
 		if matchesPrefix(k) && tagFilter(v.Tag) && metricFilter(v.Metric) {
 			result = append(result, model.TrackKeyValueItem{
 				Key:   k,
-				Value: v,
+				Value: cloneTrackValue(v),
 			})
 		}
 	}
 
 	return result, nil
+}
+
+// Copy metadata at the store boundary so callers cannot bypass the store lock
+// by mutating pointers supplied to writes or obtained from reads.
+func cloneTrackValue(value model.TrackValue) model.TrackValue {
+	if value.Tag != nil {
+		tag := *value.Tag
+		value.Tag = &tag
+	}
+	if value.Metric != nil {
+		metric := *value.Metric
+		value.Metric = &metric
+	}
+	return value
 }
