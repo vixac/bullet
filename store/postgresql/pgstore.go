@@ -122,6 +122,52 @@ func (s *PostgreSQLStore) initSchema() error {
             UNIQUE (app_id, tenancy_id, put_id)
         );`,
 
+		`CREATE TABLE IF NOT EXISTS warehouse_checkpoints (
+			app_id INTEGER NOT NULL,
+			tenancy_id BIGINT NOT NULL,
+			checkpoint_id TEXT NOT NULL,
+			write_id TEXT NOT NULL,
+			sequence_id TEXT NOT NULL,
+			source_ledger_id TEXT NOT NULL,
+			stream_generation BIGINT NOT NULL,
+			covered_through BIGINT NOT NULL,
+			blob_id TEXT NOT NULL,
+			content_type TEXT NOT NULL,
+			codec TEXT NOT NULL,
+			codec_version TEXT NOT NULL,
+			schema_version TEXT NOT NULL,
+			checksum TEXT NOT NULL,
+			state_checksum TEXT NOT NULL,
+			status TEXT NOT NULL,
+			created_at_ns BIGINT NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id, checkpoint_id),
+			UNIQUE (app_id, tenancy_id, write_id)
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS warehouse_checkpoint_sequences (
+			app_id INTEGER NOT NULL,
+			tenancy_id BIGINT NOT NULL,
+			sequence_id TEXT NOT NULL,
+			source_ledger_id TEXT NOT NULL,
+			stream_generation BIGINT NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id, sequence_id)
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS warehouse_checkpoint_states (
+			app_id INTEGER NOT NULL,
+			tenancy_id BIGINT NOT NULL,
+			sequence_id TEXT NOT NULL,
+			source_ledger_id TEXT NOT NULL,
+			stream_generation BIGINT NOT NULL,
+			covered_through BIGINT NOT NULL,
+			state_checksum TEXT NOT NULL,
+			PRIMARY KEY (app_id, tenancy_id, sequence_id, source_ledger_id, stream_generation, covered_through)
+		);`,
+
+		`CREATE INDEX IF NOT EXISTS warehouse_checkpoints_ready_idx
+		 ON warehouse_checkpoints(app_id, tenancy_id, sequence_id, covered_through DESC, created_at_ns DESC)
+		 WHERE status = 'ready';`,
+
 		`CREATE TABLE IF NOT EXISTS grove_nodes (
 			app_id INTEGER,
 			tenancy_id BIGINT,
