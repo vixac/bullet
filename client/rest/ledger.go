@@ -83,6 +83,3 @@ func (c *Client) LedgerReadForward(selector model.LedgerSelector, after model.Le
 	}
 	return ledgerRecords(r.Records)
 }
-func (c *Client) LedgerDelete(id model.LedgerID) error {
-	return c.call(http.MethodDelete, ledgerPath(id), nil, nil, http.StatusNoContent)
-}

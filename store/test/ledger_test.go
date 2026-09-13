@@ -19,11 +19,6 @@ func TestLedgerContract(t *testing.T) {
 
 func testLedgerContract(t *testing.T, store store_interface.LedgerStore) {
 	space := model.TenancySpace{AppId: 900, TenancyId: 1}
-	for _, ledgerID := range []model.LedgerID{"orders", "payments"} {
-		if err := store.LedgerDelete(space, ledgerID); err != nil {
-			t.Fatalf("clear ledger %s: %v", ledgerID, err)
-		}
-	}
 
 	first, err := store.LedgerAppend(space, "orders", "order-1", "first")
 	if err != nil {
@@ -71,18 +66,6 @@ func testLedgerContract(t *testing.T, store store_interface.LedgerStore) {
 	}
 	if len(forward) != 3 || forward[0].Payload != "second" || forward[2].Payload != "new-after-page" {
 		t.Fatalf("forward records = %+v", forward)
-	}
-	if err := store.LedgerDelete(space, "payments"); err != nil {
-		t.Fatalf("delete payments: %v", err)
-	}
-	remaining, err := store.LedgerReadBackward(space, selector, nil, 10)
-	if err != nil {
-		t.Fatalf("read remaining: %v", err)
-	}
-	for _, record := range remaining.Records {
-		if record.LedgerID == "payments" {
-			t.Fatalf("deleted record remains: %+v", record)
-		}
 	}
 	if _, err := store.LedgerAppend(space, "bad ledger", model.LedgerAppendID(fmt.Sprintf("bad-%s", t.Name())), "x"); !errors.Is(err, model.ErrLedgerInvalidID) {
 		t.Fatalf("invalid ledger error = %v", err)

@@ -31,9 +31,6 @@ func (c *Client) LedgerReadBackward(selector model.LedgerSelector, cursor *strin
 func (c *Client) LedgerReadForward(selector model.LedgerSelector, after model.LedgerPosition, through *model.LedgerPosition, limit int) ([]model.LedgerRecord, error) {
 	return c.store.LedgerReadForward(c.space, selector, after, through, limit)
 }
-func (c *Client) LedgerDelete(ledgerID model.LedgerID) error {
-	return c.store.LedgerDelete(c.space, ledgerID)
-}
 func (c *Client) TrackMutate(req model.TrackMutation) (model.TrackMutationResult, error) {
 	return c.store.TrackMutate(c.space, req)
 }
