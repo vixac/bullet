@@ -80,8 +80,8 @@ func TestLedgerRESTLifecycle(t *testing.T) {
 		t.Fatalf("conflict status = %d body=%s", conflict.Code, conflict.Body.String())
 	}
 	deleted := ledgerRequest(t, engine, http.MethodDelete, "/ledger/payments", nil)
-	if deleted.Code != http.StatusNoContent {
-		t.Fatalf("delete status = %d", deleted.Code)
+	if deleted.Code != http.StatusNotFound {
+		t.Fatalf("delete status = %d; ledger deletion must not be available from this router", deleted.Code)
 	}
 }
 

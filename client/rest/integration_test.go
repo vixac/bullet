@@ -189,10 +189,6 @@ func TestLedger(t *testing.T) {
 			empty, err := pair.other.LedgerReadBackward(model.LedgerSelector{All: true}, nil, 10)
 			require.NoError(t, err)
 			require.Empty(t, empty.Records)
-			require.NoError(t, pair.rest.LedgerDelete("payments"))
-			remaining, err := pair.local.LedgerReadBackward(model.LedgerSelector{All: true}, nil, 10)
-			require.NoError(t, err)
-			require.Equal(t, []model.LedgerRecord{original}, remaining.Records)
 		})
 	}
 }

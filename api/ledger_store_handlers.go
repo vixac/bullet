@@ -19,7 +19,6 @@ func SetupLedgerRouter(store store_interface.LedgerStore, prefix string, engine 
 	g.POST("/:ledgerId/entries/batch", h.appendMany)
 	g.POST("/read/backward", h.readBackward)
 	g.POST("/read/forward", h.readForward)
-	g.DELETE("/:ledgerId", h.deleteLedger)
 	return engine
 }
 
@@ -147,17 +146,4 @@ func (h *ledgerHandler) readForward(c *gin.Context) {
 	}
 	incrementObjects(c, "ledger", "read", len(records))
 	c.JSON(http.StatusOK, protocol.LedgerReadForwardResponse{Records: ledgerRecordsResponse(records)})
-}
-
-func (h *ledgerHandler) deleteLedger(c *gin.Context) {
-	space, err := extractSpace(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
-		return
-	}
-	if err := h.store.LedgerDelete(space, model.LedgerID(c.Param("ledgerId"))); err != nil {
-		respondError(c, err)
-		return
-	}
-	c.Status(http.StatusNoContent)
 }

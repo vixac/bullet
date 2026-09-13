@@ -2,6 +2,7 @@ package store_interface
 
 import "github.com/vixac/bullet/model"
 
+// LedgerStore provides append-only ledger operations.
 type LedgerStore interface {
 	LedgerAppend(space model.TenancySpace, ledgerID model.LedgerID, appendID model.LedgerAppendID, payload string) (model.LedgerRecord, error)
 	LedgerAppendMany(space model.TenancySpace, ledgerID model.LedgerID, items []model.LedgerAppendItem) ([]model.LedgerRecord, error)
@@ -10,7 +11,6 @@ type LedgerStore interface {
 	// exclusive. A nil through position makes the read live; otherwise through
 	// is an inclusive upper boundary.
 	LedgerReadForward(space model.TenancySpace, selector model.LedgerSelector, after model.LedgerPosition, through *model.LedgerPosition, limit int) ([]model.LedgerRecord, error)
-	LedgerDelete(space model.TenancySpace, ledgerID model.LedgerID) error
 }
 
 // TrackStore provides atomic data operations within one backing store. Writes

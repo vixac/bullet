@@ -6,7 +6,7 @@ import (
 	"github.com/vixac/bullet/model"
 )
 
-// Ledger provides ledger operations in the client's configured tenancy.
+// Ledger provides append-only ledger operations in the client's configured tenancy.
 type Ledger interface {
 	LedgerAppend(ledgerID model.LedgerID, appendID model.LedgerAppendID, payload string) (model.LedgerRecord, error)
 	LedgerAppendMany(ledgerID model.LedgerID, items []model.LedgerAppendItem) ([]model.LedgerRecord, error)
@@ -15,7 +15,6 @@ type Ledger interface {
 	// exclusive. A nil through position makes the read live; otherwise through
 	// is an inclusive upper boundary.
 	LedgerReadForward(selector model.LedgerSelector, after model.LedgerPosition, through *model.LedgerPosition, limit int) ([]model.LedgerRecord, error)
-	LedgerDelete(ledgerID model.LedgerID) error
 }
 
 // Track provides atomic data operations within the client's configured tenancy. Writes
