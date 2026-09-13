@@ -139,4 +139,9 @@ type Warehouse interface {
 	WarehousePut(context.Context, model.PutBlobRequest) (model.Blob, error)
 	WarehouseGet(context.Context, model.BlobID) (model.Blob, error)
 	WarehouseGetMany(context.Context, []model.BlobID) (map[model.BlobID]model.Blob, error)
+	WarehousePutCheckpoint(context.Context, model.PutCheckpointRequest) (model.CheckpointRef, error)
+	WarehouseGetLatestCheckpoint(context.Context, model.CheckpointSequenceID) (*model.CheckpointRef, error)
+	WarehouseFindCheckpoints(context.Context, model.CheckpointSequenceID, model.LedgerPosition, int) ([]model.CheckpointRef, error)
+	WarehouseGetCheckpoint(context.Context, model.CheckpointID) (model.Checkpoint, error)
+	WarehouseMarkCheckpointCorrupt(context.Context, model.CheckpointID) error
 }

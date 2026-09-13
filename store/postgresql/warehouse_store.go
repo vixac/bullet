@@ -97,3 +97,21 @@ func (s *PostgreSQLStore) WarehouseGetMany(ctx context.Context, space model.Tena
 	}
 	return result, nil
 }
+
+// Checkpoints are intentionally not persisted in PostgreSQL yet. Keep the
+// existing immutable-blob behaviour unchanged until its schema lands.
+func (s *PostgreSQLStore) WarehousePutCheckpoint(context.Context, model.TenancySpace, model.PutCheckpointRequest) (model.CheckpointRef, error) {
+	return model.CheckpointRef{}, model.ErrCheckpointUnsupported
+}
+func (s *PostgreSQLStore) WarehouseGetLatestCheckpoint(context.Context, model.TenancySpace, model.CheckpointSequenceID) (*model.CheckpointRef, error) {
+	return nil, model.ErrCheckpointUnsupported
+}
+func (s *PostgreSQLStore) WarehouseFindCheckpoints(context.Context, model.TenancySpace, model.CheckpointSequenceID, model.LedgerPosition, int) ([]model.CheckpointRef, error) {
+	return nil, model.ErrCheckpointUnsupported
+}
+func (s *PostgreSQLStore) WarehouseGetCheckpoint(context.Context, model.TenancySpace, model.CheckpointID) (model.Checkpoint, error) {
+	return model.Checkpoint{}, model.ErrCheckpointUnsupported
+}
+func (s *PostgreSQLStore) WarehouseMarkCheckpointCorrupt(context.Context, model.TenancySpace, model.CheckpointID) error {
+	return model.ErrCheckpointUnsupported
+}

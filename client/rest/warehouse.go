@@ -41,3 +41,21 @@ func (c *Client) WarehouseGetMany(ctx context.Context, ids []model.BlobID) (map[
 	}
 	return result, nil
 }
+
+// Checkpoint HTTP routes have not been added yet. Keep the REST client aligned
+// with the public Warehouse interface while returning the capability error.
+func (c *Client) WarehousePutCheckpoint(context.Context, model.PutCheckpointRequest) (model.CheckpointRef, error) {
+	return model.CheckpointRef{}, model.ErrCheckpointUnsupported
+}
+func (c *Client) WarehouseGetLatestCheckpoint(context.Context, model.CheckpointSequenceID) (*model.CheckpointRef, error) {
+	return nil, model.ErrCheckpointUnsupported
+}
+func (c *Client) WarehouseFindCheckpoints(context.Context, model.CheckpointSequenceID, model.LedgerPosition, int) ([]model.CheckpointRef, error) {
+	return nil, model.ErrCheckpointUnsupported
+}
+func (c *Client) WarehouseGetCheckpoint(context.Context, model.CheckpointID) (model.Checkpoint, error) {
+	return model.Checkpoint{}, model.ErrCheckpointUnsupported
+}
+func (c *Client) WarehouseMarkCheckpointCorrupt(context.Context, model.CheckpointID) error {
+	return model.ErrCheckpointUnsupported
+}

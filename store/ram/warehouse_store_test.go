@@ -115,3 +115,71 @@ func TestWarehouseConcurrentRetries(t *testing.T) {
 		require.Equal(t, first, id)
 	}
 }
+
+func TestWarehouseCheckpoints(t *testing.T) {
+	s := NewRamStore()
+	ctx := context.Background()
+	space := model.TenancySpace{AppId: 1, TenancyId: 2}
+	base := model.PutCheckpointRequest{
+		WriteID: "snapshot-100", SequenceID: "workspace-1", SourceLedgerID: "workspace-events",
+		StreamGeneration: 1, CoveredThrough: 100, ContentType: "application/octet-stream",
+		Codec: "gzip", CodecVersion: "1", SchemaVersion: "1", Value: []byte("state-100"),
+		Checksum: "stored-100", StateChecksum: "state-100",
+	}
+	first, err := s.WarehousePutCheckpoint(ctx, space, base)
+	require.NoError(t, err)
+	retry, err := s.WarehousePutCheckpoint(ctx, space, base)
+	require.NoError(t, err)
+	require.Equal(t, first, retry)
+
+	later := base
+	later.WriteID, later.CoveredThrough, later.Value = "snapshot-200", 200, []byte("state-200")
+	later.Checksum, later.StateChecksum = "stored-200", "state-200"
+	second, err := s.WarehousePutCheckpoint(ctx, space, later)
+	require.NoError(t, err)
+	latest, err := s.WarehouseGetLatestCheckpoint(ctx, space, base.SequenceID)
+	require.NoError(t, err)
+	require.Equal(t, second, *latest)
+
+	found, err := s.WarehouseFindCheckpoints(ctx, space, base.SequenceID, 200, 0)
+	require.NoError(t, err)
+	require.Equal(t, []model.CheckpointRef{second, first}, found)
+	checkpoint, err := s.WarehouseGetCheckpoint(ctx, space, second.ID)
+	require.NoError(t, err)
+	require.Equal(t, second, checkpoint.Ref)
+	require.Equal(t, []byte("state-200"), checkpoint.Value)
+	checkpoint.Value[0] = 'X'
+	again, err := s.WarehouseGetCheckpoint(ctx, space, second.ID)
+	require.NoError(t, err)
+	require.Equal(t, []byte("state-200"), again.Value)
+
+	require.NoError(t, s.WarehouseMarkCheckpointCorrupt(ctx, space, second.ID))
+	latest, err = s.WarehouseGetLatestCheckpoint(ctx, space, base.SequenceID)
+	require.NoError(t, err)
+	require.Equal(t, first, *latest)
+	found, err = s.WarehouseFindCheckpoints(ctx, space, base.SequenceID, 200, 0)
+	require.NoError(t, err)
+	require.Equal(t, []model.CheckpointRef{first}, found)
+	_, err = s.WarehouseGetCheckpoint(ctx, space, second.ID)
+	require.ErrorIs(t, err, model.ErrCheckpointCorrupt)
+
+	conflict := base
+	conflict.WriteID, conflict.StateChecksum = "conflicting-100", "different-state"
+	_, err = s.WarehousePutCheckpoint(ctx, space, conflict)
+	require.ErrorIs(t, err, model.ErrCheckpointConflict)
+	otherLatest, err := s.WarehouseGetLatestCheckpoint(ctx, model.TenancySpace{AppId: 1, TenancyId: 3}, base.SequenceID)
+	require.NoError(t, err)
+	require.Nil(t, otherLatest)
+}
+
+func TestWarehouseCheckpointsValidateRequestsAndContext(t *testing.T) {
+	s := NewRamStore()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := s.WarehousePutCheckpoint(ctx, model.TenancySpace{}, model.PutCheckpointRequest{WriteID: "w", SequenceID: "s", SourceLedgerID: "l"})
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = s.WarehousePutCheckpoint(context.Background(), model.TenancySpace{}, model.PutCheckpointRequest{})
+	require.ErrorIs(t, err, model.ErrCheckpointInvalid)
+	_, err = s.WarehouseFindCheckpoints(context.Background(), model.TenancySpace{}, "s", -1, 1)
+	require.ErrorIs(t, err, model.ErrCheckpointInvalid)
+}

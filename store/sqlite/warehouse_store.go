@@ -98,3 +98,21 @@ func (s *SQLiteStore) WarehouseGetMany(ctx context.Context, space model.TenancyS
 	}
 	return result, nil
 }
+
+// Checkpoints are intentionally not persisted in SQLite yet. Keep the blob
+// implementation independent while the checkpoint schema is introduced.
+func (s *SQLiteStore) WarehousePutCheckpoint(context.Context, model.TenancySpace, model.PutCheckpointRequest) (model.CheckpointRef, error) {
+	return model.CheckpointRef{}, model.ErrCheckpointUnsupported
+}
+func (s *SQLiteStore) WarehouseGetLatestCheckpoint(context.Context, model.TenancySpace, model.CheckpointSequenceID) (*model.CheckpointRef, error) {
+	return nil, model.ErrCheckpointUnsupported
+}
+func (s *SQLiteStore) WarehouseFindCheckpoints(context.Context, model.TenancySpace, model.CheckpointSequenceID, model.LedgerPosition, int) ([]model.CheckpointRef, error) {
+	return nil, model.ErrCheckpointUnsupported
+}
+func (s *SQLiteStore) WarehouseGetCheckpoint(context.Context, model.TenancySpace, model.CheckpointID) (model.Checkpoint, error) {
+	return model.Checkpoint{}, model.ErrCheckpointUnsupported
+}
+func (s *SQLiteStore) WarehouseMarkCheckpointCorrupt(context.Context, model.TenancySpace, model.CheckpointID) error {
+	return model.ErrCheckpointUnsupported
+}
