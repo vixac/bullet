@@ -126,3 +126,18 @@ func (c *Client) WarehouseGet(arg0 context.Context, arg1 model.BlobID) (model.Bl
 func (c *Client) WarehouseGetMany(arg0 context.Context, arg1 []model.BlobID) (map[model.BlobID]model.Blob, error) {
 	return c.store.WarehouseGetMany(arg0, c.space, arg1)
 }
+func (c *Client) WarehousePutCheckpoint(arg0 context.Context, arg1 model.PutCheckpointRequest) (model.CheckpointRef, error) {
+	return c.store.WarehousePutCheckpoint(arg0, c.space, arg1)
+}
+func (c *Client) WarehouseGetLatestCheckpoint(arg0 context.Context, arg1 model.CheckpointSequenceID) (*model.CheckpointRef, error) {
+	return c.store.WarehouseGetLatestCheckpoint(arg0, c.space, arg1)
+}
+func (c *Client) WarehouseFindCheckpoints(arg0 context.Context, arg1 model.CheckpointSequenceID, arg2 model.LedgerPosition, arg3 int) ([]model.CheckpointRef, error) {
+	return c.store.WarehouseFindCheckpoints(arg0, c.space, arg1, arg2, arg3)
+}
+func (c *Client) WarehouseGetCheckpoint(arg0 context.Context, arg1 model.CheckpointID) (model.Checkpoint, error) {
+	return c.store.WarehouseGetCheckpoint(arg0, c.space, arg1)
+}
+func (c *Client) WarehouseMarkCheckpointCorrupt(arg0 context.Context, arg1 model.CheckpointID) error {
+	return c.store.WarehouseMarkCheckpointCorrupt(arg0, c.space, arg1)
+}
