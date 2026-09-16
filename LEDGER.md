@@ -1,4 +1,4 @@
-# Ledger selection
+# Ledger selection:
 
 Ledger reads accept exactly one selector:
 
