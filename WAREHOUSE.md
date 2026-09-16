@@ -1,7 +1,7 @@
 # Warehouse
 
 Warehouse stores immutable binary blobs independently of Depot. RAM, SQLite and PostgreSQL are
-implemented; MongoDB and BoltDB return
+implemented; MongoDB and BoltDB return:
 `ErrWarehouseUnsupported` (HTTP 501). RAM data disappears when the process exits.
 
 Run a RAM server:
