@@ -57,6 +57,53 @@ func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestTrackMutateIfAbsentIsAtomicAndRetryableAfterConflict(t *testing.T) {
+	for name, trackStore := range trackStores {
+		t.Run(name, func(t *testing.T) {
+			space := model.TenancySpace{AppId: 903, TenancyId: 904}
+			if err := trackStore.TrackPut(space, 1, "existing", 1, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+
+			req := model.TrackMutation{
+				MutationID: "track-if-absent-conflict-903-904",
+				Puts: []model.TrackPut{
+					{BucketID: 1, Key: "new", Value: 2, IfAbsent: true},
+					{BucketID: 1, Key: "existing", Value: 3, IfAbsent: true},
+				},
+			}
+			_, err := trackStore.TrackMutate(space, req)
+			if errors.Is(err, model.ErrTrackMutationUnsupported) {
+				t.Skip("track mutations are intentionally unsupported")
+			}
+			if !errors.Is(err, model.ErrTrackKeyAlreadyExists) {
+				t.Fatalf("expected create-only conflict, got %v", err)
+			}
+			if _, err := trackStore.TrackGet(space, 1, "new"); err == nil {
+				t.Fatal("conflicting mutation partially inserted new")
+			}
+			if got, err := trackStore.TrackGet(space, 1, "existing"); err != nil || got != 1 {
+				t.Fatalf("conflicting mutation changed existing: got %d, err %v", got, err)
+			}
+
+			// A failed condition must not consume the ID: once the key is removed,
+			// retrying the same request can commit.
+			if err := trackStore.TrackDeleteMany(space, []model.TrackKey{{BucketID: 1, Key: "existing"}}); err != nil {
+				t.Fatal(err)
+			}
+			result, err := trackStore.TrackMutate(space, req)
+			if err != nil || !result.Applied {
+				t.Fatalf("retry after resolving conflict: result=%+v, err=%v", result, err)
+			}
+			for key, want := range map[string]int64{"new": 2, "existing": 3} {
+				if got, err := trackStore.TrackGet(space, 1, key); err != nil || got != want {
+					t.Fatalf("created %q: got %d, err %v", key, got, err)
+				}
+			}
+		})
+	}
+}
+
 // trackStores is defined and populated in stores.go
 
 func TestTrackBasicOperations(t *testing.T) {

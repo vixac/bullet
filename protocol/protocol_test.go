@@ -23,7 +23,7 @@ func TestExistingWireRepresentations(t *testing.T) {
 		{"grove field names", protocol.GroveCreateNodeRequest{NodeID: "n"}, `{"node_id":"n"}`},
 		{"depot fields", protocol.DepotCreateRequest{BucketID: 1, Value: "v"}, `{"bucket_id":1,"value":"v"}`},
 		{"error body", protocol.ErrorResponse{Error: "missing"}, `{"error":"missing"}`},
-		{"mutation has no tenancy fields", protocol.TrackMutateRequest{MutationID: "m", Puts: []protocol.TrackRequest{{BucketID: 1, Key: "k", Value: 42}}, Deletes: []protocol.TrackBucketKeyPair{{BucketID: 2, Key: "d"}}}, `{"mutationId":"m","puts":[{"bucketId":1,"key":"k","value":"42"}],"deletes":[{"bucketId":2,"key":"d"}]}`},
+		{"mutation has no tenancy fields", protocol.TrackMutateRequest{MutationID: "m", Puts: []protocol.TrackRequest{{BucketID: 1, Key: "k", Value: 42, IfAbsent: true}}, Deletes: []protocol.TrackBucketKeyPair{{BucketID: 2, Key: "d"}}}, `{"mutationId":"m","puts":[{"bucketId":1,"key":"k","value":"42","ifAbsent":true}],"deletes":[{"bucketId":2,"key":"d"}]}`},
 	}
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {

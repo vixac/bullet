@@ -56,7 +56,7 @@ func (h *trackHandler) mutate(c *gin.Context) {
 	for _, put := range req.Puts {
 		mutation.Puts = append(mutation.Puts, model.TrackPut{
 			BucketID: put.BucketID, Key: put.Key,
-			Value: put.Value, Tag: put.Tag, Metric: put.Metric,
+			Value: put.Value, Tag: put.Tag, Metric: put.Metric, IfAbsent: put.IfAbsent,
 		})
 	}
 	for _, key := range req.Deletes {
@@ -69,6 +69,8 @@ func (h *trackHandler) mutate(c *gin.Context) {
 		status := http.StatusInternalServerError
 		if errors.Is(err, model.ErrTrackMutationUnsupported) {
 			status = http.StatusNotImplemented
+		} else if errors.Is(err, model.ErrTrackKeyAlreadyExists) {
+			status = http.StatusConflict
 		}
 		c.JSON(status, protocol.ErrorResponseFrom(err))
 		return
@@ -88,6 +90,10 @@ func (h *trackHandler) upsertOne(c *gin.Context) {
 	var req protocol.TrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
+		return
+	}
+	if req.IfAbsent {
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "ifAbsent is supported only by /mutate"})
 		return
 	}
 	if err := h.store.TrackPut(space, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {

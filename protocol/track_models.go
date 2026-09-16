@@ -16,6 +16,8 @@ type TrackRequest struct {
 	Value    int64    `json:"value,string"`
 	Tag      *int64   `json:"tag,omitempty"`
 	Metric   *float64 `json:"metric,omitempty"`
+	// IfAbsent is supported by TrackMutate only; it makes this put create-only.
+	IfAbsent bool `json:"ifAbsent,omitempty"`
 }
 type TrackDeleteManyRequest struct {
 	Items []TrackBucketKeyPair `json:"items"`

@@ -64,6 +64,8 @@ func respondError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrNodeAlreadyExists):
 		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
+	case errors.Is(err, model.ErrTrackKeyAlreadyExists):
+		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrCycleDetected):
 		c.JSON(http.StatusUnprocessableEntity, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrMutationConflict):
