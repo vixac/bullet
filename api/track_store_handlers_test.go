@@ -212,6 +212,32 @@ func TestTrackMutate(t *testing.T) {
 	assert.Equal(t, protocol.TrackValue{Value: 9007199254740993, Tag: &tag, Metric: &metric}, result.Values["20"]["new"])
 }
 
+func TestTrackMutateIfAbsent(t *testing.T) {
+	srv, _ := newTrackServer(t)
+	seed := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 1, Key: "existing", Value: 1})
+	require.Equal(t, http.StatusOK, seed.StatusCode)
+	seed.Body.Close()
+
+	req := protocol.TrackMutateRequest{MutationID: "if-absent", Puts: []protocol.TrackRequest{
+		{BucketID: 1, Key: "new", Value: 2, IfAbsent: true},
+		{BucketID: 1, Key: "existing", Value: 3, IfAbsent: true},
+	}}
+	resp := trackPost(t, srv, "/mutate", req)
+	require.Equal(t, http.StatusConflict, resp.StatusCode)
+	var failure protocol.ErrorResponse
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&failure))
+	resp.Body.Close()
+	assert.Equal(t, "track_key_already_exists", failure.Code)
+
+	result := trackPost(t, srv, "/items/batch-get", protocol.TrackGetManyRequest{Buckets: []protocol.TrackGetKeys{{BucketID: 1, Keys: []string{"new", "existing"}}}})
+	defer result.Body.Close()
+	require.Equal(t, http.StatusOK, result.StatusCode)
+	var values protocol.TrackGetManyResponse
+	require.NoError(t, json.NewDecoder(result.Body).Decode(&values))
+	assert.Contains(t, values.Missing["1"], "new")
+	assert.Equal(t, int64(1), values.Values["1"]["existing"].Value)
+}
+
 func TestTrackMutateInvalidRequests(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

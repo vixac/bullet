@@ -25,6 +25,9 @@ type TrackStore interface {
 	// in the same commit. All items use this one space.
 	// Either the entire mutation commits or none of it does. Mutation IDs are
 	// store-wide: replaying an ID returns Applied=false without applying changes.
+	// A put with IfAbsent=true fails with ErrTrackKeyAlreadyExists if its key
+	// already exists; that failure rolls back every operation and does not record
+	// the mutation ID. False retains the usual upsert behavior.
 	// On success Applied=true means this call committed the mutation. A commit
 	// or transport error can leave the outcome unknown; retry with the same ID.
 	TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error)

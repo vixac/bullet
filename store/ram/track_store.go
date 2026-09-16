@@ -16,6 +16,24 @@ func (r *RamStore) TrackMutate(space model.TenancySpace, req model.TrackMutation
 		return model.TrackMutationResult{Applied: false}, nil
 	}
 
+	// Validate all create-only puts before changing state so a conflict cannot
+	// leave an earlier put from this mutation committed.
+	created := make(map[model.TrackKey]struct{})
+	for _, put := range req.Puts {
+		key := model.TrackKey{BucketID: put.BucketID, Key: put.Key}
+		if put.IfAbsent {
+			if _, createdEarlier := created[key]; createdEarlier {
+				return model.TrackMutationResult{}, model.ErrTrackKeyAlreadyExists
+			}
+			if bucket := r.tracks[space][put.BucketID]; bucket != nil {
+				if _, exists := bucket[put.Key]; exists {
+					return model.TrackMutationResult{}, model.ErrTrackKeyAlreadyExists
+				}
+			}
+		}
+		created[key] = struct{}{}
+	}
+
 	for _, put := range req.Puts {
 		if r.tracks[space] == nil {
 			r.tracks[space] = make(map[int32]map[string]model.TrackValue)

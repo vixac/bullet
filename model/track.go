@@ -15,6 +15,10 @@ type TrackPut struct {
 	Value    int64
 	Tag      *int64
 	Metric   *float64
+	// IfAbsent creates this key only when it does not already exist. Within a
+	// TrackMutation, a conflict prevents the entire mutation from committing.
+	// False preserves the normal upsert behavior.
+	IfAbsent bool
 }
 
 type TrackMutation struct {
@@ -27,7 +31,10 @@ type TrackMutationResult struct {
 	Applied bool
 }
 
-var ErrTrackMutationUnsupported = errors.New("track mutations are not supported by this store")
+var (
+	ErrTrackMutationUnsupported = errors.New("track mutations are not supported by this store")
+	ErrTrackKeyAlreadyExists    = errors.New("track key already exists")
+)
 
 // TrackKeyValueItem associates a key with its complete stored value.
 type TrackKeyValueItem struct {

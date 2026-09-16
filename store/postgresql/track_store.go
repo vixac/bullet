@@ -29,7 +29,7 @@ func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackM
 		return model.TrackMutationResult{Applied: false}, nil
 	}
 
-	putStmt, err := tx.Prepare(`
+	upsertStmt, err := tx.Prepare(`
 		INSERT INTO track (app_id, tenancy_id, bucket_id, key, value, tag, metric)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT(app_id, tenancy_id, bucket_id, key) DO UPDATE SET
@@ -37,10 +37,32 @@ func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackM
 	if err != nil {
 		return model.TrackMutationResult{}, err
 	}
-	defer putStmt.Close()
+	defer upsertStmt.Close()
+	insertStmt, err := tx.Prepare(`
+		INSERT INTO track (app_id, tenancy_id, bucket_id, key, value, tag, metric)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT(app_id, tenancy_id, bucket_id, key) DO NOTHING`)
+	if err != nil {
+		return model.TrackMutationResult{}, err
+	}
+	defer insertStmt.Close()
 	for _, put := range req.Puts {
-		if _, err := putStmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric); err != nil {
+		stmt := upsertStmt
+		if put.IfAbsent {
+			stmt = insertStmt
+		}
+		result, err := stmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric)
+		if err != nil {
 			return model.TrackMutationResult{}, err
+		}
+		if put.IfAbsent {
+			rows, err := result.RowsAffected()
+			if err != nil {
+				return model.TrackMutationResult{}, err
+			}
+			if rows == 0 {
+				return model.TrackMutationResult{}, model.ErrTrackKeyAlreadyExists
+			}
 		}
 	}
 

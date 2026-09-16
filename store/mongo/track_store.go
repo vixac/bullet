@@ -29,14 +29,21 @@ func (m *MongoStore) TrackMutate(space model.TenancySpace, req model.TrackMutati
 		}
 		writes := make([]mongo.WriteModel, 0, len(req.Puts)+len(req.Deletes))
 		for _, put := range req.Puts {
-			writes = append(writes, trackPutModel(space, put.BucketID, put.Key,
-				model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}))
+			value := model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}
+			if put.IfAbsent {
+				writes = append(writes, trackInsertModel(space, put.BucketID, put.Key, value))
+			} else {
+				writes = append(writes, trackPutModel(space, put.BucketID, put.Key, value))
+			}
 		}
 		for _, key := range req.Deletes {
 			writes = append(writes, mongo.NewDeleteOneModel().SetFilter(trackKeyFilter(space, key.BucketID, key.Key)))
 		}
 		if len(writes) > 0 {
 			if _, err := m.trackCollection.BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(true)); err != nil {
+				if mongo.IsDuplicateKeyError(err) {
+					return nil, model.ErrTrackKeyAlreadyExists
+				}
 				return nil, err
 			}
 		}
@@ -142,6 +149,15 @@ func trackKeyFilter(space model.TenancySpace, bucketID int32, key string) bson.M
 }
 
 func trackPutModel(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) *mongo.ReplaceOneModel {
+	doc := trackDocumentForValue(space, bucketID, key, value)
+	return mongo.NewReplaceOneModel().SetFilter(trackKeyFilter(space, bucketID, key)).SetReplacement(doc).SetUpsert(true)
+}
+
+func trackInsertModel(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) *mongo.InsertOneModel {
+	return mongo.NewInsertOneModel().SetDocument(trackDocumentForValue(space, bucketID, key, value))
+}
+
+func trackDocumentForValue(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) bson.M {
 	doc := trackKeyFilter(space, bucketID, key)
 	doc["value"] = value.Value
 	if value.Tag != nil {
@@ -150,7 +166,7 @@ func trackPutModel(space model.TenancySpace, bucketID int32, key string, value m
 	if value.Metric != nil {
 		doc["metric"] = *value.Metric
 	}
-	return mongo.NewReplaceOneModel().SetFilter(trackKeyFilter(space, bucketID, key)).SetReplacement(doc).SetUpsert(true)
+	return doc
 }
 
 type trackDocument struct {

@@ -36,7 +36,7 @@ func (c *Client) TrackDeleteMany(keys []model.TrackKey) error {
 func (c *Client) TrackMutate(req model.TrackMutation) (model.TrackMutationResult, error) {
 	r := protocol.TrackMutateRequest{MutationID: string(req.MutationID)}
 	for _, p := range req.Puts {
-		r.Puts = append(r.Puts, protocol.TrackRequest{BucketID: p.BucketID, Key: p.Key, Value: p.Value, Tag: p.Tag, Metric: p.Metric})
+		r.Puts = append(r.Puts, protocol.TrackRequest{BucketID: p.BucketID, Key: p.Key, Value: p.Value, Tag: p.Tag, Metric: p.Metric, IfAbsent: p.IfAbsent})
 	}
 	for _, k := range req.Deletes {
 		r.Deletes = append(r.Deletes, protocol.TrackBucketKeyPair{BucketID: k.BucketID, Key: k.Key})

@@ -24,7 +24,15 @@ func (b *BoltStore) TrackMutate(space model.TenancySpace, req model.TrackMutatio
 			return nil
 		}
 		for _, put := range req.Puts {
-			bucket, err := tx.CreateBucketIfNotExists(getTrackBucketName(space, put.BucketID))
+			name := getTrackBucketName(space, put.BucketID)
+			bucket := tx.Bucket(name)
+			if put.IfAbsent && bucket != nil && bucket.Get([]byte(put.Key)) != nil {
+				return model.ErrTrackKeyAlreadyExists
+			}
+			var err error
+			if bucket == nil {
+				bucket, err = tx.CreateBucketIfNotExists(name)
+			}
 			if err != nil {
 				return err
 			}
