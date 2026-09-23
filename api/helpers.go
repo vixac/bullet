@@ -48,6 +48,15 @@ func respondError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrBlobNotFound):
 		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
+	case errors.Is(err, model.ErrCheckpointUnsupported):
+		c.JSON(http.StatusNotImplemented, protocol.ErrorResponseFrom(err))
+	case errors.Is(err, model.ErrCheckpointInvalid):
+		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
+	case errors.Is(err, model.ErrCheckpointConflict),
+		errors.Is(err, model.ErrCheckpointCorrupt):
+		c.JSON(http.StatusConflict, protocol.ErrorResponseFrom(err))
+	case errors.Is(err, model.ErrCheckpointNotFound):
+		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
 	case errors.Is(err, model.ErrLedgerInvalidID),
 		errors.Is(err, model.ErrLedgerInvalidAppendID),
 		errors.Is(err, model.ErrLedgerPayloadTooLarge),

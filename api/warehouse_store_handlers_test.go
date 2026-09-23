@@ -73,6 +73,88 @@ func testWarehouseHTTP(t *testing.T, store si.WarehouseStore) {
 	}
 }
 
+func TestWarehouseCheckpointHTTP(t *testing.T) {
+	e := SetupWarehouseRouter(ram.NewRamStore(), "/warehouse", gin.New())
+	req := protocol.PutCheckpointRequest{
+		WriteID: "write", SequenceID: "sequence /?#%+雪", SourceLedgerID: "ledger",
+		StreamGeneration: 2, CoveredThrough: "9007199254740993",
+		ContentType: "application/octet-stream", Codec: "gzip", CodecVersion: "1", SchemaVersion: "2",
+		Value: []byte{0, 255, 1}, Checksum: "stored", StateChecksum: "state",
+	}
+	put := warehouseRequest(t, e, http.MethodPost, "/warehouse/checkpoints", req, true)
+	require.Equal(t, http.StatusOK, put.Code, put.Body.String())
+	var ref protocol.CheckpointRef
+	require.NoError(t, json.Unmarshal(put.Body.Bytes(), &ref))
+	require.Equal(t, req.CoveredThrough, ref.CoveredThrough)
+
+	sequencePath := "/warehouse/checkpoint-sequences/sequence%20%2F%3F%23%25%2B%E9%9B%AA/checkpoints"
+	latest := warehouseRequest(t, e, http.MethodGet, sequencePath+"/latest", nil, true)
+	require.Equal(t, http.StatusOK, latest.Code, latest.Body.String())
+	var latestResponse protocol.LatestCheckpointResponse
+	require.NoError(t, json.Unmarshal(latest.Body.Bytes(), &latestResponse))
+	require.Equal(t, ref, *latestResponse.Checkpoint)
+
+	candidates := warehouseRequest(t, e, http.MethodGet, sequencePath+"?at_or_before=9007199254740993&limit=0", nil, true)
+	require.Equal(t, http.StatusOK, candidates.Code, candidates.Body.String())
+	var candidatesResponse protocol.CheckpointCandidatesResponse
+	require.NoError(t, json.Unmarshal(candidates.Body.Bytes(), &candidatesResponse))
+	require.Equal(t, []protocol.CheckpointRef{ref}, candidatesResponse.Checkpoints)
+
+	get := warehouseRequest(t, e, http.MethodGet, "/warehouse/checkpoints/"+string(ref.ID), nil, true)
+	require.Equal(t, http.StatusOK, get.Code, get.Body.String())
+	var checkpoint protocol.Checkpoint
+	require.NoError(t, json.Unmarshal(get.Body.Bytes(), &checkpoint))
+	require.Equal(t, ref, checkpoint.Ref)
+	require.Equal(t, req.Value, checkpoint.Value)
+
+	corruptPath := "/warehouse/checkpoints/" + string(ref.ID) + "/corrupt"
+	require.Equal(t, http.StatusNoContent, warehouseRequest(t, e, http.MethodPost, corruptPath, nil, true).Code)
+	require.Equal(t, http.StatusNoContent, warehouseRequest(t, e, http.MethodPost, corruptPath, nil, true).Code)
+	corrupt := warehouseRequest(t, e, http.MethodGet, "/warehouse/checkpoints/"+string(ref.ID), nil, true)
+	require.Equal(t, http.StatusConflict, corrupt.Code)
+	var failure protocol.ErrorResponse
+	require.NoError(t, json.Unmarshal(corrupt.Body.Bytes(), &failure))
+	require.Equal(t, "checkpoint_corrupt", failure.Code)
+
+	emptyLatest := warehouseRequest(t, e, http.MethodGet, "/warehouse/checkpoint-sequences/missing/checkpoints/latest", nil, true)
+	require.JSONEq(t, `{"checkpoint":null}`, emptyLatest.Body.String())
+	emptyCandidates := warehouseRequest(t, e, http.MethodGet, "/warehouse/checkpoint-sequences/missing/checkpoints?at_or_before=0&limit=0", nil, true)
+	require.JSONEq(t, `{"checkpoints":[]}`, emptyCandidates.Body.String())
+
+	invalidCovered := req
+	invalidCovered.CoveredThrough = "not-a-position"
+	assertCheckpointHTTPError(t, warehouseRequest(t, e, http.MethodPost, "/warehouse/checkpoints", invalidCovered, true), http.StatusBadRequest, "checkpoint_invalid")
+	require.Equal(t, http.StatusBadRequest, warehouseRequest(t, e, http.MethodPost, "/warehouse/checkpoints", gin.H{"value": "invalid-base64!"}, true).Code)
+	for _, path := range []string{
+		"/warehouse/checkpoint-sequences/sequence/checkpoints",
+		"/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=bad&limit=1",
+		"/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=-1&limit=1",
+		"/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=1",
+		"/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=1&limit=-1",
+		"/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=1&limit=999999999999999999999999",
+	} {
+		assertCheckpointHTTPError(t, warehouseRequest(t, e, http.MethodGet, path, nil, true), http.StatusBadRequest, "checkpoint_invalid")
+	}
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodPost, "/warehouse/checkpoints"},
+		{http.MethodGet, "/warehouse/checkpoint-sequences/sequence/checkpoints/latest"},
+		{http.MethodGet, "/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=0&limit=0"},
+		{http.MethodGet, "/warehouse/checkpoints/checkpoint"},
+		{http.MethodPost, "/warehouse/checkpoints/checkpoint/corrupt"},
+	} {
+		require.Equal(t, http.StatusUnauthorized, warehouseRequest(t, e, route.method, route.path, req, false).Code)
+	}
+}
+
+func assertCheckpointHTTPError(t *testing.T, response *httptest.ResponseRecorder, status int, code string) {
+	t.Helper()
+	require.Equal(t, status, response.Code, response.Body.String())
+	var failure protocol.ErrorResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &failure))
+	require.Equal(t, code, failure.Code)
+}
+
 func TestWarehouseUnsupportedStores(t *testing.T) {
 	for name, store := range map[string]si.Store{"bolt": &boltdb.BoltStore{}, "mongo": &mongodb.MongoStore{}} {
 		t.Run(name, func(t *testing.T) {
@@ -80,6 +162,20 @@ func TestWarehouseUnsupportedStores(t *testing.T) {
 			for _, route := range []struct{ method, path string }{{"POST", "/warehouse/blobs"}, {"GET", "/warehouse/blobs/missing"}, {"POST", "/warehouse/blobs/batch-get"}} {
 				w := warehouseRequest(t, e, route.method, route.path, gin.H{"put_id": "p"}, true)
 				require.Equal(t, http.StatusNotImplemented, w.Code, w.Body.String())
+			}
+			checkpointReq := protocol.PutCheckpointRequest{
+				WriteID: "write", SequenceID: "sequence", SourceLedgerID: "ledger", CoveredThrough: "0",
+				Checksum: "stored", StateChecksum: "state",
+			}
+			for _, route := range []struct{ method, path string }{
+				{http.MethodPost, "/warehouse/checkpoints"},
+				{http.MethodGet, "/warehouse/checkpoint-sequences/sequence/checkpoints/latest"},
+				{http.MethodGet, "/warehouse/checkpoint-sequences/sequence/checkpoints?at_or_before=0&limit=0"},
+				{http.MethodGet, "/warehouse/checkpoints/checkpoint"},
+				{http.MethodPost, "/warehouse/checkpoints/checkpoint/corrupt"},
+			} {
+				response := warehouseRequest(t, e, route.method, route.path, checkpointReq, true)
+				assertCheckpointHTTPError(t, response, http.StatusNotImplemented, "checkpoint_unsupported")
 			}
 		})
 	}
