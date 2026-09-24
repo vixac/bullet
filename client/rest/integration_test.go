@@ -51,18 +51,18 @@ func TestTrack(t *testing.T) {
 		t.Run(pair.name, func(t *testing.T) {
 			tag, metric := int64(math.MaxInt64), 3.5
 			key := "a /?#%+雪\n"
-			require.NoError(t, pair.local.TrackPut(1, key, math.MaxInt64, &tag, &metric))
-			value, err := pair.rest.TrackGet(1, key)
+			require.NoError(t, pair.local.TrackPut(1, key, model.TrackValue{Value: math.MaxInt64, Tag: &tag, Metric: &metric}))
+			value, err := pair.rest.TrackGet(1, key, model.TrackReadOptions{})
 			require.NoError(t, err)
-			require.Equal(t, int64(math.MaxInt64), value)
+			require.Equal(t, int64(math.MaxInt64), value.Value)
 			require.NoError(t, pair.rest.TrackPutMany(map[int32][]model.TrackKeyValueItem{
 				1:  {{Key: "b", Value: model.TrackValue{Value: math.MinInt64}}, {Key: "b", Value: model.TrackValue{Value: 42}}},
 				-2: {{Key: "c", Value: model.TrackValue{Value: 7, Tag: &tag, Metric: &metric}}},
 			}))
 			for _, keys := range []map[int32][]string{nil, {}, {1: {}}, {1: {key, "b", "missing"}, -2: {"c"}, 3: {"missing"}}} {
-				lv, lm, err := pair.local.TrackGetMany(keys)
+				lv, lm, err := pair.local.TrackGetMany(keys, model.TrackReadOptions{})
 				require.NoError(t, err)
-				rv, rm, err := pair.rest.TrackGetMany(keys)
+				rv, rm, err := pair.rest.TrackGetMany(keys, model.TrackReadOptions{})
 				require.NoError(t, err)
 				require.Equal(t, lv, rv)
 				require.Equal(t, lm, rm)
@@ -83,9 +83,9 @@ func TestTrack(t *testing.T) {
 			require.ElementsMatch(t, lv, rv)
 			require.Len(t, rv, 2)
 			require.NoError(t, pair.rest.TrackDeleteMany([]model.TrackKey{{BucketID: 1, Key: key}, {BucketID: -2, Key: "c"}}))
-			_, err = pair.local.TrackGet(1, key)
+			_, err = pair.local.TrackGet(1, key, model.TrackReadOptions{})
 			require.Error(t, err)
-			mutation := model.TrackMutation{MutationID: "track-batch", Puts: []model.TrackPut{{BucketID: 1, Key: "new", Value: math.MaxInt64}, {BucketID: 2, Key: "other", Value: 8}}, Deletes: []model.TrackKey{{BucketID: 1, Key: "b"}}}
+			mutation := model.TrackMutation{MutationID: "track-batch", Puts: []model.TrackPut{{BucketID: 1, Key: "new", Value: model.TrackValue{Value: math.MaxInt64}}, {BucketID: 2, Key: "other", Value: model.TrackValue{Value: 8}}}, Deletes: []model.TrackKey{{BucketID: 1, Key: "b"}}}
 			result, err := pair.rest.TrackMutate(mutation)
 			require.NoError(t, err)
 			require.True(t, result.Applied)
@@ -95,10 +95,10 @@ func TestTrack(t *testing.T) {
 			result, err = pair.rest.TrackMutate(mutation)
 			require.NoError(t, err)
 			require.False(t, result.Applied)
-			value, err = pair.local.TrackGet(1, "new")
+			value, err = pair.local.TrackGet(1, "new", model.TrackReadOptions{})
 			require.NoError(t, err)
-			require.Equal(t, int64(math.MaxInt64), value)
-			_, err = pair.other.TrackGet(1, "new")
+			require.Equal(t, int64(math.MaxInt64), value.Value)
+			_, err = pair.other.TrackGet(1, "new", model.TrackReadOptions{})
 			require.Error(t, err)
 			// Mutation IDs are store-wide, even though the operation is tenant-scoped.
 			result, err = pair.other.TrackMutate(mutation)

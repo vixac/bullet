@@ -56,7 +56,7 @@ func (h *trackHandler) mutate(c *gin.Context) {
 	for _, put := range req.Puts {
 		mutation.Puts = append(mutation.Puts, model.TrackPut{
 			BucketID: put.BucketID, Key: put.Key,
-			Value: put.Value, Tag: put.Tag, Metric: put.Metric, IfAbsent: put.IfAbsent,
+			Value: put.ModelValue(), IfAbsent: put.IfAbsent,
 		})
 	}
 	for _, key := range req.Deletes {
@@ -66,13 +66,11 @@ func (h *trackHandler) mutate(c *gin.Context) {
 	}
 	result, err := h.store.TrackMutate(space, mutation)
 	if err != nil {
-		status := http.StatusInternalServerError
 		if errors.Is(err, model.ErrTrackMutationUnsupported) {
-			status = http.StatusNotImplemented
-		} else if errors.Is(err, model.ErrTrackKeyAlreadyExists) {
-			status = http.StatusConflict
+			c.JSON(http.StatusNotImplemented, protocol.ErrorResponseFrom(err))
+		} else {
+			respondError(c, err)
 		}
-		c.JSON(status, protocol.ErrorResponseFrom(err))
 		return
 	}
 	if result.Applied {
@@ -96,8 +94,8 @@ func (h *trackHandler) upsertOne(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, protocol.ErrorResponse{Error: "ifAbsent is supported only by /mutate"})
 		return
 	}
-	if err := h.store.TrackPut(space, req.BucketID, req.Key, req.Value, req.Tag, req.Metric); err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
+	if err := h.store.TrackPut(space, req.BucketID, req.Key, req.ModelValue()); err != nil {
+		respondError(c, err)
 		return
 	}
 	incrementObjects(c, "track", "written", 1)
@@ -117,7 +115,7 @@ func (h *trackHandler) upsertMany(c *gin.Context) {
 	}
 	items := req.Model()
 	if err := h.store.TrackPutMany(space, items); err != nil {
-		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
+		respondError(c, err)
 		return
 	}
 	count := 0
@@ -134,18 +132,19 @@ func (h *trackHandler) getOne(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, protocol.ErrorResponseFrom(err))
 		return
 	}
-	var req protocol.TrackRequest
+	var req protocol.TrackGetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, protocol.ErrorResponseFrom(err))
 		return
 	}
-	value, err := h.store.TrackGet(space, req.BucketID, req.Key)
+	opts := model.TrackReadOptions{IncludePayload: req.IncludePayload}
+	value, err := h.store.TrackGet(space, req.BucketID, req.Key, opts)
 	if err != nil {
 		c.JSON(http.StatusNotFound, protocol.ErrorResponseFrom(err))
 		return
 	}
 	incrementObjects(c, "track", "read", 1)
-	c.JSON(http.StatusOK, protocol.TrackGetResponse{Value: value})
+	c.JSON(http.StatusOK, protocol.TrackGetResponse{Value: protocol.TrackValueFromModel(value, opts.IncludePayload)})
 }
 
 func (h *trackHandler) getMany(c *gin.Context) {
@@ -163,7 +162,8 @@ func (h *trackHandler) getMany(c *gin.Context) {
 	for _, bucket := range req.Buckets {
 		keys[bucket.BucketID] = append(keys[bucket.BucketID], bucket.Keys...)
 	}
-	values, missing, err := h.store.TrackGetMany(space, keys)
+	opts := model.TrackReadOptions{IncludePayload: req.IncludePayload}
+	values, missing, err := h.store.TrackGetMany(space, keys, opts)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, protocol.ErrorResponseFrom(err))
 		return
@@ -178,7 +178,7 @@ func (h *trackHandler) getMany(c *gin.Context) {
 	for bucketID, vals := range values {
 		wireValues := make(map[string]protocol.TrackValue, len(vals))
 		for key, value := range vals {
-			wireValues[key] = protocol.TrackValueFromModel(value)
+			wireValues[key] = protocol.TrackValueFromModel(value, opts.IncludePayload)
 		}
 		strValues[strconv.Itoa(int(bucketID))] = wireValues
 	}
@@ -230,7 +230,7 @@ func (h *trackHandler) queryByPrefix(c *gin.Context) {
 		return
 	}
 	incrementObjects(c, "track", "read", len(items))
-	c.JSON(http.StatusOK, protocol.TrackQueryResponse{Items: protocol.TrackItemsFromModel(items)})
+	c.JSON(http.StatusOK, protocol.TrackQueryResponse{Items: protocol.TrackItemsFromModel(items, false)})
 }
 
 func (h *trackHandler) queryByPrefixes(c *gin.Context) {
@@ -256,5 +256,5 @@ func (h *trackHandler) queryByPrefixes(c *gin.Context) {
 		return
 	}
 	incrementObjects(c, "track", "read", len(items))
-	c.JSON(http.StatusOK, protocol.TrackQueryResponse{Items: protocol.TrackItemsFromModel(items)})
+	c.JSON(http.StatusOK, protocol.TrackQueryResponse{Items: protocol.TrackItemsFromModel(items, false)})
 }

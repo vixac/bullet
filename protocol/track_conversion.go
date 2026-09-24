@@ -2,22 +2,56 @@ package protocol
 
 import "github.com/vixac/bullet/model"
 
+func PayloadFromModel(payload []byte) *[]byte {
+	copy := append([]byte(nil), payload...)
+	if payload != nil && copy == nil {
+		copy = []byte{}
+	}
+	return &copy
+}
+
+func (r TrackRequest) ModelValue() model.TrackValue {
+	value := model.TrackValue{Value: r.Value, Tag: r.Tag, Metric: r.Metric}
+	if r.Payload != nil {
+		value.Payload = append([]byte(nil), (*r.Payload)...)
+		if *r.Payload != nil && value.Payload == nil {
+			value.Payload = []byte{}
+		}
+	}
+	return value
+}
+
 // Model returns the transport-independent value.
 func (v TrackValue) Model() model.TrackValue {
-	return model.TrackValue{Value: v.Value, Tag: v.Tag, Metric: v.Metric}
+	var payload []byte
+	if v.Payload != nil {
+		payload = append([]byte(nil), (*v.Payload)...)
+		if *v.Payload != nil && payload == nil {
+			payload = []byte{}
+		}
+	}
+	return model.TrackValue{Value: v.Value, Tag: v.Tag, Metric: v.Metric, Payload: payload}
 }
 
-func TrackValueFromModel(v model.TrackValue) TrackValue {
-	return TrackValue{Value: v.Value, Tag: v.Tag, Metric: v.Metric}
+func TrackValueFromModel(v model.TrackValue, includePayload bool) TrackValue {
+	result := TrackValue{Value: v.Value, Tag: v.Tag, Metric: v.Metric}
+	if includePayload {
+		payload := append([]byte(nil), v.Payload...)
+		if v.Payload != nil && payload == nil {
+			payload = []byte{}
+		}
+		result.Payload = &payload
+	}
+	return result
 }
 
-func TrackItemsFromModel(items []model.TrackKeyValueItem) []TrackKeyValueItem {
+func TrackItemsFromModel(items []model.TrackKeyValueItem, includePayload bool) []TrackKeyValueItem {
 	if items == nil {
 		return nil
 	}
 	result := make([]TrackKeyValueItem, len(items))
 	for i, item := range items {
-		result[i] = TrackKeyValueItem{Key: item.Key, Value: TrackValueFromModel(item.Value)}
+		result[i] = TrackKeyValueItem{Key: item.Key, Value: TrackValueFromModel(item.Value, includePayload)}
 	}
 	return result
 }
@@ -46,7 +80,7 @@ func (r TrackDeleteManyRequest) Model() []model.TrackKey {
 
 // TrackGetResponse is the body returned by POST /track/items/get.
 type TrackGetResponse struct {
-	Value int64 `json:"value"`
+	Value TrackValue `json:"value"`
 }
 
 // TrackQueryResponse is shared by the single- and multi-prefix query endpoints.

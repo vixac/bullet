@@ -68,7 +68,7 @@ func TestTrackQueriesChunkLargeFilters(t *testing.T) {
 	}
 
 	requestedKeys := append(keys, "missing")
-	values, missing, err := store.TrackGetMany(space, map[int32][]string{bucketID: requestedKeys})
+	values, missing, err := store.TrackGetMany(space, map[int32][]string{bucketID: requestedKeys}, model.TrackReadOptions{})
 	if err != nil {
 		t.Fatalf("get many: %v", err)
 	}

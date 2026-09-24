@@ -8,21 +8,21 @@ import (
 	"strconv"
 )
 
-func (c *Client) TrackPut(bucketID int32, key string, value int64, tag *int64, metric *float64) error {
-	return c.call(http.MethodPost, "/track/items", protocol.TrackRequest{BucketID: bucketID, Key: key, Value: value, Tag: tag, Metric: metric}, nil, http.StatusOK)
+func (c *Client) TrackPut(bucketID int32, key string, value model.TrackValue) error {
+	return c.call(http.MethodPost, "/track/items", protocol.TrackRequest{BucketID: bucketID, Key: key, Value: value.Value, Tag: value.Tag, Metric: value.Metric, Payload: protocol.PayloadFromModel(value.Payload)}, nil, http.StatusOK)
 }
-func (c *Client) TrackGet(bucketID int32, key string) (int64, error) {
+func (c *Client) TrackGet(bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error) {
 	var r protocol.TrackGetResponse
-	err := c.call(http.MethodPost, "/track/items/get", protocol.TrackBucketKeyPair{BucketID: bucketID, Key: key}, &r, http.StatusOK)
+	err := c.call(http.MethodPost, "/track/items/get", protocol.TrackGetRequest{BucketID: bucketID, Key: key, IncludePayload: opts.IncludePayload}, &r, http.StatusOK)
 	if err != nil {
-		return 0, err
+		return model.TrackValue{}, err
 	}
-	return r.Value, nil
+	return r.Value.Model(), nil
 }
 func (c *Client) TrackPutMany(items map[int32][]model.TrackKeyValueItem) error {
 	r := protocol.TrackPutManyRequest{}
 	for bucket, values := range items {
-		r.Buckets = append(r.Buckets, protocol.TrackPutItems{BucketID: bucket, Items: protocol.TrackItemsFromModel(values)})
+		r.Buckets = append(r.Buckets, protocol.TrackPutItems{BucketID: bucket, Items: protocol.TrackItemsFromModel(values, true)})
 	}
 	return c.call(http.MethodPost, "/track/items/batch", r, nil, http.StatusOK)
 }
@@ -36,7 +36,7 @@ func (c *Client) TrackDeleteMany(keys []model.TrackKey) error {
 func (c *Client) TrackMutate(req model.TrackMutation) (model.TrackMutationResult, error) {
 	r := protocol.TrackMutateRequest{MutationID: string(req.MutationID)}
 	for _, p := range req.Puts {
-		r.Puts = append(r.Puts, protocol.TrackRequest{BucketID: p.BucketID, Key: p.Key, Value: p.Value, Tag: p.Tag, Metric: p.Metric, IfAbsent: p.IfAbsent})
+		r.Puts = append(r.Puts, protocol.TrackRequest{BucketID: p.BucketID, Key: p.Key, Value: p.Value.Value, Tag: p.Value.Tag, Metric: p.Value.Metric, Payload: protocol.PayloadFromModel(p.Value.Payload), IfAbsent: p.IfAbsent})
 	}
 	for _, k := range req.Deletes {
 		r.Deletes = append(r.Deletes, protocol.TrackBucketKeyPair{BucketID: k.BucketID, Key: k.Key})
@@ -47,8 +47,8 @@ func (c *Client) TrackMutate(req model.TrackMutation) (model.TrackMutationResult
 	}
 	return model.TrackMutationResult{Applied: result.Applied}, nil
 }
-func (c *Client) TrackGetMany(keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
-	req := protocol.TrackGetManyRequest{}
+func (c *Client) TrackGetMany(keys map[int32][]string, opts model.TrackReadOptions) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+	req := protocol.TrackGetManyRequest{IncludePayload: opts.IncludePayload}
 	for bucket, ks := range keys {
 		req.Buckets = append(req.Buckets, protocol.TrackGetKeys{BucketID: bucket, Keys: ks})
 	}

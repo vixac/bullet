@@ -49,7 +49,7 @@ func TestTrackBatchTransactions(t *testing.T) {
 	space := model.TenancySpace{AppId: 1, TenancyId: 2}
 	tag, metric := int64(7), 1.5
 	require.NoError(t, s.TrackPutMany(space, map[int32][]model.TrackKeyValueItem{
-		1: {{Key: "first", Value: model.TrackValue{Value: 10, Tag: &tag, Metric: &metric}}},
+		1: {{Key: "first", Value: model.TrackValue{Value: 10, Tag: &tag, Metric: &metric, Payload: []byte("payload")}}},
 		2: {{Key: "second", Value: model.TrackValue{Value: 20}}},
 	}))
 	// The last write fails validation after an update and an insert have executed.
@@ -59,11 +59,14 @@ func TestTrackBatchTransactions(t *testing.T) {
 		{Key: "fail", Value: model.TrackValue{Value: -1}},
 	}})
 	require.Error(t, err)
-	found, missing, err := s.TrackGetMany(space, map[int32][]string{1: {"first", "new", "fail"}, 2: {"second"}})
+	found, missing, err := s.TrackGetMany(space, map[int32][]string{1: {"first", "new", "fail"}, 2: {"second"}}, model.TrackReadOptions{})
 	require.NoError(t, err)
 	require.Equal(t, model.TrackValue{Value: 10, Tag: &tag, Metric: &metric}, found[1]["first"])
 	require.ElementsMatch(t, []string{"new", "fail"}, missing[1])
 	require.Equal(t, int64(20), found[2]["second"].Value)
+	withPayload, _, err := s.TrackGetMany(space, map[int32][]string{1: {"first"}}, model.TrackReadOptions{IncludePayload: true})
+	require.NoError(t, err)
+	require.Equal(t, []byte("payload"), withPayload[1]["first"].Payload)
 
 	deletes := []model.TrackKey{{BucketID: 1, Key: "first"}, {BucketID: 2, Key: "second"}}
 	// Reject commit after DeleteMany executes. No deleted document may become visible.
@@ -74,13 +77,13 @@ func TestTrackBatchTransactions(t *testing.T) {
 	}).Err())
 	require.Error(t, s.TrackDeleteMany(space, deletes))
 	for bucket, key := range map[int32]string{1: "first", 2: "second"} {
-		got, err := s.TrackGet(space, bucket, key)
+		got, err := s.TrackGet(space, bucket, key, model.TrackReadOptions{})
 		require.NoError(t, err)
-		require.Equal(t, int64(bucket*10), got)
+		require.Equal(t, int64(bucket*10), got.Value)
 	}
 	require.NoError(t, s.TrackDeleteMany(space, deletes))
 	for bucket, key := range map[int32]string{1: "first", 2: "second"} {
-		_, err := s.TrackGet(space, bucket, key)
+		_, err := s.TrackGet(space, bucket, key, model.TrackReadOptions{})
 		require.ErrorIs(t, err, mongo.ErrNoDocuments)
 	}
 }

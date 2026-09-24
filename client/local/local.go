@@ -34,11 +34,11 @@ func (c *Client) LedgerReadForward(selector model.LedgerSelector, after model.Le
 func (c *Client) TrackMutate(req model.TrackMutation) (model.TrackMutationResult, error) {
 	return c.store.TrackMutate(c.space, req)
 }
-func (c *Client) TrackPut(bucketID int32, key string, value int64, tag *int64, metric *float64) error {
-	return c.store.TrackPut(c.space, bucketID, key, value, tag, metric)
+func (c *Client) TrackPut(bucketID int32, key string, value model.TrackValue) error {
+	return c.store.TrackPut(c.space, bucketID, key, value)
 }
-func (c *Client) TrackGet(bucketID int32, key string) (int64, error) {
-	return c.store.TrackGet(c.space, bucketID, key)
+func (c *Client) TrackGet(bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error) {
+	return c.store.TrackGet(c.space, bucketID, key, opts)
 }
 func (c *Client) TrackDeleteMany(items []model.TrackKey) error {
 	return c.store.TrackDeleteMany(c.space, items)
@@ -46,8 +46,8 @@ func (c *Client) TrackDeleteMany(items []model.TrackKey) error {
 func (c *Client) TrackPutMany(items map[int32][]model.TrackKeyValueItem) error {
 	return c.store.TrackPutMany(c.space, items)
 }
-func (c *Client) TrackGetMany(keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
-	return c.store.TrackGetMany(c.space, keys)
+func (c *Client) TrackGetMany(keys map[int32][]string, opts model.TrackReadOptions) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+	return c.store.TrackGetMany(c.space, keys, opts)
 }
 func (c *Client) GetItemsByKeyPrefix(bucketID int32, prefix string, tags []int64, metricValue *float64, metricIsGt bool) ([]model.TrackKeyValueItem, error) {
 	return c.store.GetItemsByKeyPrefix(c.space, bucketID, prefix, tags, metricValue, metricIsGt)

@@ -36,12 +36,12 @@ type Track interface {
 	// or transport error can leave the outcome unknown; retry with the same ID.
 	TrackMutate(req model.TrackMutation) (model.TrackMutationResult, error)
 
-	// TrackPut atomically upserts the value, tag, and metric for one key.
+	// TrackPut atomically replaces the complete stored value for one key.
 	// A commit or transport error can leave the caller unsure whether it committed.
-	TrackPut(bucketID int32, key string, value int64, tag *int64, metric *float64) error
+	TrackPut(bucketID int32, key string, value model.TrackValue) error
 
 	// TrackGet atomically reads one key's value from a consistent snapshot.
-	TrackGet(bucketID int32, key string) (int64, error)
+	TrackGet(bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error)
 
 	// TrackDeleteMany atomically deletes the entire batch, including across buckets:
 	// either all deletions commit or none do. No partial batch is committed.
@@ -49,17 +49,20 @@ type Track interface {
 	// committed; an error does not necessarily mean nothing changed.
 	TrackDeleteMany(items []model.TrackKey) error
 
-	// TrackPutMany atomically upserts the entire batch, including across buckets:
-	// either all updates commit or none do. No partial batch is committed.
+	// TrackPutMany atomically replaces the entire batch across buckets, including
+	// each value's payload. A nil payload removes any existing payload. Either
+	// all updates commit or none do. No partial batch is committed.
 	// A commit/transport error can leave the caller uncertain whether all or none
 	// committed; an error does not necessarily mean nothing changed.
 	TrackPutMany(items map[int32][]model.TrackKeyValueItem) error
 
 	// TrackGetMany atomically reads all requested keys from one snapshot across
-	// all buckets. Values and missing keys describe that same snapshot.
-	TrackGetMany(keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error)
+	// all buckets. Values and missing keys describe that same snapshot. Payloads
+	// are omitted unless opts.IncludePayload is true.
+	TrackGetMany(keys map[int32][]string, opts model.TrackReadOptions) (map[int32]map[string]model.TrackValue, map[int32][]string, error)
 
 	// GetItemsByKeyPrefix atomically reads all matching items from one snapshot.
+	// Prefix reads never return payloads.
 	GetItemsByKeyPrefix(
 		bucketID int32,
 		prefix string,
@@ -70,6 +73,7 @@ type Track interface {
 
 	// GetItemsByKeyPrefixes atomically reads all matching items from one snapshot
 	// shared by every prefix, including when the query is split into chunks.
+	// Prefix reads never return payloads.
 	GetItemsByKeyPrefixes(bucketID int32,
 		prefixes []string,
 		tags []int64,

@@ -27,13 +27,17 @@ func (m *MongoStore) TrackMutate(space model.TenancySpace, req model.TrackMutati
 		if marker.UpsertedCount == 0 {
 			return nil, nil
 		}
+		for _, put := range req.Puts {
+			if err := model.ValidateTrackValue(put.Value); err != nil {
+				return nil, err
+			}
+		}
 		writes := make([]mongo.WriteModel, 0, len(req.Puts)+len(req.Deletes))
 		for _, put := range req.Puts {
-			value := model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric}
 			if put.IfAbsent {
-				writes = append(writes, trackInsertModel(space, put.BucketID, put.Key, value))
+				writes = append(writes, trackInsertModel(space, put.BucketID, put.Key, put.Value))
 			} else {
-				writes = append(writes, trackPutModel(space, put.BucketID, put.Key, value))
+				writes = append(writes, trackPutModel(space, put.BucketID, put.Key, put.Value))
 			}
 		}
 		for _, key := range req.Deletes {
@@ -83,20 +87,28 @@ func (m *MongoStore) TrackDeleteMany(space model.TenancySpace, items []model.Tra
 	})
 }
 
-func (m *MongoStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
-	put := trackPutModel(space, bucketID, key, model.TrackValue{Value: value, Tag: tag, Metric: metric})
+func (m *MongoStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) error {
+	if err := model.ValidateTrackValue(value); err != nil {
+		return err
+	}
+	put := trackPutModel(space, bucketID, key, value)
 	_, err := m.trackCollection.ReplaceOne(context.TODO(), put.Filter, put.Replacement, options.Replace().SetUpsert(true))
 	return err
 }
 
-func (m *MongoStore) TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error) {
-	var result struct{ Value int64 }
+func (m *MongoStore) TrackGet(space model.TenancySpace, bucketID int32, key string, readOpts model.TrackReadOptions) (model.TrackValue, error) {
+	var result trackDocument
 	filter := bson.M{"appId": space.AppId, "tenancyId": space.TenancyId, "bucketId": bucketID, "key": key}
-	err := m.trackCollection.FindOne(context.TODO(), filter).Decode(&result)
-	if err != nil {
-		return 0, err
+	projection := bson.M{"value": 1, "tag": 1, "metric": 1}
+	if readOpts.IncludePayload {
+		projection["payload"] = 1
 	}
-	return result.Value, nil
+	opts := options.FindOne().SetProjection(projection)
+	err := m.trackCollection.FindOne(context.TODO(), filter, opts).Decode(&result)
+	if err != nil {
+		return model.TrackValue{}, err
+	}
+	return model.TrackValue{Value: result.Value, Tag: result.Tag, Metric: result.Metric, Payload: result.Payload}, nil
 }
 
 func (m *MongoStore) TrackDelete(space model.TenancySpace, bucketID int32, key string) error {
@@ -114,6 +126,9 @@ func (m *MongoStore) TrackPutMany(space model.TenancySpace, items map[int32][]mo
 
 	for bucketID, kvItems := range items {
 		for _, kv := range kvItems {
+			if err := model.ValidateTrackValue(kv.Value); err != nil {
+				return err
+			}
 			writes = append(writes, trackPutModel(space, bucketID, kv.Key, kv.Value))
 		}
 	}
@@ -166,6 +181,9 @@ func trackDocumentForValue(space model.TenancySpace, bucketID int32, key string,
 	if value.Metric != nil {
 		doc["metric"] = *value.Metric
 	}
+	if value.Payload != nil {
+		doc["payload"] = value.Payload
+	}
 	return doc
 }
 
@@ -175,15 +193,21 @@ type trackDocument struct {
 	Value    int64    `bson:"value"`
 	Tag      *int64   `bson:"tag,omitempty"`
 	Metric   *float64 `bson:"metric,omitempty"`
+	Payload  []byte   `bson:"payload"`
 }
 
 // trackFind consumes every cursor batch in one snapshot transaction. Results
 // from failed or retried attempts must not escape to the caller.
-func (m *MongoStore) trackFind(filter bson.M) ([]trackDocument, error) {
+func (m *MongoStore) trackFind(filter bson.M, includePayload bool) ([]trackDocument, error) {
 	var documents []trackDocument
 	err := m.trackTransaction(func(ctx mongo.SessionContext) (interface{}, error) {
 		documents = nil
-		cursor, err := m.trackCollection.Find(ctx, filter)
+		projection := bson.M{"bucketId": 1, "key": 1, "value": 1, "tag": 1, "metric": 1}
+		if includePayload {
+			projection["payload"] = 1
+		}
+		findOpts := options.Find().SetProjection(projection)
+		cursor, err := m.trackCollection.Find(ctx, filter, findOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +230,7 @@ func (b *MongoStore) GetItemsByKeyPrefix(
 	return b.GetItemsByKeyPrefixes(space, bucketID, []string{prefix}, tags, metricValue, metricIsGt)
 }
 
-func (m *MongoStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+func (m *MongoStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string, opts model.TrackReadOptions) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 	values := make(map[int32]map[string]model.TrackValue)
 	missing := make(map[int32][]string)
 
@@ -226,7 +250,7 @@ func (m *MongoStore) TrackGetMany(space model.TenancySpace, keys map[int32][]str
 		return values, missing, nil
 	}
 
-	documents, err := m.trackFind(bson.M{"$or": orFilters})
+	documents, err := m.trackFind(bson.M{"$or": orFilters}, opts.IncludePayload)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -239,9 +263,10 @@ func (m *MongoStore) TrackGetMany(space model.TenancySpace, keys map[int32][]str
 		}
 
 		values[result.BucketID][result.Key] = model.TrackValue{
-			Value:  result.Value,
-			Tag:    result.Tag,
-			Metric: result.Metric,
+			Value:   result.Value,
+			Tag:     result.Tag,
+			Metric:  result.Metric,
+			Payload: result.Payload,
 		}
 		foundKeys[result.BucketID][result.Key] = true
 	}
@@ -336,7 +361,7 @@ func (m *MongoStore) GetItemsByKeyPrefixes(
 		filter["metric"] = bson.M{op: *metricValue}
 	}
 
-	documents, err := m.trackFind(filter)
+	documents, err := m.trackFind(filter, false)
 	if err != nil {
 		return nil, err
 	}

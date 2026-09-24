@@ -37,11 +37,11 @@ For example:
 
 ```go
 // Backend
-TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error)
+TrackGet(space model.TenancySpace, bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error)
 TrackMutate(space model.TenancySpace, req model.TrackMutation) (model.TrackMutationResult, error)
 
 // Tenant-scoped client
-TrackGet(bucketID int32, key string) (int64, error)
+TrackGet(bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error)
 TrackMutate(req model.TrackMutation) (model.TrackMutationResult, error)
 ```
 
@@ -105,7 +105,7 @@ Prefer direct imports over creating a permanent second layer of aliases.
 | Client-specific tenancy struct | `model.TenancySpace` |
 | `TrackMutation`, `TrackMutationResult` | `model.TrackMutation`, `model.TrackMutationResult`; puts are `[]model.TrackPut`, deletes are `[]model.TrackKey` |
 | `TrackDeleteValue` and server `TrackBucketKeyPair` domain usage | `model.TrackKey` |
-| Client flat `TrackKeyValueItem` | `model.TrackKeyValueItem{Key: key, Value: model.TrackValue{Value: value, Tag: tag, Metric: metric}}` |
+| Client flat `TrackKeyValueItem` | `model.TrackKeyValueItem{Key: key, Value: model.TrackValue{Value: value, Tag: tag, Metric: metric, Payload: payload}}` |
 | `TrackGetManyResponse` | Client method returns `values, missing, err`; both maps use `int32` bucket keys |
 | Track request wrappers, prefix filter wrappers | Client methods take the corresponding store arguments directly; HTTP adapters use `protocol.Track*` bodies |
 | Depot request/response wrappers | Client methods take the corresponding store arguments and return IDs, values, maps, and missing IDs directly; HTTP bodies remain in `protocol.Depot*` |
@@ -141,6 +141,11 @@ for both adapters against `client.Client` after porting them.
 * `protocol.TrackGetManyResponse` uses string bucket keys in JSON. The scoped
   domain interface uses `int32` keys for both returned maps. Parse and validate
   those keys at the REST boundary.
+* Track payloads are limited to 64 KiB of raw bytes. Point and explicit-key
+  reads return them only when `TrackReadOptions.IncludePayload` is true; prefix
+  queries never return payloads. Nil means no stored payload and a non-nil empty
+  slice means a stored zero-byte payload. Track puts replace the complete value,
+  so a nil payload removes any prior payload.
 * Prefix queries return `protocol.TrackQueryResponse` with an `items` array;
   scoped clients return `[]model.TrackKeyValueItem`, not a batch-get wrapper.
 * Ledger positions remain decimal strings on the wire and `model.LedgerPosition`

@@ -24,15 +24,15 @@ func TestTrackMigrator(t *testing.T) {
 	metric2 := float64(2.5)
 
 	// Add some test items
-	err := source.TrackPut(testTenancy, bucketID, "key1", 100, &tag1, &metric1)
+	err := source.TrackPut(testTenancy, bucketID, "key1", model.TrackValue{Value: 100, Tag: &tag1, Metric: &metric1, Payload: []byte("payload")})
 	if err != nil {
 		t.Fatalf("Failed to put test data: %v", err)
 	}
-	err = source.TrackPut(testTenancy, bucketID, "key2", 200, &tag2, &metric2)
+	err = source.TrackPut(testTenancy, bucketID, "key2", model.TrackValue{Value: 200, Tag: &tag2, Metric: &metric2})
 	if err != nil {
 		t.Fatalf("Failed to put test data: %v", err)
 	}
-	err = source.TrackPut(testTenancy, bucketID, "key3", 300, nil, nil)
+	err = source.TrackPut(testTenancy, bucketID, "key3", model.TrackValue{Value: 300})
 	if err != nil {
 		t.Fatalf("Failed to put test data: %v", err)
 	}
@@ -51,28 +51,31 @@ func TestTrackMigrator(t *testing.T) {
 	}
 
 	// Verify data in target
-	val1, err := target.TrackGet(testTenancy, bucketID, "key1")
+	val1, err := target.TrackGet(testTenancy, bucketID, "key1", model.TrackReadOptions{IncludePayload: true})
 	if err != nil {
 		t.Fatalf("Failed to get key1 from target: %v", err)
 	}
-	if val1 != 100 {
-		t.Errorf("Expected value 100, got %d", val1)
+	if val1.Value != 100 {
+		t.Errorf("Expected value 100, got %d", val1.Value)
+	}
+	if string(val1.Payload) != "payload" {
+		t.Errorf("Expected migrated payload, got %q", val1.Payload)
 	}
 
-	val2, err := target.TrackGet(testTenancy, bucketID, "key2")
+	val2, err := target.TrackGet(testTenancy, bucketID, "key2", model.TrackReadOptions{})
 	if err != nil {
 		t.Fatalf("Failed to get key2 from target: %v", err)
 	}
-	if val2 != 200 {
-		t.Errorf("Expected value 200, got %d", val2)
+	if val2.Value != 200 {
+		t.Errorf("Expected value 200, got %d", val2.Value)
 	}
 
-	val3, err := target.TrackGet(testTenancy, bucketID, "key3")
+	val3, err := target.TrackGet(testTenancy, bucketID, "key3", model.TrackReadOptions{})
 	if err != nil {
 		t.Fatalf("Failed to get key3 from target: %v", err)
 	}
-	if val3 != 300 {
-		t.Errorf("Expected value 300, got %d", val3)
+	if val3.Value != 300 {
+		t.Errorf("Expected value 300, got %d", val3.Value)
 	}
 
 	// Verify with GetItemsByKeyPrefix to check tags and metrics
