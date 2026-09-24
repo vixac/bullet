@@ -25,6 +25,7 @@ type RamStore struct {
 	warehouse map[model.TenancySpace]*warehouseSpace
 
 	tracks         map[model.TenancySpace]map[int32]map[string]model.TrackValue // appID -> bucketID -> key -> value
+	trackPayloads  map[model.TenancySpace]map[int32]map[string][]byte
 	trackMutations map[model.MutationID]struct{}
 	depots         map[model.TenancySpace]map[int64]depotEntry // space -> id -> entry
 	depotNextIDs   map[model.TenancySpace]int64                // space -> next auto-increment id
@@ -43,6 +44,7 @@ type RamStore struct {
 func NewRamStore() *RamStore {
 	return &RamStore{
 		tracks:         make(map[model.TenancySpace]map[int32]map[string]model.TrackValue),
+		trackPayloads:  make(map[model.TenancySpace]map[int32]map[string][]byte),
 		trackMutations: make(map[model.MutationID]struct{}),
 		depots:         make(map[model.TenancySpace]map[int64]depotEntry),
 		depotNextIDs:   make(map[model.TenancySpace]int64),

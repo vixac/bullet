@@ -20,6 +20,9 @@ func (r *RamStore) TrackMutate(space model.TenancySpace, req model.TrackMutation
 	// leave an earlier put from this mutation committed.
 	created := make(map[model.TrackKey]struct{})
 	for _, put := range req.Puts {
+		if err := model.ValidateTrackValue(put.Value); err != nil {
+			return model.TrackMutationResult{}, err
+		}
 		key := model.TrackKey{BucketID: put.BucketID, Key: put.Key}
 		if put.IfAbsent {
 			if _, createdEarlier := created[key]; createdEarlier {
@@ -41,12 +44,14 @@ func (r *RamStore) TrackMutate(space model.TenancySpace, req model.TrackMutation
 		if r.tracks[space][put.BucketID] == nil {
 			r.tracks[space][put.BucketID] = make(map[string]model.TrackValue)
 		}
-		r.tracks[space][put.BucketID][put.Key] = cloneTrackValue(model.TrackValue{Value: put.Value, Tag: put.Tag, Metric: put.Metric})
+		r.tracks[space][put.BucketID][put.Key] = cloneTrackValueWithoutPayload(put.Value)
+		r.setTrackPayload(space, put.BucketID, put.Key, put.Value.Payload)
 	}
 	for _, key := range req.Deletes {
 		if bucket := r.tracks[space][key.BucketID]; bucket != nil {
 			delete(bucket, key.Key)
 		}
+		r.deleteTrackPayload(space, key.BucketID, key.Key)
 	}
 	r.trackMutations[req.MutationID] = struct{}{}
 	return model.TrackMutationResult{Applied: true}, nil
@@ -69,11 +74,15 @@ func (r *RamStore) TrackDeleteMany(space model.TenancySpace, items []model.Track
 			continue
 		}
 		delete(bucket, item.Key)
+		r.deleteTrackPayload(space, item.BucketID, item.Key)
 	}
 
 	return nil
 }
-func (r *RamStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (r *RamStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) error {
+	if err := model.ValidateTrackValue(value); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -84,27 +93,28 @@ func (r *RamStore) TrackPut(space model.TenancySpace, bucketID int32, key string
 		r.tracks[space][bucketID] = make(map[string]model.TrackValue)
 	}
 
-	r.tracks[space][bucketID][key] = cloneTrackValue(model.TrackValue{
-		Value:  value,
-		Tag:    tag,
-		Metric: metric,
-	})
+	r.tracks[space][bucketID][key] = cloneTrackValueWithoutPayload(value)
+	r.setTrackPayload(space, bucketID, key, value.Payload)
 	return nil
 }
 
-func (r *RamStore) TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error) {
+func (r *RamStore) TrackGet(space model.TenancySpace, bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	bucket, ok := r.tracks[space][bucketID]
 	if !ok {
-		return 0, errors.New("bucket not found in ram Store.")
+		return model.TrackValue{}, errors.New("bucket not found in ram Store.")
 	}
 	val, ok := bucket[key]
 	if !ok {
-		return 0, errors.New("key not found")
+		return model.TrackValue{}, errors.New("key not found")
 	}
-	return val.Value, nil
+	result := cloneTrackValueWithoutPayload(val)
+	if opts.IncludePayload {
+		result.Payload = cloneBytes(r.trackPayloads[space][bucketID][key])
+	}
+	return result, nil
 }
 
 func (r *RamStore) TrackDelete(space model.TenancySpace, bucketID int32, key string) error {
@@ -114,6 +124,7 @@ func (r *RamStore) TrackDelete(space model.TenancySpace, bucketID int32, key str
 	if bucket, ok := r.tracks[space][bucketID]; ok {
 		delete(bucket, key)
 	}
+	r.deleteTrackPayload(space, bucketID, key)
 	return nil
 }
 
@@ -122,6 +133,13 @@ func (r *RamStore) TrackClose() error {
 }
 
 func (r *RamStore) TrackPutMany(space model.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
+	for _, kvList := range items {
+		for _, kv := range kvList {
+			if err := model.ValidateTrackValue(kv.Value); err != nil {
+				return err
+			}
+		}
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -133,13 +151,14 @@ func (r *RamStore) TrackPutMany(space model.TenancySpace, items map[int32][]mode
 			if r.tracks[space][bucketID] == nil {
 				r.tracks[space][bucketID] = make(map[string]model.TrackValue)
 			}
-			r.tracks[space][bucketID][kv.Key] = cloneTrackValue(kv.Value)
+			r.tracks[space][bucketID][kv.Key] = cloneTrackValueWithoutPayload(kv.Value)
+			r.setTrackPayload(space, bucketID, kv.Key, kv.Value.Payload)
 		}
 	}
 	return nil
 }
 
-func (r *RamStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
+func (r *RamStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string, opts model.TrackReadOptions) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -161,7 +180,11 @@ func (r *RamStore) TrackGetMany(space model.TenancySpace, keys map[int32][]strin
 				if found[bucketID] == nil {
 					found[bucketID] = make(map[string]model.TrackValue)
 				}
-				found[bucketID][k] = cloneTrackValue(val)
+				result := cloneTrackValueWithoutPayload(val)
+				if opts.IncludePayload {
+					result.Payload = cloneBytes(r.trackPayloads[space][bucketID][k])
+				}
+				found[bucketID][k] = result
 			} else {
 				missing[bucketID] = append(missing[bucketID], k)
 			}
@@ -266,7 +289,7 @@ func (r *RamStore) GetItemsByKeyPrefixes(
 		if matchesPrefix(k) && tagFilter(v.Tag) && metricFilter(v.Metric) {
 			result = append(result, model.TrackKeyValueItem{
 				Key:   k,
-				Value: cloneTrackValue(v),
+				Value: cloneTrackValueWithoutPayload(v),
 			})
 		}
 	}
@@ -276,7 +299,7 @@ func (r *RamStore) GetItemsByKeyPrefixes(
 
 // Copy metadata at the store boundary so callers cannot bypass the store lock
 // by mutating pointers supplied to writes or obtained from reads.
-func cloneTrackValue(value model.TrackValue) model.TrackValue {
+func cloneTrackValueWithoutPayload(value model.TrackValue) model.TrackValue {
 	if value.Tag != nil {
 		tag := *value.Tag
 		value.Tag = &tag
@@ -285,5 +308,35 @@ func cloneTrackValue(value model.TrackValue) model.TrackValue {
 		metric := *value.Metric
 		value.Metric = &metric
 	}
+	value.Payload = nil
 	return value
+}
+
+func cloneBytes(value []byte) []byte {
+	if value == nil {
+		return nil
+	}
+	return append([]byte{}, value...)
+}
+
+func (r *RamStore) setTrackPayload(space model.TenancySpace, bucketID int32, key string, payload []byte) {
+	if payload == nil {
+		r.deleteTrackPayload(space, bucketID, key)
+		return
+	}
+	if r.trackPayloads[space] == nil {
+		r.trackPayloads[space] = make(map[int32]map[string][]byte)
+	}
+	if r.trackPayloads[space][bucketID] == nil {
+		r.trackPayloads[space][bucketID] = make(map[string][]byte)
+	}
+	r.trackPayloads[space][bucketID][key] = cloneBytes(payload)
+}
+
+func (r *RamStore) deleteTrackPayload(space model.TenancySpace, bucketID int32, key string) {
+	if buckets := r.trackPayloads[space]; buckets != nil {
+		if payloads := buckets[bucketID]; payloads != nil {
+			delete(payloads, key)
+		}
+	}
 }

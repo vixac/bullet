@@ -40,6 +40,21 @@ func TestTrackPutManyCombinesRepeatedBuckets(t *testing.T) {
 	require.Equal(t, map[int32][]model.TrackKeyValueItem{1: {{Key: "a", Value: model.TrackValue{Value: 1}}, {Key: "b", Value: model.TrackValue{Value: 2}}}}, request.Model())
 }
 
+func TestTrackPayloadWirePresence(t *testing.T) {
+	absent, err := json.Marshal(protocol.TrackGetResponse{Value: protocol.TrackValueFromModel(model.TrackValue{Value: 1}, false)})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"value":{"Value":1,"Tag":null,"Metric":null}}`, string(absent))
+
+	missing, err := json.Marshal(protocol.TrackGetResponse{Value: protocol.TrackValueFromModel(model.TrackValue{Value: 1}, true)})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"value":{"Value":1,"Tag":null,"Metric":null,"Payload":null}}`, string(missing))
+
+	empty := []byte{}
+	present, err := json.Marshal(protocol.TrackRequest{BucketID: 1, Key: "k", Payload: &empty})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"bucketId":1,"key":"k","value":"0","payload":""}`, string(present))
+}
+
 func TestWarehouseModelRoundTrip(t *testing.T) {
 	original := model.Blob{ID: "b", PutID: "p", ContentType: "binary", Value: []byte{0, 255}, Checksum: "c", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}
 	encoded, err := json.Marshal(protocol.BlobFromModel(original))

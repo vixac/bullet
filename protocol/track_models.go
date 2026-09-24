@@ -16,6 +16,7 @@ type TrackRequest struct {
 	Value    int64    `json:"value,string"`
 	Tag      *int64   `json:"tag,omitempty"`
 	Metric   *float64 `json:"metric,omitempty"`
+	Payload  *[]byte  `json:"payload,omitempty"`
 	// IfAbsent is supported by TrackMutate only; it makes this put create-only.
 	IfAbsent bool `json:"ifAbsent,omitempty"`
 }
@@ -28,7 +29,14 @@ type TrackPutManyRequest struct {
 }
 
 type TrackGetManyRequest struct {
-	Buckets []TrackGetKeys `json:"buckets"`
+	Buckets        []TrackGetKeys `json:"buckets"`
+	IncludePayload bool           `json:"includePayload,omitempty"`
+}
+
+type TrackGetRequest struct {
+	BucketID       int32  `json:"bucketId"`
+	Key            string `json:"key"`
+	IncludePayload bool   `json:"includePayload,omitempty"`
 }
 
 type MetricFilter struct {
@@ -77,4 +85,7 @@ type TrackValue struct {
 	Value  int64    `json:"Value"`
 	Tag    *int64   `json:"Tag"`
 	Metric *float64 `json:"Metric"`
+	// A nil pointer omits an unrequested payload. A pointer to a nil slice emits
+	// null (requested but absent), while an empty slice emits an empty base64 string.
+	Payload *[]byte `json:"Payload,omitempty"`
 }

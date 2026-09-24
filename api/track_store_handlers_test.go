@@ -59,12 +59,44 @@ func TestTrackUpsertAndGetOne(t *testing.T) {
 	assert.Equal(t, http.StatusOK, upsertResp.StatusCode)
 	upsertResp.Body.Close()
 
-	getResp := trackPost(t, srv, "/items/get", protocol.TrackRequest{BucketID: 10, Key: "hello"})
+	getResp := trackPost(t, srv, "/items/get", protocol.TrackGetRequest{BucketID: 10, Key: "hello"})
 	assert.Equal(t, http.StatusOK, getResp.StatusCode)
-	var body map[string]int64
+	var body protocol.TrackGetResponse
 	json.NewDecoder(getResp.Body).Decode(&body)
 	getResp.Body.Close()
-	assert.Equal(t, int64(42), body["value"])
+	assert.Equal(t, int64(42), body.Value.Value)
+	assert.Nil(t, body.Value.Payload)
+}
+
+func TestTrackPayloadHTTPContract(t *testing.T) {
+	srv, _ := newTrackServer(t)
+	payload := []byte("hello")
+	put := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 1, Key: "k", Value: 7, Payload: &payload})
+	require.Equal(t, http.StatusOK, put.StatusCode)
+	put.Body.Close()
+
+	without := trackPost(t, srv, "/items/get", protocol.TrackGetRequest{BucketID: 1, Key: "k"})
+	require.Equal(t, http.StatusOK, without.StatusCode)
+	var withoutBody map[string]json.RawMessage
+	require.NoError(t, json.NewDecoder(without.Body).Decode(&withoutBody))
+	without.Body.Close()
+	assert.NotContains(t, string(withoutBody["value"]), "Payload")
+
+	with := trackPost(t, srv, "/items/get", protocol.TrackGetRequest{BucketID: 1, Key: "k", IncludePayload: true})
+	require.Equal(t, http.StatusOK, with.StatusCode)
+	var withBody protocol.TrackGetResponse
+	require.NoError(t, json.NewDecoder(with.Body).Decode(&withBody))
+	with.Body.Close()
+	require.NotNil(t, withBody.Value.Payload)
+	assert.Equal(t, payload, *withBody.Value.Payload)
+
+	tooLarge := bytes.Repeat([]byte{'x'}, 64*1024+1)
+	rejected := trackPost(t, srv, "/items", protocol.TrackRequest{BucketID: 1, Key: "large", Payload: &tooLarge})
+	require.Equal(t, http.StatusBadRequest, rejected.StatusCode)
+	var failure protocol.ErrorResponse
+	require.NoError(t, json.NewDecoder(rejected.Body).Decode(&failure))
+	rejected.Body.Close()
+	assert.Equal(t, "track_payload_too_large", failure.Code)
 }
 
 func TestTrackUpsertMany(t *testing.T) {

@@ -24,6 +24,11 @@ func (b *BoltStore) TrackMutate(space model.TenancySpace, req model.TrackMutatio
 			return nil
 		}
 		for _, put := range req.Puts {
+			if err := model.ValidateTrackValue(put.Value); err != nil {
+				return err
+			}
+		}
+		for _, put := range req.Puts {
 			name := getTrackBucketName(space, put.BucketID)
 			bucket := tx.Bucket(name)
 			if put.IfAbsent && bucket != nil && bucket.Get([]byte(put.Key)) != nil {
@@ -36,7 +41,10 @@ func (b *BoltStore) TrackMutate(space model.TenancySpace, req model.TrackMutatio
 			if err != nil {
 				return err
 			}
-			if err := bucket.Put([]byte(put.Key), encodeTrackValue(put.Value, put.Tag, put.Metric)); err != nil {
+			if err := bucket.Put([]byte(put.Key), encodeTrackValue(put.Value.Value, put.Value.Tag, put.Value.Metric)); err != nil {
+				return err
+			}
+			if err := setBoltTrackPayload(tx, space, put.BucketID, put.Key, put.Value.Payload); err != nil {
 				return err
 			}
 		}
@@ -46,6 +54,9 @@ func (b *BoltStore) TrackMutate(space model.TenancySpace, req model.TrackMutatio
 				continue
 			}
 			if err := bucket.Delete([]byte(key.Key)); err != nil {
+				return err
+			}
+			if err := setBoltTrackPayload(tx, space, key.BucketID, key.Key, nil); err != nil {
 				return err
 			}
 		}
@@ -70,6 +81,9 @@ func newTrackBucketName(space model.TenancySpace, bucketID int32) []byte {
 }
 func getTrackBucketName(space model.TenancySpace, bucketID int32) []byte {
 	return newTrackBucketName(space, bucketID)
+}
+func getTrackPayloadBucketName(space model.TenancySpace, bucketID int32) []byte {
+	return []byte(fmt.Sprintf("track-payload:v1:%d:%d_bucket_%d", space.AppId, space.TenancyId, bucketID))
 }
 func encodeTrackValue(value int64, tag *int64, metric *float64) []byte {
 	buf := &bytes.Buffer{}
@@ -136,21 +150,27 @@ func decodeTrackValue(b []byte) (value int64, tag *int64, metric *float64, err e
 	return
 }
 
-func (b *BoltStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value int64, tag *int64, metric *float64) error {
+func (b *BoltStore) TrackPut(space model.TenancySpace, bucketID int32, key string, value model.TrackValue) error {
+	if err := model.ValidateTrackValue(value); err != nil {
+		return err
+	}
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		bkt, err := tx.CreateBucketIfNotExists(getTrackBucketName(space, bucketID))
 		if err != nil {
 			return err
 		}
-		val := encodeTrackValue(value, tag, metric)
-		return bkt.Put([]byte(key), val)
+		val := encodeTrackValue(value.Value, value.Tag, value.Metric)
+		if err := bkt.Put([]byte(key), val); err != nil {
+			return err
+		}
+		return setBoltTrackPayload(tx, space, bucketID, key, value.Payload)
 	})
 }
 
 // VX:Note should return int64 and nil onNotFound
-func (b *BoltStore) TrackGet(space model.TenancySpace, bucketID int32, key string) (int64, error) {
+func (b *BoltStore) TrackGet(space model.TenancySpace, bucketID int32, key string, opts model.TrackReadOptions) (model.TrackValue, error) {
 	fmt.Printf("VX: BoltStore track get called with %d bucket and key %s \n", bucketID, key)
-	var value int64
+	var result model.TrackValue
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		bkt := tx.Bucket(getTrackBucketName(space, bucketID))
 		if bkt == nil {
@@ -160,14 +180,22 @@ func (b *BoltStore) TrackGet(space model.TenancySpace, bucketID int32, key strin
 		if val == nil {
 			return fmt.Errorf("Track get boltstore key not found")
 		}
-		var err error
-		value, _, _, err = decodeTrackValue(val)
-		return err
+		value, tag, metric, err := decodeTrackValue(val)
+		if err != nil {
+			return err
+		}
+		result = model.TrackValue{Value: value, Tag: tag, Metric: metric}
+		if opts.IncludePayload {
+			if payloads := tx.Bucket(getTrackPayloadBucketName(space, bucketID)); payloads != nil {
+				result.Payload = cloneBoltBytes(payloads.Get([]byte(key)))
+			}
+		}
+		return nil
 	})
 	if err != nil {
-		return 0, err
+		return model.TrackValue{}, err
 	}
-	return value, err
+	return result, nil
 }
 
 func (b *BoltStore) TrackDeleteMany(space model.TenancySpace, items []model.TrackKey) error {
@@ -188,6 +216,9 @@ func (b *BoltStore) TrackDeleteMany(space model.TenancySpace, items []model.Trac
 			if err := bkt.Delete([]byte(item.Key)); err != nil {
 				return err
 			}
+			if err := setBoltTrackPayload(tx, space, item.BucketID, item.Key, nil); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -199,6 +230,13 @@ func (b *BoltStore) TrackClose() error {
 }
 
 func (b *BoltStore) TrackPutMany(space model.TenancySpace, items map[int32][]model.TrackKeyValueItem) error {
+	for _, arr := range items {
+		for _, item := range arr {
+			if err := model.ValidateTrackValue(item.Value); err != nil {
+				return err
+			}
+		}
+	}
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		for bucketID, arr := range items {
 			bkt, err := tx.CreateBucketIfNotExists([]byte(getTrackBucketName(space, bucketID)))
@@ -211,13 +249,16 @@ func (b *BoltStore) TrackPutMany(space model.TenancySpace, items map[int32][]mod
 				if err := bkt.Put([]byte(it.Key), val); err != nil {
 					return err
 				}
+				if err := setBoltTrackPayload(tx, space, bucketID, it.Key, it.Value.Payload); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
 	})
 }
 
-func (b *BoltStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string) (
+func (b *BoltStore) TrackGetMany(space model.TenancySpace, keys map[int32][]string, opts model.TrackReadOptions) (
 	map[int32]map[string]model.TrackValue,
 	map[int32][]string,
 	error,
@@ -231,6 +272,7 @@ func (b *BoltStore) TrackGetMany(space model.TenancySpace, keys map[int32][]stri
 	err := b.db.View(func(tx *bbolt.Tx) error {
 		for bucketID, keyList := range keys {
 			bkt := tx.Bucket(getTrackBucketName(space, bucketID))
+			payloads := tx.Bucket(getTrackPayloadBucketName(space, bucketID))
 			if bkt == nil {
 				// whole bucket missing, all keys missing
 				missing[bucketID] = append(missing[bucketID], keyList...)
@@ -254,11 +296,15 @@ func (b *BoltStore) TrackGetMany(space model.TenancySpace, keys map[int32][]stri
 					found[bucketID] = make(map[string]model.TrackValue)
 				}
 
-				found[bucketID][key] = model.TrackValue{
+				trackValue := model.TrackValue{
 					Value:  v,
 					Tag:    tag,
 					Metric: metric,
 				}
+				if opts.IncludePayload && payloads != nil {
+					trackValue.Payload = cloneBoltBytes(payloads.Get([]byte(key)))
+				}
+				found[bucketID][key] = trackValue
 			}
 		}
 		return nil
@@ -268,6 +314,28 @@ func (b *BoltStore) TrackGetMany(space model.TenancySpace, keys map[int32][]stri
 		return nil, nil, err
 	}
 	return found, missing, nil
+}
+
+func setBoltTrackPayload(tx *bbolt.Tx, space model.TenancySpace, bucketID int32, key string, payload []byte) error {
+	name := getTrackPayloadBucketName(space, bucketID)
+	if payload == nil {
+		if bucket := tx.Bucket(name); bucket != nil {
+			return bucket.Delete([]byte(key))
+		}
+		return nil
+	}
+	bucket, err := tx.CreateBucketIfNotExists(name)
+	if err != nil {
+		return err
+	}
+	return bucket.Put([]byte(key), payload)
+}
+
+func cloneBoltBytes(value []byte) []byte {
+	if value == nil {
+		return nil
+	}
+	return append([]byte{}, value...)
 }
 
 func (b *BoltStore) GetItemsByKeyPrefix(

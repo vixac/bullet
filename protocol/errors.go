@@ -37,6 +37,7 @@ var domainErrors = []struct {
 	{"cycle_detected", model.ErrCycleDetected},
 	{"mutation_conflict", model.ErrMutationConflict},
 	{"track_key_already_exists", model.ErrTrackKeyAlreadyExists},
+	{"track_payload_too_large", model.ErrTrackPayloadTooLarge},
 	{"invalid_position", model.ErrInvalidPosition},
 	{"invalid_filter", model.ErrInvalidFilter},
 	{"warehouse_unsupported", model.ErrWarehouseUnsupported},

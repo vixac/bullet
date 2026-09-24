@@ -28,6 +28,11 @@ func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackM
 	if rows == 0 {
 		return model.TrackMutationResult{Applied: false}, nil
 	}
+	for _, put := range req.Puts {
+		if err := model.ValidateTrackValue(put.Value); err != nil {
+			return model.TrackMutationResult{}, err
+		}
+	}
 
 	upsertStmt, err := tx.Prepare(`
 		INSERT INTO track (app_id, tenancy_id, bucket_id, key, value, tag, metric)
@@ -51,7 +56,7 @@ func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackM
 		if put.IfAbsent {
 			stmt = insertStmt
 		}
-		result, err := stmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value, put.Tag, put.Metric)
+		result, err := stmt.Exec(space.AppId, space.TenancyId, put.BucketID, put.Key, put.Value.Value, put.Value.Tag, put.Value.Metric)
 		if err != nil {
 			return model.TrackMutationResult{}, err
 		}
@@ -64,6 +69,9 @@ func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackM
 				return model.TrackMutationResult{}, model.ErrTrackKeyAlreadyExists
 			}
 		}
+		if err := setPostgresTrackPayload(tx, space, put.BucketID, put.Key, put.Value.Payload); err != nil {
+			return model.TrackMutationResult{}, err
+		}
 	}
 
 	deleteStmt, err := tx.Prepare(`DELETE FROM track WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4`)
@@ -72,6 +80,9 @@ func (s *PostgreSQLStore) TrackMutate(space model.TenancySpace, req model.TrackM
 	}
 	defer deleteStmt.Close()
 	for _, key := range req.Deletes {
+		if _, err := tx.Exec(`DELETE FROM track_payload WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4`, space.AppId, space.TenancyId, key.BucketID, key.Key); err != nil {
+			return model.TrackMutationResult{}, err
+		}
 		if _, err := deleteStmt.Exec(space.AppId, space.TenancyId, key.BucketID, key.Key); err != nil {
 			return model.TrackMutationResult{}, err
 		}
@@ -87,19 +98,26 @@ func (s *PostgreSQLStore) TrackGet(
 	space model.TenancySpace,
 	bucketID int32,
 	key string,
-) (int64, error) {
+	opts model.TrackReadOptions,
+) (model.TrackValue, error) {
 
-	var value int64
-	err := s.db.QueryRow(`
-		SELECT value FROM track
-		WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4
-	`, space.AppId, space.TenancyId, bucketID, key).Scan(&value)
+	var value model.TrackValue
+	query := `SELECT t.value, t.tag, t.metric FROM track t WHERE t.app_id=$1 AND t.tenancy_id=$2 AND t.bucket_id=$3 AND t.key=$4`
+	var err error
+	if opts.IncludePayload {
+		query = `SELECT t.value, t.tag, t.metric, p.payload FROM track t
+			LEFT JOIN track_payload p ON p.app_id=t.app_id AND p.tenancy_id=t.tenancy_id AND p.bucket_id=t.bucket_id AND p.key=t.key
+			WHERE t.app_id=$1 AND t.tenancy_id=$2 AND t.bucket_id=$3 AND t.key=$4`
+		err = s.db.QueryRow(query, space.AppId, space.TenancyId, bucketID, key).Scan(&value.Value, &value.Tag, &value.Metric, &value.Payload)
+	} else {
+		err = s.db.QueryRow(query, space.AppId, space.TenancyId, bucketID, key).Scan(&value.Value, &value.Tag, &value.Metric)
+	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, errors.New("not found")
+		return model.TrackValue{}, errors.New("not found")
 	}
 	if err != nil {
-		return 0, err
+		return model.TrackValue{}, err
 	}
 	return value, nil
 }
@@ -260,8 +278,16 @@ func (s *PostgreSQLStore) TrackDeleteMany(
 		return err
 	}
 	defer stmt.Close()
+	payloadStmt, err := tx.Prepare(`DELETE FROM track_payload WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4`)
+	if err != nil {
+		return err
+	}
+	defer payloadStmt.Close()
 
 	for _, item := range items {
+		if _, err := payloadStmt.Exec(space.AppId, space.TenancyId, item.BucketID, item.Key); err != nil {
+			return err
+		}
 		if _, err := stmt.Exec(space.AppId, space.TenancyId, item.BucketID, item.Key); err != nil {
 			return err
 		}
@@ -273,6 +299,13 @@ func (s *PostgreSQLStore) TrackPutMany(
 	space model.TenancySpace,
 	items map[int32][]model.TrackKeyValueItem,
 ) error {
+	for _, bucketItems := range items {
+		for _, item := range bucketItems {
+			if err := model.ValidateTrackValue(item.Value); err != nil {
+				return err
+			}
+		}
+	}
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -302,6 +335,9 @@ func (s *PostgreSQLStore) TrackPutMany(
 			); err != nil {
 				return err
 			}
+			if err := setPostgresTrackPayload(tx, space, bucketID, item.Key, item.Value.Payload); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit()
@@ -310,6 +346,7 @@ func (s *PostgreSQLStore) TrackPutMany(
 func (s *PostgreSQLStore) TrackGetMany(
 	space model.TenancySpace,
 	keys map[int32][]string,
+	opts model.TrackReadOptions,
 ) (map[int32]map[string]model.TrackValue, map[int32][]string, error) {
 
 	values := make(map[int32]map[string]model.TrackValue)
@@ -330,11 +367,13 @@ func (s *PostgreSQLStore) TrackGetMany(
 			continue
 		}
 
-		query := `
-			SELECT key, value, tag, metric
-			FROM track
-			WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3
-			  AND key IN (` + placeholders(4, len(bucketKeys)) + `)`
+		selectSQL := `SELECT t.key, t.value, t.tag, t.metric FROM track t`
+		if opts.IncludePayload {
+			selectSQL = `SELECT t.key, t.value, t.tag, t.metric, p.payload FROM track t
+				LEFT JOIN track_payload p ON p.app_id=t.app_id AND p.tenancy_id=t.tenancy_id AND p.bucket_id=t.bucket_id AND p.key=t.key`
+		}
+		query := selectSQL + ` WHERE t.app_id=$1 AND t.tenancy_id=$2 AND t.bucket_id=$3
+			  AND t.key IN (` + placeholders(4, len(bucketKeys)) + `)`
 
 		args := []any{space.AppId, space.TenancyId, bucketID}
 		for _, k := range bucketKeys {
@@ -354,9 +393,15 @@ func (s *PostgreSQLStore) TrackGetMany(
 		for rows.Next() {
 			var key string
 			var tv model.TrackValue
-			if err := rows.Scan(&key, &tv.Value, &tv.Tag, &tv.Metric); err != nil {
+			var scanErr error
+			if opts.IncludePayload {
+				scanErr = rows.Scan(&key, &tv.Value, &tv.Tag, &tv.Metric, &tv.Payload)
+			} else {
+				scanErr = rows.Scan(&key, &tv.Value, &tv.Tag, &tv.Metric)
+			}
+			if scanErr != nil {
 				rows.Close()
-				return nil, nil, err
+				return nil, nil, scanErr
 			}
 			values[bucketID][key] = tv
 			found[key] = struct{}{}
@@ -386,12 +431,17 @@ func (s *PostgreSQLStore) TrackPut(
 	space model.TenancySpace,
 	bucketID int32,
 	key string,
-	value int64,
-	tag *int64,
-	metric *float64,
+	value model.TrackValue,
 ) error {
-
-	_, err := s.db.Exec(`
+	if err := model.ValidateTrackValue(value); err != nil {
+		return err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(`
 		INSERT INTO track (app_id, tenancy_id, bucket_id, key, value, tag, metric)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT(app_id, tenancy_id, bucket_id, key)
@@ -399,7 +449,28 @@ func (s *PostgreSQLStore) TrackPut(
 			value  = excluded.value,
 			tag    = excluded.tag,
 			metric = excluded.metric
-	`, space.AppId, space.TenancyId, bucketID, key, value, tag, metric)
+	`, space.AppId, space.TenancyId, bucketID, key, value.Value, value.Tag, value.Metric)
+	if err != nil {
+		return err
+	}
+	if err := setPostgresTrackPayload(tx, space, bucketID, key, value.Payload); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+type postgresTrackExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func setPostgresTrackPayload(db postgresTrackExecer, space model.TenancySpace, bucketID int32, key string, payload []byte) error {
+	if payload == nil {
+		_, err := db.Exec(`DELETE FROM track_payload WHERE app_id=$1 AND tenancy_id=$2 AND bucket_id=$3 AND key=$4`, space.AppId, space.TenancyId, bucketID, key)
+		return err
+	}
+	_, err := db.Exec(`INSERT INTO track_payload (app_id, tenancy_id, bucket_id, key, payload)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT(app_id, tenancy_id, bucket_id, key) DO UPDATE SET payload=excluded.payload`,
+		space.AppId, space.TenancyId, bucketID, key, payload)
 	return err
 }

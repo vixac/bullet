@@ -38,7 +38,7 @@ func TestTrackBatchesHaveNoPartialVisibility(t *testing.T) {
 	// Always join the writer, even if a read assertion fails.
 	defer func() { require.NoError(t, <-done) }()
 	for i := 0; i < 200; i++ {
-		found, _, err := s.TrackGetMany(space, keys)
+		found, _, err := s.TrackGetMany(space, keys, model.TrackReadOptions{})
 		require.NoError(t, err)
 		n := 0
 		for _, bucket := range found {
@@ -46,4 +46,18 @@ func TestTrackBatchesHaveNoPartialVisibility(t *testing.T) {
 		}
 		require.True(t, n == 0 || n == count, "observed partial batch of %d items", n)
 	}
+}
+
+func TestTrackPayloadIsOptInAndCallerOwned(t *testing.T) {
+	s := NewRamStore()
+	space := model.TenancySpace{AppId: 3, TenancyId: 4}
+	payload := []byte("payload")
+	require.NoError(t, s.TrackPut(space, 1, "key", model.TrackValue{Value: 1, Payload: payload}))
+	payload[0] = 'X'
+	without, err := s.TrackGet(space, 1, "key", model.TrackReadOptions{})
+	require.NoError(t, err)
+	require.Nil(t, without.Payload)
+	with, err := s.TrackGet(space, 1, "key", model.TrackReadOptions{IncludePayload: true})
+	require.NoError(t, err)
+	require.Equal(t, []byte("payload"), with.Payload)
 }

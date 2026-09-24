@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"bytes"
 	"errors"
 	"sort"
 	"testing"
@@ -9,18 +10,123 @@ import (
 	"github.com/vixac/bullet/store/store_interface"
 )
 
+func TestTrackPayloadContract(t *testing.T) {
+	for name, store := range trackStores {
+		t.Run(name, func(t *testing.T) {
+			space := model.TenancySpace{AppId: 109, TenancyId: 1}
+			bucketID := int32(81)
+			payload := []byte("payload")
+
+			if err := store.TrackPut(space, bucketID, "payload:key", model.TrackValue{Value: 1, Payload: payload}); err != nil {
+				t.Fatalf("put payload: %v", err)
+			}
+			payload[0] = 'X'
+
+			without, err := store.TrackGet(space, bucketID, "payload:key", model.TrackReadOptions{})
+			if err != nil {
+				t.Fatalf("get without payload: %v", err)
+			}
+			if without.Payload != nil {
+				t.Fatalf("default point read returned payload: %q", without.Payload)
+			}
+
+			with, err := store.TrackGet(space, bucketID, "payload:key", model.TrackReadOptions{IncludePayload: true})
+			if err != nil {
+				t.Fatalf("get with payload: %v", err)
+			}
+			if !bytes.Equal(with.Payload, []byte("payload")) {
+				t.Fatalf("payload mismatch: %q", with.Payload)
+			}
+			with.Payload[0] = 'Y'
+			again, err := store.TrackGet(space, bucketID, "payload:key", model.TrackReadOptions{IncludePayload: true})
+			if err != nil || !bytes.Equal(again.Payload, []byte("payload")) {
+				t.Fatalf("returned payload was not caller-owned: value=%q err=%v", again.Payload, err)
+			}
+
+			values, _, err := store.TrackGetMany(space, map[int32][]string{bucketID: {"payload:key"}}, model.TrackReadOptions{})
+			if err != nil || values[bucketID]["payload:key"].Payload != nil {
+				t.Fatalf("default explicit-key read returned payload: value=%q err=%v", values[bucketID]["payload:key"].Payload, err)
+			}
+			values, _, err = store.TrackGetMany(space, map[int32][]string{bucketID: {"payload:key"}}, model.TrackReadOptions{IncludePayload: true})
+			if err != nil || !bytes.Equal(values[bucketID]["payload:key"].Payload, []byte("payload")) {
+				t.Fatalf("explicit-key payload mismatch: value=%q err=%v", values[bucketID]["payload:key"].Payload, err)
+			}
+
+			items, err := store.GetItemsByKeyPrefix(space, bucketID, "payload:", nil, nil, false)
+			if err != nil || len(items) != 1 {
+				t.Fatalf("prefix read: items=%v err=%v", items, err)
+			}
+			if items[0].Value.Payload != nil {
+				t.Fatalf("prefix read returned payload: %q", items[0].Value.Payload)
+			}
+
+			if err := store.TrackPut(space, bucketID, "empty", model.TrackValue{Value: 2, Payload: []byte{}}); err != nil {
+				t.Fatalf("put empty payload: %v", err)
+			}
+			empty, err := store.TrackGet(space, bucketID, "empty", model.TrackReadOptions{IncludePayload: true})
+			if err != nil || empty.Payload == nil || len(empty.Payload) != 0 {
+				t.Fatalf("empty payload was not preserved: value=%#v err=%v", empty.Payload, err)
+			}
+
+			if err := store.TrackPut(space, bucketID, "payload:key", model.TrackValue{Value: 3}); err != nil {
+				t.Fatalf("full replacement without payload: %v", err)
+			}
+			cleared, err := store.TrackGet(space, bucketID, "payload:key", model.TrackReadOptions{IncludePayload: true})
+			if err != nil || cleared.Payload != nil {
+				t.Fatalf("nil payload did not clear stored payload: value=%q err=%v", cleared.Payload, err)
+			}
+
+			maximum := bytes.Repeat([]byte{'m'}, model.TrackMaxPayloadBytes)
+			if err := store.TrackPut(space, bucketID, "maximum", model.TrackValue{Value: 4, Payload: maximum}); err != nil {
+				t.Fatalf("maximum payload rejected: %v", err)
+			}
+			tooLarge := bytes.Repeat([]byte{'x'}, model.TrackMaxPayloadBytes+1)
+			if err := store.TrackPut(space, bucketID, "maximum", model.TrackValue{Value: 5, Payload: tooLarge}); !errors.Is(err, model.ErrTrackPayloadTooLarge) {
+				t.Fatalf("oversized payload error = %v", err)
+			}
+			unchanged, err := store.TrackGet(space, bucketID, "maximum", model.TrackReadOptions{IncludePayload: true})
+			if err != nil || unchanged.Value != 4 || len(unchanged.Payload) != model.TrackMaxPayloadBytes {
+				t.Fatalf("rejected replacement changed value: value=%+v err=%v", unchanged, err)
+			}
+
+			batch := map[int32][]model.TrackKeyValueItem{bucketID: {
+				{Key: "batch-valid", Value: model.TrackValue{Value: 6}},
+				{Key: "batch-large", Value: model.TrackValue{Value: 7, Payload: tooLarge}},
+			}}
+			if err := store.TrackPutMany(space, batch); !errors.Is(err, model.ErrTrackPayloadTooLarge) {
+				t.Fatalf("oversized batch error = %v", err)
+			}
+			if _, err := store.TrackGet(space, bucketID, "batch-valid", model.TrackReadOptions{}); err == nil {
+				t.Fatal("oversized batch partially committed")
+			}
+
+			mutation := model.TrackMutation{MutationID: "payload-limit-109", Puts: []model.TrackPut{{
+				BucketID: bucketID, Key: "mutation", Value: model.TrackValue{Value: 8, Payload: tooLarge},
+			}}}
+			if _, err := store.TrackMutate(space, mutation); !errors.Is(err, model.ErrTrackPayloadTooLarge) {
+				t.Fatalf("oversized mutation error = %v", err)
+			}
+			mutation.Puts[0].Value.Payload = []byte("valid")
+			result, err := store.TrackMutate(space, mutation)
+			if err != nil || !result.Applied {
+				t.Fatalf("oversized mutation consumed its ID: result=%+v err=%v", result, err)
+			}
+		})
+	}
+}
+
 func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 	for name, trackStore := range trackStores {
 		t.Run(name, func(t *testing.T) {
 			space := model.TenancySpace{AppId: 901, TenancyId: 902}
-			if err := trackStore.TrackPut(space, 1, "delete-me", 1, nil, nil); err != nil {
+			if err := trackStore.TrackPut(space, 1, "delete-me", model.TrackValue{Value: 1}); err != nil {
 				t.Fatal(err)
 			}
 
 			req := model.TrackMutation{
 				MutationID: model.MutationID("track-mutation-test-901-902"),
 				Puts: []model.TrackPut{
-					{BucketID: 1, Key: "put-me", Value: 42},
+					{BucketID: 1, Key: "put-me", Value: model.TrackValue{Value: 42}},
 				},
 				Deletes: []model.TrackKey{{BucketID: 1, Key: "delete-me"}},
 			}
@@ -34,15 +140,15 @@ func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 			if !result.Applied {
 				t.Fatal("first mutation was not applied")
 			}
-			if got, err := trackStore.TrackGet(space, 1, "put-me"); err != nil || got != 42 {
-				t.Fatalf("put result: got %d, err %v", got, err)
+			if got, err := trackStore.TrackGet(space, 1, "put-me", model.TrackReadOptions{}); err != nil || got.Value != 42 {
+				t.Fatalf("put result: got %d, err %v", got.Value, err)
 			}
-			if _, err := trackStore.TrackGet(space, 1, "delete-me"); err == nil {
+			if _, err := trackStore.TrackGet(space, 1, "delete-me", model.TrackReadOptions{}); err == nil {
 				t.Fatal("delete was not applied")
 			}
 
 			// Changing the replay proves the mutation body is not executed twice.
-			req.Puts[0].Value = 99
+			req.Puts[0].Value = model.TrackValue{Value: 99}
 			result, err = trackStore.TrackMutate(space, req)
 			if err != nil {
 				t.Fatalf("replayed mutation: %v", err)
@@ -50,8 +156,8 @@ func TestTrackMutateIsAtomicAndIdempotent(t *testing.T) {
 			if result.Applied {
 				t.Fatal("replayed mutation reported Applied")
 			}
-			if got, err := trackStore.TrackGet(space, 1, "put-me"); err != nil || got != 42 {
-				t.Fatalf("replay changed value: got %d, err %v", got, err)
+			if got, err := trackStore.TrackGet(space, 1, "put-me", model.TrackReadOptions{}); err != nil || got.Value != 42 {
+				t.Fatalf("replay changed value: got %d, err %v", got.Value, err)
 			}
 		})
 	}
@@ -61,15 +167,15 @@ func TestTrackMutateIfAbsentIsAtomicAndRetryableAfterConflict(t *testing.T) {
 	for name, trackStore := range trackStores {
 		t.Run(name, func(t *testing.T) {
 			space := model.TenancySpace{AppId: 903, TenancyId: 904}
-			if err := trackStore.TrackPut(space, 1, "existing", 1, nil, nil); err != nil {
+			if err := trackStore.TrackPut(space, 1, "existing", model.TrackValue{Value: 1}); err != nil {
 				t.Fatal(err)
 			}
 
 			req := model.TrackMutation{
 				MutationID: "track-if-absent-conflict-903-904",
 				Puts: []model.TrackPut{
-					{BucketID: 1, Key: "new", Value: 2, IfAbsent: true},
-					{BucketID: 1, Key: "existing", Value: 3, IfAbsent: true},
+					{BucketID: 1, Key: "new", Value: model.TrackValue{Value: 2}, IfAbsent: true},
+					{BucketID: 1, Key: "existing", Value: model.TrackValue{Value: 3}, IfAbsent: true},
 				},
 			}
 			_, err := trackStore.TrackMutate(space, req)
@@ -79,11 +185,11 @@ func TestTrackMutateIfAbsentIsAtomicAndRetryableAfterConflict(t *testing.T) {
 			if !errors.Is(err, model.ErrTrackKeyAlreadyExists) {
 				t.Fatalf("expected create-only conflict, got %v", err)
 			}
-			if _, err := trackStore.TrackGet(space, 1, "new"); err == nil {
+			if _, err := trackStore.TrackGet(space, 1, "new", model.TrackReadOptions{}); err == nil {
 				t.Fatal("conflicting mutation partially inserted new")
 			}
-			if got, err := trackStore.TrackGet(space, 1, "existing"); err != nil || got != 1 {
-				t.Fatalf("conflicting mutation changed existing: got %d, err %v", got, err)
+			if got, err := trackStore.TrackGet(space, 1, "existing", model.TrackReadOptions{}); err != nil || got.Value != 1 {
+				t.Fatalf("conflicting mutation changed existing: got %d, err %v", got.Value, err)
 			}
 
 			// A failed condition must not consume the ID: once the key is removed,
@@ -96,8 +202,8 @@ func TestTrackMutateIfAbsentIsAtomicAndRetryableAfterConflict(t *testing.T) {
 				t.Fatalf("retry after resolving conflict: result=%+v, err=%v", result, err)
 			}
 			for key, want := range map[string]int64{"new": 2, "existing": 3} {
-				if got, err := trackStore.TrackGet(space, 1, key); err != nil || got != want {
-					t.Fatalf("created %q: got %d, err %v", key, got, err)
+				if got, err := trackStore.TrackGet(space, 1, key, model.TrackReadOptions{}); err != nil || got.Value != want {
+					t.Fatalf("created %q: got %d, err %v", key, got.Value, err)
 				}
 			}
 		})
@@ -120,17 +226,17 @@ func testTrackBasicOperations(store store_interface.TrackStore, name string, t *
 		// Test basic put and get
 		key := "test_key_1"
 		value := int64(42)
-		err := store.TrackPut(space, bucketID, key, value, nil, nil)
+		err := store.TrackPut(space, bucketID, key, model.TrackValue{Value: value})
 		if err != nil {
 			t.Fatalf("Failed to put: %v", err)
 		}
 
-		got, err := store.TrackGet(space, bucketID, key)
+		got, err := store.TrackGet(space, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Failed to get: %v", err)
 		}
-		if got != value {
-			t.Errorf("Expected value %d, got %d", value, got)
+		if got.Value != value {
+			t.Errorf("Expected value %d, got %d", value, got.Value)
 		}
 
 		// Test put with tag and metric
@@ -138,42 +244,42 @@ func testTrackBasicOperations(store store_interface.TrackStore, name string, t *
 		value2 := int64(100)
 		tag := int64(5)
 		metric := 3.14
-		err = store.TrackPut(space, bucketID, key2, value2, &tag, &metric)
+		err = store.TrackPut(space, bucketID, key2, model.TrackValue{Value: value2, Tag: &tag, Metric: &metric})
 		if err != nil {
 			t.Fatalf("Failed to put with tag/metric: %v", err)
 		}
 
-		got2, err := store.TrackGet(space, bucketID, key2)
+		got2, err := store.TrackGet(space, bucketID, key2, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Failed to get key2: %v", err)
 		}
-		if got2 != value2 {
-			t.Errorf("Expected value %d, got %d", value2, got2)
+		if got2.Value != value2 {
+			t.Errorf("Expected value %d, got %d", value2, got2.Value)
 		}
 
 		// Test overwrite
 		newValue := int64(999)
-		err = store.TrackPut(space, bucketID, key, newValue, nil, nil)
+		err = store.TrackPut(space, bucketID, key, model.TrackValue{Value: newValue})
 		if err != nil {
 			t.Fatalf("Failed to overwrite: %v", err)
 		}
 
-		got3, err := store.TrackGet(space, bucketID, key)
+		got3, err := store.TrackGet(space, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Failed to get after overwrite: %v", err)
 		}
-		if got3 != newValue {
-			t.Errorf("Expected overwritten value %d, got %d", newValue, got3)
+		if got3.Value != newValue {
+			t.Errorf("Expected overwritten value %d, got %d", newValue, got3.Value)
 		}
 
 		// Test get non-existent key
-		_, err = store.TrackGet(space, bucketID, "non_existent_key")
+		_, err = store.TrackGet(space, bucketID, "non_existent_key", model.TrackReadOptions{})
 		if err == nil {
 			t.Error("Expected error for non-existent key, got nil")
 		}
 
 		// Test get from non-existent bucket
-		_, err = store.TrackGet(space, int32(9999), "any_key")
+		_, err = store.TrackGet(space, int32(9999), "any_key", model.TrackReadOptions{})
 		if err == nil {
 			t.Error("Expected error for non-existent bucket, got nil")
 		}
@@ -217,7 +323,7 @@ func testTrackPutManyGetMany(store store_interface.TrackStore, name string, t *t
 			bucketID2: {"c"},
 		}
 
-		found, missing, err := store.TrackGetMany(space, keys)
+		found, missing, err := store.TrackGetMany(space, keys, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("TrackGetMany failed: %v", err)
 		}
@@ -255,7 +361,7 @@ func testTrackPutManyGetMany(store store_interface.TrackStore, name string, t *t
 			bucketID2: {"c", "missing3"},
 		}
 
-		found2, missing2, err := store.TrackGetMany(space, keysWithMissing)
+		found2, missing2, err := store.TrackGetMany(space, keysWithMissing, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("TrackGetMany with missing failed: %v", err)
 		}
@@ -274,7 +380,7 @@ func testTrackPutManyGetMany(store store_interface.TrackStore, name string, t *t
 		keysNonExistent := map[int32][]string{
 			int32(9999): {"x", "y"},
 		}
-		found3, missing3, err := store.TrackGetMany(space, keysNonExistent)
+		found3, missing3, err := store.TrackGetMany(space, keysNonExistent, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("TrackGetMany from non-existent bucket failed: %v", err)
 		}
@@ -322,22 +428,22 @@ func testTrackDeleteMany(store store_interface.TrackStore, name string, t *testi
 		}
 
 		// Verify deleted items are gone
-		_, err = store.TrackGet(space, bucketID, "del1")
+		_, err = store.TrackGet(space, bucketID, "del1", model.TrackReadOptions{})
 		if err == nil {
 			t.Error("del1 should be deleted")
 		}
-		_, err = store.TrackGet(space, bucketID, "del2")
+		_, err = store.TrackGet(space, bucketID, "del2", model.TrackReadOptions{})
 		if err == nil {
 			t.Error("del2 should be deleted")
 		}
 
 		// Verify kept item still exists
-		val, err := store.TrackGet(space, bucketID, "keep")
+		val, err := store.TrackGet(space, bucketID, "keep", model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("keep should still exist: %v", err)
 		}
-		if val != 3 {
-			t.Errorf("Expected keep=3, got %d", val)
+		if val.Value != 3 {
+			t.Errorf("Expected keep=3, got %d", val.Value)
 		}
 
 		// Test deleting non-existent keys (should not error - idempotent)
@@ -598,42 +704,42 @@ func testTrackMultiTenancy(store store_interface.TrackStore, name string, t *tes
 		// Put same key in different tenancy spaces
 		key := "shared_key"
 
-		err := store.TrackPut(space1, bucketID, key, 100, nil, nil)
+		err := store.TrackPut(space1, bucketID, key, model.TrackValue{Value: 100})
 		if err != nil {
 			t.Fatalf("Put to space1 failed: %v", err)
 		}
-		err = store.TrackPut(space2, bucketID, key, 200, nil, nil)
+		err = store.TrackPut(space2, bucketID, key, model.TrackValue{Value: 200})
 		if err != nil {
 			t.Fatalf("Put to space2 failed: %v", err)
 		}
-		err = store.TrackPut(space3, bucketID, key, 300, nil, nil)
+		err = store.TrackPut(space3, bucketID, key, model.TrackValue{Value: 300})
 		if err != nil {
 			t.Fatalf("Put to space3 failed: %v", err)
 		}
 
 		// Verify isolation
-		val1, err := store.TrackGet(space1, bucketID, key)
+		val1, err := store.TrackGet(space1, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from space1 failed: %v", err)
 		}
-		if val1 != 100 {
-			t.Errorf("Expected space1 value 100, got %d", val1)
+		if val1.Value != 100 {
+			t.Errorf("Expected space1 value 100, got %d", val1.Value)
 		}
 
-		val2, err := store.TrackGet(space2, bucketID, key)
+		val2, err := store.TrackGet(space2, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from space2 failed: %v", err)
 		}
-		if val2 != 200 {
-			t.Errorf("Expected space2 value 200, got %d", val2)
+		if val2.Value != 200 {
+			t.Errorf("Expected space2 value 200, got %d", val2.Value)
 		}
 
-		val3, err := store.TrackGet(space3, bucketID, key)
+		val3, err := store.TrackGet(space3, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from space3 failed: %v", err)
 		}
-		if val3 != 300 {
-			t.Errorf("Expected space3 value 300, got %d", val3)
+		if val3.Value != 300 {
+			t.Errorf("Expected space3 value 300, got %d", val3.Value)
 		}
 
 		// Delete from space1 shouldn't affect others
@@ -642,25 +748,25 @@ func testTrackMultiTenancy(store store_interface.TrackStore, name string, t *tes
 			t.Fatalf("Delete from space1 failed: %v", err)
 		}
 
-		_, err = store.TrackGet(space1, bucketID, key)
+		_, err = store.TrackGet(space1, bucketID, key, model.TrackReadOptions{})
 		if err == nil {
 			t.Error("Key should be deleted from space1")
 		}
 
-		val2After, err := store.TrackGet(space2, bucketID, key)
+		val2After, err := store.TrackGet(space2, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from space2 after space1 delete failed: %v", err)
 		}
-		if val2After != 200 {
-			t.Errorf("Space2 value should still be 200, got %d", val2After)
+		if val2After.Value != 200 {
+			t.Errorf("Space2 value should still be 200, got %d", val2After.Value)
 		}
 
-		val3After, err := store.TrackGet(space3, bucketID, key)
+		val3After, err := store.TrackGet(space3, bucketID, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from space3 after space1 delete failed: %v", err)
 		}
-		if val3After != 300 {
-			t.Errorf("Space3 value should still be 300, got %d", val3After)
+		if val3After.Value != 300 {
+			t.Errorf("Space3 value should still be 300, got %d", val3After.Value)
 		}
 	})
 }
@@ -680,30 +786,30 @@ func testTrackBucketIsolation(store store_interface.TrackStore, name string, t *
 		// Put same key in different buckets
 		key := "same_key"
 
-		err := store.TrackPut(space, bucket1, key, 111, nil, nil)
+		err := store.TrackPut(space, bucket1, key, model.TrackValue{Value: 111})
 		if err != nil {
 			t.Fatalf("Put to bucket1 failed: %v", err)
 		}
-		err = store.TrackPut(space, bucket2, key, 222, nil, nil)
+		err = store.TrackPut(space, bucket2, key, model.TrackValue{Value: 222})
 		if err != nil {
 			t.Fatalf("Put to bucket2 failed: %v", err)
 		}
 
 		// Verify isolation
-		val1, err := store.TrackGet(space, bucket1, key)
+		val1, err := store.TrackGet(space, bucket1, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from bucket1 failed: %v", err)
 		}
-		if val1 != 111 {
-			t.Errorf("Expected bucket1 value 111, got %d", val1)
+		if val1.Value != 111 {
+			t.Errorf("Expected bucket1 value 111, got %d", val1.Value)
 		}
 
-		val2, err := store.TrackGet(space, bucket2, key)
+		val2, err := store.TrackGet(space, bucket2, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from bucket2 failed: %v", err)
 		}
-		if val2 != 222 {
-			t.Errorf("Expected bucket2 value 222, got %d", val2)
+		if val2.Value != 222 {
+			t.Errorf("Expected bucket2 value 222, got %d", val2.Value)
 		}
 
 		// Delete from bucket1 shouldn't affect bucket2
@@ -712,17 +818,17 @@ func testTrackBucketIsolation(store store_interface.TrackStore, name string, t *
 			t.Fatalf("Delete from bucket1 failed: %v", err)
 		}
 
-		_, err = store.TrackGet(space, bucket1, key)
+		_, err = store.TrackGet(space, bucket1, key, model.TrackReadOptions{})
 		if err == nil {
 			t.Error("Key should be deleted from bucket1")
 		}
 
-		val2After, err := store.TrackGet(space, bucket2, key)
+		val2After, err := store.TrackGet(space, bucket2, key, model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get from bucket2 after bucket1 delete failed: %v", err)
 		}
-		if val2After != 222 {
-			t.Errorf("Bucket2 value should still be 222, got %d", val2After)
+		if val2After.Value != 222 {
+			t.Errorf("Bucket2 value should still be 222, got %d", val2After.Value)
 		}
 	})
 }
@@ -740,46 +846,46 @@ func testTrackLargeValues(store store_interface.TrackStore, name string, t *test
 
 		// Test with max int64
 		maxVal := int64(9223372036854775807)
-		err := store.TrackPut(space, bucketID, "max", maxVal, nil, nil)
+		err := store.TrackPut(space, bucketID, "max", model.TrackValue{Value: maxVal})
 		if err != nil {
 			t.Fatalf("Put max value failed: %v", err)
 		}
 
-		got, err := store.TrackGet(space, bucketID, "max")
+		got, err := store.TrackGet(space, bucketID, "max", model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get max value failed: %v", err)
 		}
-		if got != maxVal {
-			t.Errorf("Expected max value %d, got %d", maxVal, got)
+		if got.Value != maxVal {
+			t.Errorf("Expected max value %d, got %d", maxVal, got.Value)
 		}
 
 		// Test with min int64
 		minVal := int64(-9223372036854775808)
-		err = store.TrackPut(space, bucketID, "min", minVal, nil, nil)
+		err = store.TrackPut(space, bucketID, "min", model.TrackValue{Value: minVal})
 		if err != nil {
 			t.Fatalf("Put min value failed: %v", err)
 		}
 
-		got, err = store.TrackGet(space, bucketID, "min")
+		got, err = store.TrackGet(space, bucketID, "min", model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get min value failed: %v", err)
 		}
-		if got != minVal {
-			t.Errorf("Expected min value %d, got %d", minVal, got)
+		if got.Value != minVal {
+			t.Errorf("Expected min value %d, got %d", minVal, got.Value)
 		}
 
 		// Test with zero
-		err = store.TrackPut(space, bucketID, "zero", 0, nil, nil)
+		err = store.TrackPut(space, bucketID, "zero", model.TrackValue{Value: 0})
 		if err != nil {
 			t.Fatalf("Put zero failed: %v", err)
 		}
 
-		got, err = store.TrackGet(space, bucketID, "zero")
+		got, err = store.TrackGet(space, bucketID, "zero", model.TrackReadOptions{})
 		if err != nil {
 			t.Fatalf("Get zero failed: %v", err)
 		}
-		if got != 0 {
-			t.Errorf("Expected 0, got %d", got)
+		if got.Value != 0 {
+			t.Errorf("Expected 0, got %d", got.Value)
 		}
 	})
 }

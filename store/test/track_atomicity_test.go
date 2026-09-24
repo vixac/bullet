@@ -27,8 +27,8 @@ func TestPostgreSQLTrackBatchRollback(t *testing.T) {
 	for _, operation := range []string{"put", "delete"} {
 		t.Run(operation, func(t *testing.T) {
 			space := model.TenancySpace{AppId: 9921, TenancyId: 1}
-			require.NoError(t, s.TrackPut(space, 1, "first", 10, nil, nil))
-			require.NoError(t, s.TrackPut(space, 1, "atomicity-fail", 20, nil, nil))
+			require.NoError(t, s.TrackPut(space, 1, "first", model.TrackValue{Value: 10}))
+			require.NoError(t, s.TrackPut(space, 1, "atomicity-fail", model.TrackValue{Value: 20}))
 			_, err := db.Exec(`CREATE TRIGGER reject_track_batch BEFORE INSERT OR DELETE ON track FOR EACH ROW EXECUTE FUNCTION reject_track_batch()`)
 			require.NoError(t, err)
 			defer db.Exec(`DROP TRIGGER reject_track_batch ON track`)
@@ -43,11 +43,11 @@ func TestPostgreSQLTrackBatchRollback(t *testing.T) {
 			}
 			require.Error(t, err)
 			for key, want := range map[string]int64{"first": 10, "atomicity-fail": 20} {
-				got, err := s.TrackGet(space, 1, key)
+				got, err := s.TrackGet(space, 1, key, model.TrackReadOptions{})
 				require.NoError(t, err)
-				require.Equal(t, want, got)
+				require.Equal(t, want, got.Value)
 			}
-			_, err = s.TrackGet(space, 1, "new")
+			_, err = s.TrackGet(space, 1, "new", model.TrackReadOptions{})
 			require.Error(t, err)
 		})
 	}

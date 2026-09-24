@@ -27,6 +27,25 @@ func (t *TrackMigrator) Migrate(bucketId int32) error {
 		fmt.Printf("Bucket %d: no items to migrate\n", bucketId)
 		return nil
 	}
+	keys := make([]string, len(items))
+	for i, item := range items {
+		keys[i] = item.Key
+	}
+	values, missing, err := t.SourceTrack.TrackGetMany(
+		t.Tenancy,
+		map[int32][]string{bucketId: keys},
+		model.TrackReadOptions{IncludePayload: true},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to fetch complete items from source bucket %d: %w", bucketId, err)
+	}
+	if len(missing[bucketId]) > 0 {
+		return fmt.Errorf("source bucket %d changed during migration; %d enumerated keys disappeared", bucketId, len(missing[bucketId]))
+	}
+	items = items[:0]
+	for _, key := range keys {
+		items = append(items, model.TrackKeyValueItem{Key: key, Value: values[bucketId][key]})
+	}
 
 	// Package items for TrackPutMany
 	itemsMap := map[int32][]model.TrackKeyValueItem{
